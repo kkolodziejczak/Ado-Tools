@@ -64,6 +64,7 @@ jobs:
             $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1
             if ($null -eq $package) { throw "Expected $($tool.PackageId) package was not produced." }
             ./scripts/Verify-ReleasePackage.ps1 -PackagePath $package.FullName -PackageId $tool.PackageId -PackageVersion $version
+            if ($LASTEXITCODE -ne 0) { throw "Package validation failed for $($tool.PackageId)." }
           }
 
       - name: Smoke test installed packages
@@ -80,4 +81,5 @@ jobs:
             $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1
             if ($null -eq $package) { throw "Expected $($tool.PackageId) package was not produced." }
             ./scripts/Test-ToolPackage.ps1 -PackagePath $package.FullName -PackageId $tool.PackageId -CommandName $tool.CommandName -PackageVersion $version
+            if ($LASTEXITCODE -ne 0) { throw "Smoke test failed for $($tool.PackageId)." }
           }

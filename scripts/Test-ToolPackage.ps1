@@ -376,3 +376,4 @@ finally
 }
 
 Write-Host "Installed package smoke test passed: $PackageId $PackageVersion ($CommandName)."
+exit 0

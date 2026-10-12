@@ -153,3 +153,4 @@ if ($findings.Count -gt 0)
 }
 
 Write-Host "Release package validation passed: $packageFullPath"
+exit 0
