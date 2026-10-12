@@ -60,6 +60,9 @@ public sealed class ToolCompositionTests
         { "sprints", ["projects"] },
         { "sprints", ["privacy", "reset"] },
         { "wiki", ["privacy", "set", "minimal"] },
+        { "pipelines", ["pr", "126"] },
+        { "pipelines", ["run", "9002"] },
+        { "pipelines", ["tests", "9002"] },
     };
 
     public static TheoryData<string, string[]> ForeignCommands => new()
@@ -84,7 +87,8 @@ public sealed class ToolCompositionTests
         PullRequestModule.Definition,
         WorkItemModule.Definition,
         WikiModule.Definition,
-        SprintModule.Definition
+        SprintModule.Definition,
+        PipelineModule.Definition
     ];
 
     [Theory]
@@ -202,6 +206,7 @@ public sealed class ToolCompositionTests
                 "work-item" => WorkItemModule.Definition,
                 "wiki" => WikiModule.Definition,
                 "sprints" => SprintModule.Definition,
+                "pipelines" => PipelineModule.Definition,
                 _ => throw new ArgumentOutOfRangeException(nameof(feature), feature, null)
             });
 

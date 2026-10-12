@@ -5,6 +5,7 @@
   <Project Path="src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj" />
   <Project Path="src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj" />
   <Project Path="src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj" />
+  <Project Path="src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj" />
   <Project Path="tests/AdoRead.FakeHost/AdoRead.FakeHost.csproj" />
   <Project Path="tests/AdoRead.UnitTests/AdoRead.UnitTests.csproj" />
   <Project Path="tests/AdoRead.IntegrationTests/AdoRead.IntegrationTests.csproj" />

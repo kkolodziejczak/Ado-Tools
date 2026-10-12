@@ -36,6 +36,18 @@ internal static class AdoReadExceptionTranslator
         return new WikiSourceException(code, message, transient, exception);
     }
 
+    /// <summary>Pipeline reads need two scopes beyond code reading, so authorization failures name them.</summary>
+    public static PipelineSourceException PipelineFailure(Exception exception)
+    {
+        (string code, string message, bool transient) = Values(exception);
+        if (code is "unauthorized" or "forbidden")
+        {
+            message += " Pipeline diagnosis needs Build (Read) and Test Management (Read) scopes on the PAT.";
+        }
+
+        return new PipelineSourceException(code, message, transient, exception);
+    }
+
     private static (string Code, string Message, bool Transient) Values(Exception exception)
     {
         if (exception is VssServiceResponseException response)

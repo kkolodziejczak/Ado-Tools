@@ -17,7 +17,7 @@ internal sealed class PrivacyRequestOptions
 
     private readonly Option<string[]> _withhold = new("--withhold")
     {
-        Description = "Withhold one category for this call: text, comments, people, customFields or images. Repeatable.",
+        Description = "Withhold one category for this call: text, comments, people, customFields, images, testMessages, stackTraces or logs. Repeatable.",
         AllowMultipleArgumentsPerToken = true
     };
 

@@ -18,5 +18,5 @@ internal static class TestTool
         ICredentialVault? credentialVault = null) =>
         new ToolComposition(configurationStore, jsonOutput, timeProvider, patProvider, sessionFactory, credentialVault ?? TestPrivacy.ConsentedVault()).CreateUmbrella(
             "ado-read",
-            [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition]);
+            [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition, PipelineModule.Definition]);
 }

@@ -94,7 +94,8 @@ public sealed class PrivacyPolicy
     private static bool PresetAllows(PrivacyLevel level, PrivacyCategory category) => level switch
     {
         PrivacyLevel.Minimal => false,
-        PrivacyLevel.Standard => category is PrivacyCategory.Text or PrivacyCategory.Comments,
+        PrivacyLevel.Standard => category is PrivacyCategory.Text or PrivacyCategory.Comments
+            or PrivacyCategory.TestMessages or PrivacyCategory.StackTraces,
         PrivacyLevel.Full => true,
         _ => throw new ArgumentOutOfRangeException(nameof(level), level, null)
     };

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AdoRead.Pipelines.Cli</AssemblyName>
+    <RootNamespace>AdoRead</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <PackRelease>true</PackRelease>
+    <ToolCommandName>ado-read-pipelines</ToolCommandName>
+    <PackageId>AdoRead.Pipelines.Tool</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Read-only Azure DevOps pull-request pipeline diagnosis as agent-friendly JSON.</Description>
+    <PackageTags>azure-devops;pipelines;tests;cli;json</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Link="THIRD-PARTY-NOTICES.md" />
+  </ItemGroup>
+</Project>

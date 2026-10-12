@@ -6,11 +6,12 @@ public sealed class ToolHelpProcessTests
 {
     public static TheoryData<string, string[]> Tools => new()
     {
-        { "AdoRead.Cli", ["config", "auth", "privacy", "projects", "teams", "pr", "work-item", "wiki", "sprints"] },
+        { "AdoRead.Cli", ["config", "auth", "privacy", "projects", "teams", "pr", "work-item", "wiki", "sprints", "pipelines"] },
         { "AdoRead.PullRequests.Cli", ["config", "auth", "privacy", "projects", "teams"] },
         { "AdoRead.WorkItems.Cli", ["config", "auth", "privacy", "projects", "teams"] },
         { "AdoRead.Wiki.Cli", ["config", "auth", "privacy", "projects", "teams", "list", "pages", "page", "search"] },
         { "AdoRead.Sprints.Cli", ["config", "auth", "privacy", "projects", "teams", "list", "show"] },
+        { "AdoRead.Pipelines.Cli", ["config", "auth", "privacy", "projects", "teams", "pr", "run", "tests"] },
     };
 
     [Theory]

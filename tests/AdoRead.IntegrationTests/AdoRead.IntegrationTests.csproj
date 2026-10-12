@@ -18,6 +18,7 @@
     <ProjectReference Include="..\..\src\AdoRead.WorkItems.Cli\AdoRead.WorkItems.Cli.csproj" />
     <ProjectReference Include="..\..\src\AdoRead.Wiki.Cli\AdoRead.Wiki.Cli.csproj" />
     <ProjectReference Include="..\..\src\AdoRead.Sprints.Cli\AdoRead.Sprints.Cli.csproj" />
+    <ProjectReference Include="..\..\src\AdoRead.Pipelines.Cli\AdoRead.Pipelines.Cli.csproj" />
   </ItemGroup>
   <Target Name="PrepareFakeHost" BeforeTargets="VSTest">
     <MSBuild

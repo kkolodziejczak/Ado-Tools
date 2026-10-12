@@ -16,7 +16,7 @@ var application = new ToolComposition(
     new FixtureAdoSessionFactory(args.Contains("--download-images", StringComparer.OrdinalIgnoreCase)),
     new FixtureCredentialVault()).CreateUmbrella(
     "ado-read",
-    [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition]);
+    [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition, PipelineModule.Definition]);
 
 return await application.InvokeAsync(args, CancellationToken.None);
 
@@ -62,6 +62,8 @@ internal sealed class FixtureAdoSession(bool includeImages) : IAdoSession
     public ITeamClient Teams { get; } = new FixtureTeamClient();
 
     public IWikiSource Wikis { get; } = new FixtureWikiSource();
+
+    public IPipelineSource Pipelines { get; } = new FixturePipelineSource();
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

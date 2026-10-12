@@ -10,7 +10,10 @@ public enum PrivacyCategory
     Comments,
     People,
     CustomFields,
-    Images
+    Images,
+    TestMessages,
+    StackTraces,
+    Logs
 }
 
 public static class PrivacyCategories
@@ -24,6 +27,9 @@ public static class PrivacyCategories
         PrivacyCategory.People => "people",
         PrivacyCategory.CustomFields => "customFields",
         PrivacyCategory.Images => "images",
+        PrivacyCategory.TestMessages => "testMessages",
+        PrivacyCategory.StackTraces => "stackTraces",
+        PrivacyCategory.Logs => "logs",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, null)
     };
 

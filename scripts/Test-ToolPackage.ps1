@@ -5,11 +5,11 @@ param(
     [string]$PackagePath,
 
     [Parameter(Mandatory)]
-    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool')]
+    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool', 'AdoRead.Pipelines.Tool')]
     [string]$PackageId,
 
     [Parameter(Mandatory)]
-    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprints')]
+    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprints', 'ado-read-pipelines')]
     [string]$CommandName,
 
     [string]$PackageVersion = '1.0.0'
@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 $toolContracts = @{
     'AdoRead.Tool' = @{
         Command = 'ado-read'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints')
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints', 'pipelines')
         Foreign = $null
     }
     'AdoRead.PullRequests.Tool' = @{
@@ -43,6 +43,11 @@ $toolContracts = @{
     'AdoRead.Sprints.Tool' = @{
         Command = 'ado-read-sprints'
         Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'list', 'show')
+        Foreign = @('wiki', 'list')
+    }
+    'AdoRead.Pipelines.Tool' = @{
+        Command = 'ado-read-pipelines'
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'run', 'tests')
         Foreign = @('wiki', 'list')
     }
 }
@@ -288,6 +293,7 @@ function Test-UmbrellaSmoke
     Copy-Item -LiteralPath (Join-Path $repositoryToolRoot 'tests\AdoRead.FakeHost\AdoRead.FakeHost.csproj') -Destination $fakeHostSource
     Copy-Item -LiteralPath (Join-Path $repositoryToolRoot 'tests\AdoRead.FakeHost\Program.cs') -Destination $fakeHostSource
     Copy-Item -LiteralPath (Join-Path $repositoryToolRoot 'tests\AdoRead.FakeHost\WikiFixtures.cs') -Destination $fakeHostSource
+    Copy-Item -LiteralPath (Join-Path $repositoryToolRoot 'tests\AdoRead.FakeHost\PipelineFixtures.cs') -Destination $fakeHostSource
     Copy-Item -LiteralPath (Join-Path $repositoryToolRoot 'Directory.Build.props') -Destination $fakeHostSource
     $fakeHostProject = Join-Path $fakeHostSource 'AdoRead.FakeHost.csproj'
     $fakeHostOutput = Join-Path $temporaryRoot 'fake-host'
@@ -378,6 +384,7 @@ function Test-UmbrellaSmoke
     Assert-JsonValidationError -Arguments @('pr', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidPullRequestId'
     Invoke-FixtureCommand -Arguments @('work-item', 'https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123', '--compact') -ExpectedKind 'workItemSearch' -ExpectedId 123 -ExpectedSchemaVersion '2.0'
     Invoke-FixtureCommand -Arguments @('pr', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--compact') -ExpectedKind 'pullRequestSearch' -ExpectedId 126
+    Invoke-FixtureCommand -Arguments @('pipelines', 'pr', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--project', 'Fabricated.Alpha', '--compact') -ExpectedKind 'pipelinePullRequest' -ExpectedId 126
     Invoke-FixtureCommand -Arguments @('wiki', 'list', '--compact') -ExpectedKind 'wikiCatalog'
     Invoke-FixtureCommand -Arguments @('wiki', 'pages', '--wiki', 'FabricatedApp.wiki', '--compact') -ExpectedKind 'wikiPageCatalog'
     Invoke-FixtureCommand -Arguments @('wiki', 'page', 'https://dev.azure.com/fabricated/FabricatedApp/_wiki/wikis/FabricatedApp.wiki/51/Authentication', '--compact') -ExpectedKind 'wikiPageLookup' -ExpectedId 51

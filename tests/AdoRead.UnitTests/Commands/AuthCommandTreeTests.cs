@@ -15,6 +15,7 @@ public sealed class AuthCommandTreeTests
         "ado-read-work-item",
         "ado-read-wiki",
         "ado-read-sprints",
+        "ado-read-pipelines",
     };
 
     [Theory]
@@ -70,11 +71,12 @@ public sealed class AuthCommandTreeTests
 
         return executable switch
         {
-            "ado-read" => composition.CreateUmbrella(executable, [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition]),
+            "ado-read" => composition.CreateUmbrella(executable, [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition, PipelineModule.Definition]),
             "ado-read-pr" => composition.CreateSlice(executable, PullRequestModule.Definition),
             "ado-read-work-item" => composition.CreateSlice(executable, WorkItemModule.Definition),
             "ado-read-wiki" => composition.CreateSlice(executable, WikiModule.Definition),
             "ado-read-sprints" => composition.CreateSlice(executable, SprintModule.Definition),
+            "ado-read-pipelines" => composition.CreateSlice(executable, PipelineModule.Definition),
             _ => throw new ArgumentOutOfRangeException(nameof(executable), executable, null)
         };
     }

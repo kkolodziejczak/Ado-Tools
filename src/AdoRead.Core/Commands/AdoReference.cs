@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace AdoRead.Commands;
 
-internal sealed record AdoReference(int Id, string? Organization)
+internal sealed record AdoReference(int Id, string? Organization, string? Project = null)
 {
     public bool IsFor(Uri organizationUrl)
     {
@@ -18,11 +18,15 @@ internal sealed record AdoReference(int Id, string? Organization)
 
 internal static class AdoReferenceParser
 {
-    public static AdoReference? ParseWorkItem(string? value) => Parse(value, FindWorkItemId);
+    public static AdoReference? ParseWorkItem(string? value) => Parse(value, (_, segments) => FindWorkItemId(segments));
 
-    public static AdoReference? ParsePullRequest(string? value) => Parse(value, FindPullRequestId);
+    public static AdoReference? ParsePullRequest(string? value) => Parse(value, (_, segments) => FindPullRequestId(segments));
 
-    private static AdoReference? Parse(string? value, Func<IReadOnlyList<string>, int?> findId)
+    /// <summary>A build reference is a positive build id or a results URL such as .../{project}/_build/results?buildId=123.</summary>
+    public static AdoReference? ParseBuild(string? value) =>
+        Parse(value, (uri, segments) => segments.Contains("_build", StringComparer.OrdinalIgnoreCase) ? FindBuildId(uri) : null);
+
+    private static AdoReference? Parse(string? value, Func<Uri, IReadOnlyList<string>, int?> findId)
     {
         if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int numericId)
             && numericId > 0)
@@ -41,8 +45,35 @@ internal static class AdoReferenceParser
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
             .Select(Uri.UnescapeDataString)
             .ToArray();
-        int? id = findId(segments);
-        return id is > 0 ? new AdoReference(id.Value, organization) : null;
+        int? id = findId(uri, segments);
+        return id is > 0 ? new AdoReference(id.Value, organization, FindProject(uri, segments)) : null;
+    }
+
+    /// <summary>The project segment follows the organization on dev.azure.com and is the first segment on legacy hosts.</summary>
+    private static string? FindProject(Uri uri, IReadOnlyList<string> segments)
+    {
+        int projectIndex = string.Equals(uri.IdnHost, "dev.azure.com", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        return segments.Count > projectIndex && !segments[projectIndex].StartsWith('_')
+            ? segments[projectIndex]
+            : null;
+    }
+
+    private static int? FindBuildId(Uri uri)
+    {
+        foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int separator = pair.IndexOf('=', StringComparison.Ordinal);
+            if (separator <= 0
+                || !string.Equals(Uri.UnescapeDataString(pair[..separator]), "buildId", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string value = Uri.UnescapeDataString(pair[(separator + 1)..]);
+            return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int id) && id > 0 ? id : null;
+        }
+
+        return null;
     }
 
     private static bool TryGetOrganization(Uri uri, out string? organization)

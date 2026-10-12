@@ -1,9 +1,12 @@
+using Microsoft.TeamFoundation.Build.WebApi;
 using Microsoft.TeamFoundation.Core.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
+using Microsoft.TeamFoundation.TestManagement.WebApi;
 using Microsoft.TeamFoundation.Work.WebApi;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi;
 using Microsoft.TeamFoundation.Wiki.WebApi;
 using Microsoft.VisualStudio.Services.Common;
+using Microsoft.VisualStudio.Services.TestResults.WebApi;
 using Microsoft.VisualStudio.Services.WebApi;
 
 namespace AdoRead.AzureDevOps;
@@ -24,6 +27,8 @@ public interface IAdoSession : IAsyncDisposable
     ITeamClient Teams { get; }
 
     IWikiSource Wikis => throw new NotSupportedException();
+
+    IPipelineSource Pipelines => throw new NotSupportedException();
 }
 
 public interface IAdoSessionFactory
@@ -61,6 +66,9 @@ internal sealed class AdoSession : IAdoSession
     private readonly TeamHttpClient _teamClient;
     private readonly WikiHttpClient _wikiClient;
     private readonly WikiRestClient _wikiRestClient;
+    private readonly BuildHttpClient _buildClient;
+    private readonly TestManagementHttpClient _testManagementClient;
+    private readonly TestResultsHttpClient _testResultsClient;
 
     public AdoSession(VssConnection connection, Uri organizationUrl, string pat)
     {
@@ -71,6 +79,9 @@ internal sealed class AdoSession : IAdoSession
         _workClient = connection.GetClient<WorkHttpClient>();
         _teamClient = connection.GetClient<TeamHttpClient>();
         _wikiClient = connection.GetClient<WikiHttpClient>();
+        _buildClient = connection.GetClient<BuildHttpClient>();
+        _testManagementClient = connection.GetClient<TestManagementHttpClient>();
+        _testResultsClient = connection.GetClient<TestResultsHttpClient>();
         _wikiRestClient = new WikiRestClient(organizationUrl, pat);
         var sdkWorkItemClient = new SdkWorkItemTrackingClient(_workItemClient);
         Projects = new ProjectCatalog(new SdkProjectClient(_projectClient));
@@ -79,6 +90,7 @@ internal sealed class AdoSession : IAdoSession
         Sprints = new SprintSource(new SdkWorkClient(_workClient), sdkWorkItemClient, organizationUrl);
         Teams = new SdkTeamClient(_teamClient);
         Wikis = new WikiSource(new SdkWikiClient(new WikiPageSdk(_wikiClient)), _wikiRestClient, _wikiRestClient, new WikiGitClient(_gitClient));
+        Pipelines = new PipelineSource(new SdkPipelineClient(_buildClient, _testManagementClient, _testResultsClient));
     }
 
     public IProjectCatalog Projects { get; }
@@ -93,6 +105,8 @@ internal sealed class AdoSession : IAdoSession
 
     public IWikiSource Wikis { get; }
 
+    public IPipelineSource Pipelines { get; }
+
     public ValueTask DisposeAsync()
     {
         _workItemClient.Dispose();
@@ -101,6 +115,9 @@ internal sealed class AdoSession : IAdoSession
         _workClient.Dispose();
         _teamClient.Dispose();
         _wikiClient.Dispose();
+        _buildClient.Dispose();
+        _testManagementClient.Dispose();
+        _testResultsClient.Dispose();
         _wikiRestClient.Dispose();
         _connection.Dispose();
         return ValueTask.CompletedTask;

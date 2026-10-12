@@ -17,8 +17,8 @@ public static class AuthCommands
     private const string PrivacyLevelPrompt =
         "Choose what AI agents may receive from this organization:\n"
         + "  1 minimal   metadata only: ids, titles, states, paths, dates, counts and links\n"
-        + "  2 standard  metadata plus text and comments; people are aliased\n"
-        + "  3 full      everything, including custom fields, images and people\n"
+        + "  2 standard  metadata plus text, comments, test messages and stack traces; people are aliased\n"
+        + "  3 full      everything, including custom fields, images, people and build logs\n"
         + "Privacy level 1, 2 or 3 (empty keeps content withheld): ";
 
     public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)

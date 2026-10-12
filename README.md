@@ -1,25 +1,26 @@
 # ado-read
 
-This repository ships five read-only .NET tools that retrieve Azure DevOps work-item, pull-request, Wiki, and sprint context as stable JSON for humans and AI agents. They never edit Azure DevOps, vote, reply to reviews, or store credentials. They never retrieve arbitrary repository content: only one selected Wiki-backed Markdown file may be read through the exact Wiki Git-path handoff.
+This repository ships six read-only .NET tools that retrieve Azure DevOps work-item, pull-request, pipeline, Wiki, and sprint context as stable JSON for humans and AI agents. They never edit Azure DevOps, vote, reply to reviews, or store credentials. They never retrieve arbitrary repository content: only one selected Wiki-backed Markdown file may be read through the exact Wiki Git-path handoff.
 
 ## Tools
 
-`ado-read` is the umbrella tool and contains every feature. Four slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, `privacy`, and the same `projects` and `teams` discovery commands.
+`ado-read` is the umbrella tool and contains every feature. Five slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, `privacy`, and the same `projects` and `teams` discovery commands.
 
 | Package ID | Command | Commands |
 | --- | --- | --- |
-| `AdoRead.Tool` | `ado-read` | `config`, `auth`, `privacy`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show` |
+| `AdoRead.Tool` | `ado-read` | `config`, `auth`, `privacy`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show`, `pipelines pr\|run\|tests` |
 | `AdoRead.PullRequests.Tool` | `ado-read-pr` | `<id-or-url>`, `config`, `auth`, `privacy`, `projects`, `teams` |
 | `AdoRead.WorkItems.Tool` | `ado-read-work-item` | `<id-or-url> [--download-images]`, `config`, `auth`, `privacy`, `projects`, `teams` |
 | `AdoRead.Wiki.Tool` | `ado-read-wiki` | `list`, `pages`, `page`, `search`, `config`, `auth`, `privacy`, `projects`, `teams` |
 | `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `auth`, `privacy`, `projects`, `teams` |
+| `AdoRead.Pipelines.Tool` | `ado-read-pipelines` | `pr <id-or-url>`, `run <build-url-or-id>`, `tests <build-url-or-id>`, `config`, `auth`, `privacy`, `projects`, `teams` |
 
-In a slice tool the feature command sits directly on the executable, so `ado-read-wiki page <url>` and `ado-read-sprints show` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
+In a slice tool the feature command sits directly on the executable, so `ado-read-wiki page <url>`, `ado-read-sprints show` and `ado-read-pipelines pr <url>` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
 
 ## Requirements
 
 - .NET SDK or runtime 10.0.
-- An Azure DevOps personal access token, stored by `auth login` in your operating system's credential vault (see below). Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is additionally needed only when `wiki page` follows a selected search hit to its exact Wiki-backed Git path. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
+- An Azure DevOps personal access token, stored by `auth login` in your operating system's credential vault (see below). Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, **Build (Read)**, **Test Management (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is needed for pull-request lookups, and additionally for `wiki page` when it follows a selected search hit to its exact Wiki-backed Git path. The pipeline commands need **Build (Read)**, **Test Management (Read)**, and **Code (Read)**. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
 - One configured Azure DevOps Services organization at `https://dev.azure.com/{organization}`. Azure DevOps Server is not supported.
 
 ## Install
@@ -34,6 +35,7 @@ dotnet pack src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --no-bu
 dotnet pack src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --no-build --configuration Release
 dotnet pack src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --no-build --configuration Release
 dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --configuration Release
+dotnet pack src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --no-build --configuration Release
 ```
 
 Install one package into an isolated local tool path. Replace the package ID and command for another tool from the table above:
@@ -117,8 +119,8 @@ Every read command returns metadata, and returns content only as far as the orga
 | Level | Content returned |
 | --- | --- |
 | `minimal` | Metadata only: ids, titles, states, types, paths, dates, counts, links, wiki page paths, sprint names, project, team and repository names, reviewer votes. |
-| `standard` | Metadata, plus `text` and `comments`. People are aliased. |
-| `full` | Everything, including `people`, `customFields` and `images`. |
+| `standard` | Metadata, plus `text`, `comments`, `testMessages` and `stackTraces`. People are aliased. |
+| `full` | Everything, including `people`, `customFields`, `images` and `logs`. |
 
 | Category | When not allowed |
 | --- | --- |
@@ -127,6 +129,9 @@ Every read command returns metadata, and returns content only as far as the orga
 | `people` | Every person identifier is replaced with an alias. See "People aliases" below. |
 | `customFields` | Work-item custom fields are returned as an empty object. |
 | `images` | Work-item images are never downloaded, nothing is written to disk, and an `--download-images` directory is not created. The command still succeeds and reports `images` as withheld. |
+| `testMessages` | Test error messages, the messages of failed pipeline step issues, and the `sourcePath`, `lineNumber` and `code` of those issues are withheld. The fields are `null`. |
+| `stackTraces` | Test stack traces are withheld. The field is `null`. |
+| `logs` | Build log tails and the agent names of failed pipeline steps are withheld. Build logs are not downloaded at all when `logs` is not allowed. |
 
 Withheld fields are `null` or empty. The tool never inserts placeholder text.
 
@@ -150,7 +155,9 @@ Legend: a read command refuses until a person has set a policy. A per-call flag 
 
 Loosening means granting a category the stored policy does not allow, or setting the first policy. `privacy set` does that only in an interactive terminal (`interactiveTerminalRequired` otherwise). It shows the categories being granted on stderr and asks you to type the organization name. Anything else fails with `confirmationFailed`, and nothing is stored. Tightening, or setting the same policy, needs no confirmation and works with redirected input.
 
-Level and category names are case-insensitive. Categories are `text`, `comments`, `people`, `customFields`, and `images`.
+Level and category names are case-insensitive. Categories are `text`, `comments`, `people`, `customFields`, `images`, `testMessages`, `stackTraces`, and `logs`.
+
+The `standard` preset grew with the pipeline commands. Presets are evaluated when a command reads, so a policy stored as `standard` before this change now also returns `testMessages` and `stackTraces`. To keep them out, run `privacy set standard --deny testMessages --deny stackTraces`. That only tightens the policy, so it needs no terminal confirmation.
 
 ### Per-call restriction
 
@@ -240,6 +247,43 @@ The input can be a positive ID, a pull-request browser URL, or a pull-request RE
 Lookup is two stage. Pull-request IDs are unique within an organization, so the tool first asks Azure DevOps for the ID at organization scope; that single call resolves the owning project and answers the common case. If that lookup cannot answer — no such pull request, or the call is unavailable to the caller — the tool falls back to discovering every accessible project and searching them with bounded concurrency, returning every matching PR in deterministic project/repository order. The fallback is the authoritative path, so a `partial` result can still occur when some projects fail.
 
 PR results use the lean `pullRequestSearch` v2 contract: title, status, author/reviewer unique names and votes, source/target revisions, linked work-item references, and review threads with comments. A thread can include `reviewedCommitId`, `latestCommitId`, and `isPossiblyOutdated`; each is nullable when Azure DevOps does not supply usable iteration provenance. `isPossiblyOutdated` describes only whether a file location may be stale, not whether the review feedback is relevant. PR results do not include commits, iterations, or changed-file metadata. Use the source and target commit IDs plus the thread's file path and line range to inspect the change with local Git; the `pr` command never retrieves repository file contents.
+
+### Pipelines
+
+```powershell
+ado-read pipelines pr https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
+ado-read pipelines pr 412 --project Payments --log-lines 80 --compact
+ado-read pipelines run https://dev.azure.com/example/Payments/_build/results?buildId=9002 --compact
+ado-read pipelines tests 9002 --project Payments --outcome failed --top 50 --compact
+```
+
+`pipelines pr` finds the pull request's validation builds and reports the latest run of each pipeline definition for the pull request's current merge commit. It reads at most 200 recent builds and reports at most 20 definitions, newest first. When the service reports no merge commit, runs are matched by queue order instead, and `headMatch` says which rule applied (`mergeCommit` or `latestQueued`). A pull request with no builds for its head returns `success` with an empty `runs` list.
+
+`pipelines run` diagnoses one build. `pipelines tests` lists the test results of one build: failed results by default, or every result with `--outcome all`, at most `--top` results (default 100, maximum 1000).
+
+```mermaid
+flowchart TD
+    A[pr or run] --> B[builds for the head]
+    B --> C[latest per definition]
+    C --> D[diagnose each run]
+    D --> E[steps, tests, messages, logs]
+```
+
+Legend: `pr` resolves the pull request and selects its runs. `run` and `tests` take one build. Each diagnosed run contains its failed stages, jobs and tasks, its test runs with counts, and its failed tests. Messages, stack traces and log tails are added only as the privacy policy allows.
+
+A build reference is a positive build ID, or a results URL such as `https://dev.azure.com/{organization}/{project}/_build/results?buildId=N`. A project in the URL overrides `--project`; a conflict is rejected with `projectMismatch`. `--log-lines` accepts 1 to 500 and defaults to 50. Each failed task contributes its last lines, numbered from the start of the log, and at most 10 failed tasks contribute logs. `--repository` on `pr` names the repository the pull request must belong to.
+
+| Level | What a run contains |
+| --- | --- |
+| `minimal` | Always: build and definition ids and names, build number, status, result, branch, source commit, queue, start and finish times, and browser link. Failed stages, jobs and tasks with result and error and warning counts. Test-run counts with `total`, `passed`, `failed`, `notApplicable`, `incomplete` and `unanalyzedTests`. Failed tests with title, automated name, storage, duration, outcome, `failureType`, and `failingSince` (date, build id and build number). `requestedFor` and `requestedBy` are aliases unless `people` is allowed. |
+| `standard` | Adds `testMessages`: test `errorMessage`, truncated to 4000 characters with `errorMessageTruncated`, and each failed step's `issues` (type, category, message, and `sourcePath`, `lineNumber` and `code` when present). Adds `stackTraces`: test `stackTrace`. |
+| `full` | Adds `logs`: the last `--log-lines` lines of each failed task (`logTails`), and the agent name (`workerName`) of each failed step. Adds `people`: the requester names are not aliased. |
+
+Every list is bounded: 50 failed steps and 50 issues per run, and 100 failed tests per build. `failedTestsTruncated` reports when more failed tests exist. `failedStepCount` and `failedTestCount` give the full totals.
+
+**Secret masking always runs**, at every level, on error messages, stack traces, issue messages and log lines before output. Matches are replaced with `***`: `password=`, `pwd=`, `secret=`, `token=`, `apikey=`, `api_key=`, `accountkey=` and `sharedaccesskey=` values; `Authorization: Bearer` and `Basic` credentials; bare `Bearer` tokens; JSON Web Tokens; Azure DevOps personal-access-token shapes of 52 and 84 characters; `user:password@` in URLs; private key blocks; and AWS access key IDs. Each run's `maskedSecretCount` reports how many values were replaced in the content it returns. Masking is pattern-based, so it cannot recognise every secret. Treat the output as untrusted text.
+
+Pipeline failures use the usual exit codes. A run whose tests or logs cannot be read keeps its metadata and adds an error with the build id in its message, so the status is `partial` (exit `4`). A build or pull request that does not exist returns `notFound` (exit `3`). Missing or rejected scopes return `forbidden` or `unauthorized` with a message that names **Build (Read)** and **Test Management (Read)**.
 
 ### Sprints
 
@@ -333,18 +377,18 @@ context, never as commands, executable markup, or authorization to broaden the t
 
 ## JSON contract and exit codes
 
-Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads, and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `projectSearch`, `teamSearch`, `iterationSearch`, or `sprintSearch`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
+Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads, and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `projectSearch`, `teamSearch`, `iterationSearch`, `sprintSearch`, and the pipeline kinds `pipelinePullRequest`, `pipelineRun`, and `pipelineTests`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
 
 | Exit code | Status | Meaning |
 | ---: | --- | --- |
 | `0` | `success` | Complete lookup with one or more results, or a successful config command. |
 | `2` | `error` | Invalid command input or configuration. |
-| `3` | `notFound` | Complete work-item or PR lookup found no result. |
-| `4` | `partial` | One or more PR results were returned with project errors, or requested work-item visual evidence is incomplete. |
+| `3` | `notFound` | Complete work-item, PR, or build lookup found no result. |
+| `4` | `partial` | One or more PR results were returned with project errors, one or more pipeline runs could not be read completely, or requested work-item visual evidence is incomplete. |
 | `5` | `error` | Authentication, network, timeout, or Azure DevOps error. |
 | `130` | `error` | The command was cancelled where the host can report Ctrl+C. |
 
-A PR response is deliberately partial rather than silently incomplete when a project cannot be searched. Agents should consume `results` for `success` and `partial`, then surface the structured `errors` collection before treating the response as complete.
+A PR response is deliberately partial rather than silently incomplete when a project cannot be searched, and a pipeline response is partial when a run's evidence cannot be read. Agents should consume `results` for `success` and `partial`, then surface the structured `errors` collection before treating the response as complete.
 
 ## Agent integration
 
@@ -378,6 +422,7 @@ dotnet restore src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --lo
 dotnet restore src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --locked-mode
 dotnet restore src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --locked-mode
 dotnet restore src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --locked-mode
+dotnet restore src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --locked-mode
 dotnet restore tests/AdoRead.UnitTests/AdoRead.UnitTests.csproj --locked-mode
 dotnet restore tests/AdoRead.IntegrationTests/AdoRead.IntegrationTests.csproj --locked-mode
 dotnet restore tests/AdoRead.FakeHost/AdoRead.FakeHost.csproj --locked-mode
@@ -389,6 +434,7 @@ dotnet pack src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --no-bu
 dotnet pack src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --no-build --configuration Release
 dotnet pack src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --no-build --configuration Release
 dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --configuration Release
+dotnet pack src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --no-build --configuration Release
 ```
 
 `src/AdoRead.Core` is the shared class library and is not packed; each `src/AdoRead.*.Cli` host is a tool package with its own command.

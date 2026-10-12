@@ -54,18 +54,18 @@ public static class PrivacyCommands
     {
         var levelArgument = new Argument<string>("level")
         {
-            Description = "minimal (metadata only), standard (metadata, text and comments; people aliased) or full (everything). Case-insensitive."
+            Description = "minimal (metadata only), standard (metadata, text, comments, test messages and stack traces; people aliased) or full (everything). Case-insensitive."
         };
         Option<string?> organizationOption = CreateOrganizationOption();
         Option<string?> configOption = ReadCommandContext.CreateConfigOption();
         var allowOption = new Option<string[]>("--allow")
         {
-            Description = "Allow one category on top of the level: text, comments, people, customFields or images. Repeatable.",
+            Description = "Allow one category on top of the level: text, comments, people, customFields, images, testMessages, stackTraces or logs. Repeatable.",
             AllowMultipleArgumentsPerToken = true
         };
         var denyOption = new Option<string[]>("--deny")
         {
-            Description = "Deny one category on top of the level: text, comments, people, customFields or images. Repeatable.",
+            Description = "Deny one category on top of the level: text, comments, people, customFields, images, testMessages, stackTraces or logs. Repeatable.",
             AllowMultipleArgumentsPerToken = true
         };
         var command = new Command(

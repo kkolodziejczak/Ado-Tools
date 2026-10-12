@@ -25,11 +25,29 @@ public sealed class PrivacyPolicyTests
     }
 
     [Fact]
-    public void Standard_AllowsTextAndCommentsOnly()
+    public void Standard_AllowsTextCommentsAndPipelineMessagesButNotLogsOrPeople()
     {
+        PrivacyCategory[] allowed = new PrivacyPolicy(PrivacyLevel.Standard).AllowedCategories.ToArray();
+
         Assert.Equal(
-            [PrivacyCategory.Text, PrivacyCategory.Comments],
-            new PrivacyPolicy(PrivacyLevel.Standard).AllowedCategories);
+            [PrivacyCategory.Text, PrivacyCategory.Comments, PrivacyCategory.TestMessages, PrivacyCategory.StackTraces],
+            allowed);
+        Assert.DoesNotContain(PrivacyCategory.Logs, allowed);
+        Assert.DoesNotContain(PrivacyCategory.People, allowed);
+    }
+
+    [Theory]
+    [InlineData("testMessages")]
+    [InlineData("STACKTRACES")]
+    [InlineData("logs")]
+    public void PipelineCategories_CanBeNamedOnTheCommandLine(string name)
+    {
+        PrivacyPolicy allowed = PrivacyPolicy.FromNames("minimal", [name], []);
+        PrivacyPolicy denied = PrivacyPolicy.FromNames("full", [], [name]);
+
+        Assert.True(PrivacyCategories.TryParse(name, out PrivacyCategory category));
+        Assert.True(allowed.Allows(category));
+        Assert.False(denied.Allows(category));
     }
 
     [Fact]

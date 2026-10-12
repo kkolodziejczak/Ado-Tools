@@ -352,6 +352,12 @@
           "System.Security.Cryptography.Xml": "[10.0.10, )"
         }
       },
+      "AdoRead.Pipelines.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
       "AdoRead.PullRequests.Tool": {
         "type": "Project",
         "dependencies": {

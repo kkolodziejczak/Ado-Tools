@@ -38,6 +38,7 @@ public sealed class ReleasePackageValidationTests
         ("AdoRead.WorkItems.Cli", "AdoRead.WorkItems.Tool", "ado-read-work-item"),
         ("AdoRead.Wiki.Cli", "AdoRead.Wiki.Tool", "ado-read-wiki"),
         ("AdoRead.Sprints.Cli", "AdoRead.Sprints.Tool", "ado-read-sprints"),
+        ("AdoRead.Pipelines.Cli", "AdoRead.Pipelines.Tool", "ado-read-pipelines"),
     ];
 
     [Fact]
@@ -67,8 +68,14 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("'wiki', 'pages'", smokeContract, StringComparison.Ordinal);
         Assert.Contains("'wiki', 'page'", smokeContract, StringComparison.Ordinal);
         Assert.Contains("wiki search authentication", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'pipelines', 'pr'", smokeContract, StringComparison.Ordinal);
         string readmeContract = await File.ReadAllTextAsync(readme);
         Assert.Contains("--version 1.0.0", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("ado-read-pipelines", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("Build (Read)", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("Test Management (Read)", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("testMessages", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("maskedSecretCount", readmeContract, StringComparison.Ordinal);
         Assert.Contains("--download-images", readmeContract, StringComparison.Ordinal);
         Assert.Contains("schema `2.1`", readmeContract, StringComparison.Ordinal);
         Assert.Contains("non-image", readmeContract, StringComparison.Ordinal);
