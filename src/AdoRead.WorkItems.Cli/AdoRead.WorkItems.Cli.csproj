@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AdoRead.WorkItems.Cli</AssemblyName>
+    <RootNamespace>AdoRead</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <PackRelease>true</PackRelease>
+    <ToolCommandName>ado-read-work-item</ToolCommandName>
+    <PackageId>AdoRead.WorkItems.Tool</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Read-only Azure DevOps work items, comments and images as agent-friendly JSON.</Description>
+    <PackageTags>azure-devops;work-items;cli;json</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+  </ItemGroup>
+</Project>

@@ -76,14 +76,14 @@ These are recommendations, not existing commands.
 ```text
 ado-read wikis [--project <name-or-id>] [--config <path>] [--compact]
 ado-read wiki <wiki-id-or-name-or-url> [--project <name-or-id>] [--config <path>] [--compact]
-ado-read wiki-page --wiki <wiki-id-or-name-or-url> (--path </page> | --page-id <positive-int>)
+ado-read wiki page --wiki <wiki-id-or-name-or-url> (--path </page> | --page-id <positive-int>)
                    [--version <branch|tag|commit>] [--version-type branch|tag|commit]
                    [--config <path>] [--compact]
-ado-read wiki-search <text> [--project <name-or-id>] [--skip <non-negative-int>] [--top <positive-int>]
+ado-read wiki search <text> [--project <name-or-id>] [--skip <non-negative-int>] [--top <positive-int>]
                    [--config <path>] [--compact]
 ```
 
-`wiki-page` should default to content included, since its purpose is lookup. A later `--metadata-only` is compatible; do not add an ambiguous boolean such as `--include-content` whose default callers must remember. Default search should use a bounded `top` (for example 25), return the service `count`, and reject a requested `top` beyond a documented/tested local maximum rather than loop indefinitely.
+`wiki page` should default to content included, since its purpose is lookup. A later `--metadata-only` is compatible; do not add an ambiguous boolean such as `--include-content` whose default callers must remember. Default search should use a bounded `top` (for example 25), return the service `count`, and reject a requested `top` beyond a documented/tested local maximum rather than loop indefinitely.
 
 **URL handling recommendation:** recognize only HTTPS `dev.azure.com/{organization}/...` and legacy `{organization}.visualstudio.com/...` URLs, as the current work-item/PR parser does. Parse Wiki UI URLs and Wiki REST URLs into organization, project, wiki identifier, and (where present) decoded page path/page ID; verify the organization before service calls. A Wiki URL is an input convenience, not an authoritative redirect target. If a URL lacks the project or page selector required by the chosen command, return a structured `invalidWikiReference` error and request the missing flag. This needs URL fixtures from the target organization because Microsoft documents page endpoints, but does not publish a normative grammar for every browser URL shape.
 
@@ -107,14 +107,14 @@ Use `notFound` / exit `3` only after a completed single wiki/page lookup returns
 1. Add `WikiHttpClient` to `AdoSession`, then expose a narrow `IWikiSource`—not the SDK client—from `IAdoSession`. Its source contract should accept project and typed references, return application-neutral DTOs, and carry ETag where the SDK result alone cannot.
 2. Put parsing in a `WikiReferenceParser` beside `AdoReferenceParser`, but use typed references that distinguish Wiki ID/name, page path, and page ID. Never use a page ID as an organization-wide identifier.
 3. Add `WikiReader` and `WikiSearchReader` that map source records to the documents above and own ordering/error conversion. Keep the HTTP Search client behind `IWikiSearchSource`; share `VssConnection` credentials/settings or an explicitly constructed authenticated handler rather than copying PAT handling into commands.
-4. Add command registration in `CommandFactory`, retain the global timeout/cancellation policy, and use the same one-JSON-document output guarantee as the existing commands.
+4. Add command registration in `ToolComposition`, retain the global timeout/cancellation policy, and use the same one-JSON-document output guarantee as the existing commands.
 
 ## Test strategy
 
 - **Parser unit tests:** numeric Wiki GUID/name validation; canonical and legacy organization matching; accepted UI/REST URL fixtures; percent-encoded paths, query `pagePath`, spaces, Unicode, malformed URLs, missing project/wiki/page, and organization mismatch.
 - **Source tests:** mock `IWikiSource`/`IWikiSearchSource` for correct SDK argument mapping; `includeContent=true`; path versus ID dispatch; ETag preservation; page children mapping; null/optional fields; and no write method reachable from the source contract.
 - **Reader/contract tests:** exact JSON property names and schema version; deterministic Wiki/page/hit ordering; always-array collections; Markdown content preserved byte-for-character as a JSON string; `notFound`, authorization, throttling, and partial/non-zero search-info behavior.
-- **Pagination tests:** bounded `$skip`/`$top` validation and search `count` handling. If/when `wiki-pages` is added, fake the `x-ms-continuationtoken` header across multiple batches and prove termination on missing/repeated token.
+- **Pagination tests:** bounded `$skip`/`$top` validation and search `count` handling. If/when `wiki pages` is added, fake the `x-ms-continuationtoken` header across multiple batches and prove termination on missing/repeated token.
 - **CLI/fake-host tests:** help text, `--compact`, `ADO_READ_PAT` requirement, organization mismatch, one JSON output document, exit codes, and explicit proof that URI/method allow-lists contain only GET plus the Search/pages-batch POSTs.
 - **Optional live smoke test:** a dedicated Wiki PAT with Wiki (Read), a configured project/wiki/path and page ID, and assertions only against read responses; never save returned page content in fixtures or logs.
 

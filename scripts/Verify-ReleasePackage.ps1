@@ -4,7 +4,12 @@ param(
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
     [string]$PackagePath,
 
-    [string]$ToolRoot
+    [string]$ToolRoot,
+
+    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool')]
+    [string]$PackageId,
+
+    [string]$PackageVersion = '1.0.0'
 )
 
 Set-StrictMode -Version Latest
@@ -85,6 +90,33 @@ try
     foreach ($entry in $fixtureEntries)
     {
         $findings.Add("Package contains test or fixture content: $($entry.FullName).")
+    }
+
+    if ($PackageId)
+    {
+        $nuspecEntry = $archive.Entries | Where-Object { $_.FullName -like '*.nuspec' } | Select-Object -First 1
+        if ($null -eq $nuspecEntry)
+        {
+            $findings.Add('Package does not contain a nuspec manifest.')
+        }
+        else
+        {
+            $nuspecReader = [System.IO.StreamReader]::new($nuspecEntry.Open())
+            try
+            {
+                [xml]$nuspec = $nuspecReader.ReadToEnd()
+            }
+            finally
+            {
+                $nuspecReader.Dispose()
+            }
+
+            $metadata = $nuspec.package.metadata
+            if ($metadata.id -ne $PackageId -or $metadata.version -ne $PackageVersion)
+            {
+                $findings.Add("Package manifest declares $($metadata.id) $($metadata.version), expected $PackageId $PackageVersion.")
+            }
+        }
     }
 
     $singleByteEncoding = [System.Text.Encoding]::GetEncoding(28591)

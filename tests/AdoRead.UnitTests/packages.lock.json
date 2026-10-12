@@ -341,7 +341,7 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "AdoRead.Tool": {
+      "adoread.core": {
         "type": "Project",
         "dependencies": {
           "HtmlAgilityPack": "[1.12.4, )",

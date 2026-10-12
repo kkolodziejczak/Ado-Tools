@@ -9,7 +9,7 @@
       "id": 51,
       "path": "/Architecture/Authentication",
       "next": {
-        "command": "wiki-page",
+        "command": "wiki page",
         "arguments": ["--project", "FabricatedApp", "--wiki", "FabricatedApp.wiki", "--path", "/Architecture/Authentication"]
       }
     }

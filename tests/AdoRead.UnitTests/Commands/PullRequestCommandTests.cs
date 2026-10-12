@@ -124,12 +124,12 @@ public sealed class PullRequestCommandTests
             ]),
             new TimeoutPullRequestSource());
         var factory = new FakeAdoSessionFactory(session);
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             new FakeConfigurationStore(requestTimeoutSeconds: 1),
             new JsonOutput(writer),
             TimeProvider.System,
             new FakePatProvider(),
-            factory).Create();
+            factory);
 
         int exitCode = await application.InvokeAsync(["pr", "42", "--compact"], CancellationToken.None);
 
@@ -143,12 +143,12 @@ public sealed class PullRequestCommandTests
     private static CommandApplication CreateApplication(
         StringWriter writer,
         IAdoSessionFactory sessionFactory) =>
-        new CommandFactory(
+        TestTool.Umbrella(
             new FakeConfigurationStore(),
             new JsonOutput(writer),
             TimeProvider.System,
             new FakePatProvider(),
-            sessionFactory).Create();
+            sessionFactory);
 
     private sealed class FakeConfigurationStore(
         int requestTimeoutSeconds = AdoReadConfiguration.DefaultRequestTimeoutSeconds) : IConfigurationStore

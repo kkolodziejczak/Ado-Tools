@@ -6,12 +6,14 @@ using AdoRead.PullRequests;
 using AdoRead.Sprints;
 using AdoRead.WorkItems;
 
-var application = new CommandFactory(
+var application = new ToolComposition(
     new FixtureConfigurationStore(),
     new JsonOutput(Console.Out),
     new FixtureTimeProvider(),
     new FixturePatProvider(),
-    new FixtureAdoSessionFactory(args.Contains("--download-images", StringComparer.OrdinalIgnoreCase))).Create();
+    new FixtureAdoSessionFactory(args.Contains("--download-images", StringComparer.OrdinalIgnoreCase))).CreateUmbrella(
+    "ado-read",
+    [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition]);
 
 return await application.InvokeAsync(args, CancellationToken.None);
 

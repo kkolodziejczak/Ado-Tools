@@ -2,56 +2,6 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
-      "HtmlAgilityPack": {
-        "type": "Direct",
-        "requested": "[1.12.4, )",
-        "resolved": "1.12.4",
-        "contentHash": "ljqvBabvFwKoLniuoQKO8b5bJfJweKLs4fUNS/V5dsvpo0A8MlJqxxn9XVmP2DaskbUXty6IYaWAi1SArGIMeQ=="
-      },
-      "Microsoft.TeamFoundationServer.Client": {
-        "type": "Direct",
-        "requested": "[20.256.2, )",
-        "resolved": "20.256.2",
-        "contentHash": "yxQSMVwy/Csx0Oet0rCW/TSXNCnf0uhxCBWUtzet3GL48Sildpg+iZUI7jQ8dgej+/oV8zzxMyCdMV9T16rCQw==",
-        "dependencies": {
-          "Microsoft.AspNet.WebApi.Client": "5.2.7",
-          "Microsoft.TeamFoundation.DistributedTask.Common.Contracts": "[20.256.2]",
-          "Microsoft.VisualStudio.Services.Client": "[20.256.2]",
-          "Newtonsoft.Json": "13.0.3",
-          "System.ComponentModel.Annotations": "5.0.0"
-        }
-      },
-      "Newtonsoft.Json": {
-        "type": "Direct",
-        "requested": "[13.0.4, )",
-        "resolved": "13.0.4",
-        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
-      },
-      "System.CommandLine": {
-        "type": "Direct",
-        "requested": "[2.0.10, )",
-        "resolved": "2.0.10",
-        "contentHash": "6i1D6/U3i1f/PiXTt9pDvbJwdXEe0F2DZPup6BHzeIu5yPk/lkFzgtrJnPbj54JWUh8Y9vJeKG/TZIT6MkF8TA=="
-      },
-      "System.Configuration.ConfigurationManager": {
-        "type": "Direct",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "64jtHt9yLYi6VHMF5AwDj6BGM/MZrygv55SXl0MOIkFsFjGwRuxV3/QgEm7NTp3TQIx+YNX4S6dNpY08fJ3+3g==",
-        "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.10",
-          "System.Security.Cryptography.ProtectedData": "10.0.10"
-        }
-      },
-      "System.Security.Cryptography.Xml": {
-        "type": "Direct",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "Mz6Y+s+uMQKj1H2BUF0OhlmaOQkLgSG34/IrUaBDirYBQ6bgwcFvO/XtXWcoDlBLFoFB0uKqDNhybHOd+fQK1A==",
-        "dependencies": {
-          "System.Security.Cryptography.Pkcs": "10.0.10"
-        }
-      },
       "Azure.Core": {
         "type": "Transitive",
         "resolved": "1.38.0",
@@ -305,6 +255,67 @@
         "type": "Transitive",
         "resolved": "4.3.0",
         "contentHash": "A/uxsWi/Ifzkmd4ArTLISMbfFs6XpRPsXZonrIqyTY70xi8t+mDtvSM5Os0RqyRDobjMBwIDHDL4NOIbkDwf7A=="
+      },
+      "adoread.core": {
+        "type": "Project",
+        "dependencies": {
+          "HtmlAgilityPack": "[1.12.4, )",
+          "Microsoft.TeamFoundationServer.Client": "[20.256.2, )",
+          "Newtonsoft.Json": "[13.0.4, )",
+          "System.CommandLine": "[2.0.10, )",
+          "System.Configuration.ConfigurationManager": "[10.0.10, )",
+          "System.Security.Cryptography.Xml": "[10.0.10, )"
+        }
+      },
+      "HtmlAgilityPack": {
+        "type": "CentralTransitive",
+        "requested": "[1.12.4, )",
+        "resolved": "1.12.4",
+        "contentHash": "ljqvBabvFwKoLniuoQKO8b5bJfJweKLs4fUNS/V5dsvpo0A8MlJqxxn9XVmP2DaskbUXty6IYaWAi1SArGIMeQ=="
+      },
+      "Microsoft.TeamFoundationServer.Client": {
+        "type": "CentralTransitive",
+        "requested": "[20.256.2, )",
+        "resolved": "20.256.2",
+        "contentHash": "yxQSMVwy/Csx0Oet0rCW/TSXNCnf0uhxCBWUtzet3GL48Sildpg+iZUI7jQ8dgej+/oV8zzxMyCdMV9T16rCQw==",
+        "dependencies": {
+          "Microsoft.AspNet.WebApi.Client": "5.2.7",
+          "Microsoft.TeamFoundation.DistributedTask.Common.Contracts": "[20.256.2]",
+          "Microsoft.VisualStudio.Services.Client": "[20.256.2]",
+          "Newtonsoft.Json": "13.0.3",
+          "System.ComponentModel.Annotations": "5.0.0"
+        }
+      },
+      "Newtonsoft.Json": {
+        "type": "CentralTransitive",
+        "requested": "[13.0.4, )",
+        "resolved": "13.0.4",
+        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
+      },
+      "System.CommandLine": {
+        "type": "CentralTransitive",
+        "requested": "[2.0.10, )",
+        "resolved": "2.0.10",
+        "contentHash": "6i1D6/U3i1f/PiXTt9pDvbJwdXEe0F2DZPup6BHzeIu5yPk/lkFzgtrJnPbj54JWUh8Y9vJeKG/TZIT6MkF8TA=="
+      },
+      "System.Configuration.ConfigurationManager": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "64jtHt9yLYi6VHMF5AwDj6BGM/MZrygv55SXl0MOIkFsFjGwRuxV3/QgEm7NTp3TQIx+YNX4S6dNpY08fJ3+3g==",
+        "dependencies": {
+          "System.Diagnostics.EventLog": "10.0.10",
+          "System.Security.Cryptography.ProtectedData": "10.0.10"
+        }
+      },
+      "System.Security.Cryptography.Xml": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "Mz6Y+s+uMQKj1H2BUF0OhlmaOQkLgSG34/IrUaBDirYBQ6bgwcFvO/XtXWcoDlBLFoFB0uKqDNhybHOd+fQK1A==",
+        "dependencies": {
+          "System.Security.Cryptography.Pkcs": "10.0.10"
+        }
       }
     }
   }

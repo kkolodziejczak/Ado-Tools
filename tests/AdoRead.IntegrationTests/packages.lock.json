@@ -341,7 +341,7 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "AdoRead.Tool": {
+      "adoread.core": {
         "type": "Project",
         "dependencies": {
           "HtmlAgilityPack": "[1.12.4, )",
@@ -350,6 +350,36 @@
           "System.CommandLine": "[2.0.10, )",
           "System.Configuration.ConfigurationManager": "[10.0.10, )",
           "System.Security.Cryptography.Xml": "[10.0.10, )"
+        }
+      },
+      "AdoRead.PullRequests.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "AdoRead.Sprints.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "AdoRead.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "AdoRead.Wiki.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "AdoRead.WorkItems.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
         }
       },
       "HtmlAgilityPack": {

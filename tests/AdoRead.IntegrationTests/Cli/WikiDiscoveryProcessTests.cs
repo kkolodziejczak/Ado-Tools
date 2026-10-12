@@ -8,18 +8,18 @@ public sealed class WikiDiscoveryProcessTests
     [Fact]
     public async Task Wikis_FakeProcessMatchesFabricatedSnapshot()
     {
-        using JsonDocument actual = await RunAsync("wikis", "--compact");
+        using JsonDocument actual = await RunAsync("wiki", "list", "--compact");
         await AssertSnapshotAsync("wikis.json", actual);
     }
 
     [Fact]
     public async Task WikiPages_FakeProcessUsesDefaultProjectAndOneContinuationStep()
     {
-        using JsonDocument first = await RunAsync("wiki-pages", "--wiki", "FabricatedApp.wiki", "--compact");
+        using JsonDocument first = await RunAsync("wiki", "pages", "--wiki", "FabricatedApp.wiki", "--compact");
         await AssertSnapshotAsync("wiki-pages.json", first);
         Assert.Equal("FabricatedApp", first.RootElement.GetProperty("query").GetProperty("project").GetString());
         Assert.Equal("52", first.RootElement.GetProperty("page").GetProperty("continuationToken").GetString());
-        using JsonDocument second = await RunAsync("wiki-pages", "--wiki", "FabricatedApp.wiki", "--continuation-token", "52", "--compact");
+        using JsonDocument second = await RunAsync("wiki", "pages", "--wiki", "FabricatedApp.wiki", "--continuation-token", "52", "--compact");
         Assert.Equal(52, second.RootElement.GetProperty("results")[0].GetProperty("id").GetInt32());
         Assert.False(second.RootElement.GetProperty("page").TryGetProperty("continuationToken", out _));
     }

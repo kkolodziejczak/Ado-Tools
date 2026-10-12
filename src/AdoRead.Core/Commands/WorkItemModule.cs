@@ -7,16 +7,18 @@ using AdoRead.WorkItems;
 
 namespace AdoRead.Commands;
 
-public static class WorkItemCommand
+/// <summary>Work-item lookup with comments and optional image download: <c>work-item &lt;id-or-url&gt;</c>.</summary>
+public static class WorkItemModule
 {
-    public static Command AddTo(
-        RootCommand rootCommand,
-        Option<bool> compactOption,
-        IConfigurationStore configurationStore,
-        IPatProvider patProvider,
-        IAdoSessionFactory sessionFactory,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider)
+    public static CommandModule Definition { get; } = new(
+        "work-item",
+        "Read one Azure DevOps work item and all of its comments.",
+        Configure);
+
+    public static IReadOnlyDictionary<Command, string> Configure(
+        Command target,
+        ToolCommandNames names,
+        CommandServices services)
     {
         var referenceArgument = new Argument<string>("id-or-url")
         {
@@ -30,23 +32,21 @@ public static class WorkItemCommand
         {
             Description = "Download supported work-item images to an empty directory."
         };
-        var command = new Command("work-item", "Read one Azure DevOps work item and all of its comments.");
-        command.Arguments.Add(referenceArgument);
-        command.Options.Add(configOption);
-        command.Options.Add(downloadImagesOption);
-        command.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
+        target.Arguments.Add(referenceArgument);
+        target.Options.Add(configOption);
+        target.Options.Add(downloadImagesOption);
+        target.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
             parseResult.GetValue(referenceArgument),
             parseResult.GetValue(configOption),
             parseResult.GetValue(downloadImagesOption),
-            parseResult.GetValue(compactOption),
-            configurationStore,
-            patProvider,
-            sessionFactory,
-            jsonOutput,
-            timeProvider,
+            parseResult.GetValue(services.CompactOption),
+            services.ConfigurationStore,
+            services.PatProvider,
+            services.SessionFactory,
+            services.JsonOutput,
+            services.TimeProvider,
             cancellationToken));
-        rootCommand.Subcommands.Add(command);
-        return command;
+        return new Dictionary<Command, string> { [target] = "workItemSearch" };
     }
 
     private static async Task<int> ReadAsync(

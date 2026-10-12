@@ -1,3 +1,4 @@
+using AdoRead.Output;
 using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Wikis;
@@ -39,7 +40,7 @@ public sealed class LiveWikiSmokeTests
         await using IAdoSession session = new AdoSessionFactory().Create(configuration.OrganizationUrl, pat);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 
-        var reader = new WikiSearchReader(session.Wikis, TimeProvider.System);
+        var reader = new WikiSearchReader(session.Wikis, TimeProvider.System, new ToolCommandNames("ado-read", "wiki"));
         var result = await reader.ReadAsync(searchText, project, null, 0, 10, timeout.Token);
 
         Assert.Contains(result.Status, new[] { "success", "partial" });

@@ -23,7 +23,12 @@ jobs:
 
       - name: Restore locked dependencies
         run: |
+          dotnet restore src/AdoRead.Core/AdoRead.Core.csproj --locked-mode
           dotnet restore src/AdoRead.Cli/AdoRead.Cli.csproj --locked-mode
+          dotnet restore src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --locked-mode
+          dotnet restore src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --locked-mode
+          dotnet restore src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --locked-mode
+          dotnet restore src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --locked-mode
           dotnet restore tests/AdoRead.UnitTests/AdoRead.UnitTests.csproj --locked-mode
           dotnet restore tests/AdoRead.IntegrationTests/AdoRead.IntegrationTests.csproj --locked-mode
           dotnet restore tests/AdoRead.FakeHost/AdoRead.FakeHost.csproj --locked-mode
@@ -37,17 +42,42 @@ jobs:
       - name: Run tests
         run: dotnet test AdoRead.slnx --no-build --configuration Release
 
-      - name: Pack tool
-        run: dotnet pack src/AdoRead.Cli/AdoRead.Cli.csproj --no-build --configuration Release
+      - name: Pack tools
+        run: |
+          dotnet pack src/AdoRead.Cli/AdoRead.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --configuration Release
 
       - name: Validate package contents
         run: |
-          $package = Get-ChildItem artifacts/packages/AdoRead.Tool.0.5.0.nupkg | Select-Object -First 1
-          if ($null -eq $package) { throw 'Expected ado-read package was not produced.' }
-          ./scripts/Verify-ReleasePackage.ps1 -PackagePath $package.FullName
+          $version = '1.0.0'
+          $tools = @(
+            @{ PackageId = 'AdoRead.Tool'; CommandName = 'ado-read' },
+            @{ PackageId = 'AdoRead.PullRequests.Tool'; CommandName = 'ado-read-pr' },
+            @{ PackageId = 'AdoRead.WorkItems.Tool'; CommandName = 'ado-read-work-item' },
+            @{ PackageId = 'AdoRead.Wiki.Tool'; CommandName = 'ado-read-wiki' },
+            @{ PackageId = 'AdoRead.Sprints.Tool'; CommandName = 'ado-read-sprints' }
+          )
+          foreach ($tool in $tools) {
+            $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1
+            if ($null -eq $package) { throw "Expected $($tool.PackageId) package was not produced." }
+            ./scripts/Verify-ReleasePackage.ps1 -PackagePath $package.FullName -PackageId $tool.PackageId -PackageVersion $version
+          }
 
-      - name: Smoke test installed package
+      - name: Smoke test installed packages
         run: |
-          $package = Get-ChildItem artifacts/packages/AdoRead.Tool.0.5.0.nupkg | Select-Object -First 1
-          if ($null -eq $package) { throw 'Expected ado-read package was not produced.' }
-          ./scripts/Test-ToolPackage.ps1 -PackagePath $package.FullName
+          $version = '1.0.0'
+          $tools = @(
+            @{ PackageId = 'AdoRead.Tool'; CommandName = 'ado-read' },
+            @{ PackageId = 'AdoRead.PullRequests.Tool'; CommandName = 'ado-read-pr' },
+            @{ PackageId = 'AdoRead.WorkItems.Tool'; CommandName = 'ado-read-work-item' },
+            @{ PackageId = 'AdoRead.Wiki.Tool'; CommandName = 'ado-read-wiki' },
+            @{ PackageId = 'AdoRead.Sprints.Tool'; CommandName = 'ado-read-sprints' }
+          )
+          foreach ($tool in $tools) {
+            $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1
+            if ($null -eq $package) { throw "Expected $($tool.PackageId) package was not produced." }
+            ./scripts/Test-ToolPackage.ps1 -PackagePath $package.FullName -PackageId $tool.PackageId -CommandName $tool.CommandName -PackageVersion $version
+          }

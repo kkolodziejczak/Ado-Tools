@@ -6,16 +6,18 @@ using AdoRead.PullRequests;
 
 namespace AdoRead.Commands;
 
-public static class PullRequestCommand
+/// <summary>Pull-request lookup across every accessible project: <c>pr &lt;id-or-url&gt;</c>.</summary>
+public static class PullRequestModule
 {
-    public static Command AddTo(
-        RootCommand rootCommand,
-        Option<bool> compactOption,
-        IConfigurationStore configurationStore,
-        IPatProvider patProvider,
-        IAdoSessionFactory sessionFactory,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider)
+    public static CommandModule Definition { get; } = new(
+        "pr",
+        "Find a pull request across all accessible projects.",
+        Configure);
+
+    public static IReadOnlyDictionary<Command, string> Configure(
+        Command target,
+        ToolCommandNames names,
+        CommandServices services)
     {
         var referenceArgument = new Argument<string>("id-or-url")
         {
@@ -25,21 +27,19 @@ public static class PullRequestCommand
         {
             Description = "Override the default ~/.ado-read/config.json path."
         };
-        var command = new Command("pr", "Find a pull request across all accessible projects.");
-        command.Arguments.Add(referenceArgument);
-        command.Options.Add(configOption);
-        command.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
+        target.Arguments.Add(referenceArgument);
+        target.Options.Add(configOption);
+        target.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
             parseResult.GetValue(referenceArgument),
             parseResult.GetValue(configOption),
-            parseResult.GetValue(compactOption),
-            configurationStore,
-            patProvider,
-            sessionFactory,
-            jsonOutput,
-            timeProvider,
+            parseResult.GetValue(services.CompactOption),
+            services.ConfigurationStore,
+            services.PatProvider,
+            services.SessionFactory,
+            services.JsonOutput,
+            services.TimeProvider,
             cancellationToken));
-        rootCommand.Subcommands.Add(command);
-        return command;
+        return new Dictionary<Command, string> { [target] = "pullRequestSearch" };
     }
 
     private static async Task<int> ReadAsync(

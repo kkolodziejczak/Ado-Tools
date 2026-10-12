@@ -7,19 +7,14 @@
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-read</ToolCommandName>
     <PackageId>AdoRead.Tool</PackageId>
-    <Version>0.5.0</Version>
-    <Description>Read-only Azure DevOps context as agent-friendly JSON.</Description>
-    <PackageTags>azure-devops;work-items;pull-requests;cli;json</PackageTags>
+    <Version>1.0.0</Version>
+    <Description>Read-only Azure DevOps context as agent-friendly JSON: pull requests, work items, Wikis and sprints in one tool.</Description>
+    <PackageTags>azure-devops;work-items;pull-requests;wiki;sprints;cli;json</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="HtmlAgilityPack" />
-    <PackageReference Include="Microsoft.TeamFoundationServer.Client" />
-    <PackageReference Include="Newtonsoft.Json" />
-    <PackageReference Include="System.CommandLine" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" />
-    <PackageReference Include="System.Security.Cryptography.Xml" />
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />

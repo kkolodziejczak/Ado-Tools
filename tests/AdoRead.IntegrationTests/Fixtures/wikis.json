@@ -19,7 +19,7 @@
           "value": "wikiMaster",
           "type": "branch",
           "next": {
-            "command": "wiki-pages",
+            "command": "wiki pages",
             "arguments": ["--project", "00000000-0000-0000-0000-000000000101", "--wiki", "00000000-0000-0000-0000-000000000401", "--version", "wikiMaster", "--version-type", "branch"]
           }
         }

@@ -12,10 +12,10 @@ public sealed class CommandApplicationTests
     public async Task InvokeAsync_ReportsUnavailableUserProfileAsStructuredJson()
     {
         var writer = new StringWriter();
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             new ConfigurationStore(string.Empty),
             new JsonOutput(writer),
-            TimeProvider.System).Create();
+            TimeProvider.System);
 
         int exitCode = await application.InvokeAsync(["config", "show", "--compact"], CancellationToken.None);
 

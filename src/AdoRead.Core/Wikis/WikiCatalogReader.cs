@@ -3,7 +3,7 @@ using AdoRead.Output;
 
 namespace AdoRead.Wikis;
 
-public sealed class WikiCatalogReader(IWikiSource source, Uri organizationUrl, TimeProvider timeProvider)
+public sealed class WikiCatalogReader(IWikiSource source, Uri organizationUrl, TimeProvider timeProvider, ToolCommandNames commands)
 {
     public async Task<SearchEnvelope<WikiCatalogDocument>> ReadWikisAsync(string project, CancellationToken cancellationToken)
     {
@@ -25,17 +25,17 @@ public sealed class WikiCatalogReader(IWikiSource source, Uri organizationUrl, T
         catch (WikiSourceException exception) { return new("2.0", "wikiPageCatalog", "error", new WikiPageCatalogQuery(project, wiki, version), timeProvider.GetUtcNow(), [], [new SearchError("azureDevOps", project, exception.Code, exception.Message, exception.Transient)], new PageMetadataDocument(null, top, 0, null, null, null)); }
     }
 
-    private static WikiCatalogDocument MapWiki(SourceWiki wiki) => new(wiki.Id, wiki.Name, wiki.Type, wiki.ProjectId, wiki.MappedPath, wiki.Versions.OrderBy(version => version.Value, StringComparer.Ordinal).Select(version => new WikiCatalogVersionDocument(version.Value, version.Type, new CommandHintDocument("wiki-pages", VersionArguments(wiki, version)))).ToArray(), new WikiPageLinksDocument(wiki.RestUrl, wiki.BrowserUrl));
+    private WikiCatalogDocument MapWiki(SourceWiki wiki) => new(wiki.Id, wiki.Name, wiki.Type, wiki.ProjectId, wiki.MappedPath, wiki.Versions.OrderBy(version => version.Value, StringComparer.Ordinal).Select(version => new WikiCatalogVersionDocument(version.Value, version.Type, new CommandHintDocument(commands.Path("pages"), VersionArguments(wiki, version)))).ToArray(), new WikiPageLinksDocument(wiki.RestUrl, wiki.BrowserUrl));
 
     private static IReadOnlyList<string> VersionArguments(SourceWiki wiki, SourceWikiVersion version) => string.IsNullOrEmpty(version.Type)
         ? ["--project", wiki.ProjectId.ToString(), "--wiki", wiki.Id.ToString(), "--version", version.Value]
         : ["--project", wiki.ProjectId.ToString(), "--wiki", wiki.Id.ToString(), "--version", version.Value, "--version-type", version.Type];
 
-    private static CommandHintDocument PageHint(string project, string wiki, string? path, WikiVersionDocument? version)
+    private CommandHintDocument PageHint(string project, string wiki, string? path, WikiVersionDocument? version)
     {
         if (string.IsNullOrEmpty(path)) throw new WikiSourceException("invalidAzureDevOpsResponse", "Azure DevOps returned a Wiki page without a path.", false);
         var arguments = new List<string> { "--project", project, "--wiki", wiki, "--path", path };
         if (version is not null) { arguments.Add("--version"); arguments.Add(version.Value); if (!string.IsNullOrEmpty(version.Type)) { arguments.Add("--version-type"); arguments.Add(version.Type); } }
-        return new CommandHintDocument("wiki-page", arguments);
+        return new CommandHintDocument(commands.Path("page"), arguments);
     }
 }

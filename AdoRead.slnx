@@ -1,5 +1,10 @@
 <Solution>
+  <Project Path="src/AdoRead.Core/AdoRead.Core.csproj" />
   <Project Path="src/AdoRead.Cli/AdoRead.Cli.csproj" />
+  <Project Path="src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj" />
+  <Project Path="src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj" />
+  <Project Path="src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj" />
+  <Project Path="src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj" />
   <Project Path="tests/AdoRead.FakeHost/AdoRead.FakeHost.csproj" />
   <Project Path="tests/AdoRead.UnitTests/AdoRead.UnitTests.csproj" />
   <Project Path="tests/AdoRead.IntegrationTests/AdoRead.IntegrationTests.csproj" />

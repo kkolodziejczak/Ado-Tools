@@ -3,7 +3,7 @@ using AdoRead.Output;
 
 namespace AdoRead.Wikis;
 
-public sealed class WikiSearchReader(IWikiSource source, TimeProvider timeProvider)
+public sealed class WikiSearchReader(IWikiSource source, TimeProvider timeProvider, ToolCommandNames commands)
 {
     public async Task<SearchEnvelope<WikiSearchHitDocument>> ReadAsync(string text, string? project, string? wiki, int skip, int top, CancellationToken cancellationToken)
     {
@@ -19,7 +19,7 @@ public sealed class WikiSearchReader(IWikiSource source, TimeProvider timeProvid
         catch (WikiSourceException exception) { return new("2.0", "wikiFullTextSearch", "error", query, timeProvider.GetUtcNow(), [], [new SearchError("azureDevOps", project, exception.Code, exception.Message, exception.Transient)], new PageMetadataDocument(skip, top, 0, null, null, null)); }
     }
 
-    private static WikiSearchHitDocument Map(SourceWikiSearchHit hit) => new(hit.FileName, hit.GitPath, new(hit.ProjectId, hit.ProjectName), new(hit.WikiId, hit.WikiName, hit.MappedPath, hit.Version), hit.Matches.Select(match => new WikiSearchMatchDocument(match.Field, match.Highlights)).ToArray(), new CommandHintDocument("wiki-page", ["--project", hit.ProjectId.ToString(), "--wiki", hit.WikiId.ToString(), "--git-path", hit.GitPath, "--version", hit.Version]));
+    private WikiSearchHitDocument Map(SourceWikiSearchHit hit) => new(hit.FileName, hit.GitPath, new(hit.ProjectId, hit.ProjectName), new(hit.WikiId, hit.WikiName, hit.MappedPath, hit.Version), hit.Matches.Select(match => new WikiSearchMatchDocument(match.Field, match.Highlights)).ToArray(), new CommandHintDocument(commands.Path("page"), ["--project", hit.ProjectId.ToString(), "--wiki", hit.WikiId.ToString(), "--git-path", hit.GitPath, "--version", hit.Version]));
 
     private static (string Status, SearchError[] Errors) Status(int infoCode, int hits) => infoCode switch
     {

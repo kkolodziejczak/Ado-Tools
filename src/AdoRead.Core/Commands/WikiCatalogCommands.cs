@@ -6,33 +6,59 @@ using AdoRead.Wikis;
 
 namespace AdoRead.Commands;
 
-public static class WikiDiscoveryCommands
+public static class WikiCatalogCommands
 {
-    public static IReadOnlyDictionary<Command, string> AddTo(RootCommand root, Option<bool> compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock)
+    public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
-        var wikis = new Command("wikis"); var wikiPages = new Command("wiki-pages");
-        var project = new Option<string?>("--project"); var config = new Option<string?>("--config");
-        wikis.Options.Add(project); wikis.Options.Add(config);
-        wikis.SetAction((result, token) => RunAsync("wikiCatalog", result.GetValue(project), result.GetValue(config), result.GetValue(compact), store, pat, sessions, output, clock, token, "projectRequired", "No project given and none configured.", new CommandHintDocument("projects", []), (session, configuration, value, cancellation) => new WikiCatalogReader(session.Wikis, configuration.OrganizationUrl, clock).ReadWikisAsync(value, cancellation)));
-        var pageProject = new Option<string?>("--project"); var wiki = new Option<string?>("--wiki"); var version = new Option<string?>("--version"); var versionType = new Option<string?>("--version-type"); var top = new Option<int?>("--top"); var continuation = new Option<string?>("--continuation-token"); var pageConfig = new Option<string?>("--config");
+        var (store, pat, sessions, output, clock, compact) = services;
+        var wikis = new Command("list", "List the Wikis in a project.");
+        var wikiPages = new Command("pages", "List the pages of one Wiki, with paging.");
+        var project = new Option<string?>("--project");
+        var config = new Option<string?>("--config");
+        wikis.Options.Add(project);
+        wikis.Options.Add(config);
+        wikis.SetAction((result, token) => RunAsync(
+            "wikiCatalog",
+            names,
+            result.GetValue(project),
+            result.GetValue(config),
+            result.GetValue(compact),
+            store,
+            pat,
+            sessions,
+            output,
+            clock,
+            token,
+            "projectRequired",
+            "No project given and none configured.",
+            new CommandHintDocument(names.Root.Path("projects"), []),
+            (session, configuration, value, cancellation) => new WikiCatalogReader(session.Wikis, configuration.OrganizationUrl, clock, names).ReadWikisAsync(value, cancellation)));
+        var pageProject = new Option<string?>("--project");
+        var wiki = new Option<string?>("--wiki");
+        var version = new Option<string?>("--version");
+        var versionType = new Option<string?>("--version-type");
+        var top = new Option<int?>("--top");
+        var continuation = new Option<string?>("--continuation-token");
+        var pageConfig = new Option<string?>("--config");
         foreach (Option option in new Option[] { pageProject, wiki, version, versionType, top, continuation, pageConfig }) wikiPages.Options.Add(option);
-        wikiPages.SetAction((result, token) => RunPagesAsync(result.GetValue(pageProject), result.GetValue(wiki), result.GetValue(version), result.GetValue(versionType), result.GetValue(top), result.GetValue(continuation), result.GetValue(pageConfig), result.GetValue(compact), store, pat, sessions, output, clock, token));
-        root.Subcommands.Add(wikis); root.Subcommands.Add(wikiPages);
+        wikiPages.SetAction((result, token) => RunPagesAsync(names, result.GetValue(pageProject), result.GetValue(wiki), result.GetValue(version), result.GetValue(versionType), result.GetValue(top), result.GetValue(continuation), result.GetValue(pageConfig), result.GetValue(compact), store, pat, sessions, output, clock, token));
+        target.Subcommands.Add(wikis);
+        target.Subcommands.Add(wikiPages);
         return new Dictionary<Command, string> { [wikis] = "wikiCatalog", [wikiPages] = "wikiPageCatalog" };
     }
 
-    private static async Task<int> RunPagesAsync(string? project, string? wiki, string? version, string? versionType, int? top, string? continuation, string? config, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token)
+    private static async Task<int> RunPagesAsync(ToolCommandNames names, string? project, string? wiki, string? version, string? versionType, int? top, string? continuation, string? config, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(wiki)) return await Error("wikiPageCatalog", "wikiRequired", "A Wiki is required.", new CommandHintDocument("wikis", []), output, clock, compact, token, "command");
+        if (string.IsNullOrWhiteSpace(wiki)) return await Error("wikiPageCatalog", "wikiRequired", "A Wiki is required.", new CommandHintDocument(names.Path("list"), []), output, clock, compact, token, "command");
         wiki = wiki.Trim();
         if (!WikiIdentifier.IsSafeWiki(wiki)) return await Error("wikiPageCatalog", "invalidWikiReference", "The Azure DevOps Wiki identifier is invalid.", null, output, clock, compact, token, "command");
         if (!string.IsNullOrWhiteSpace(versionType) && string.IsNullOrWhiteSpace(version)) return await Error("wikiPageCatalog", "invalidWikiReference", "A version type requires a version.", null, output, clock, compact, token, "command");
         int requestedTop = top ?? 50;
         if (requestedTop is < 1 or > 100) return await Error("wikiPageCatalog", "invalidTop", "The page limit must be between 1 and 100.", null, output, clock, compact, token, "command");
-        return await RunAsync("wikiPageCatalog", project, config, compact, store, pat, sessions, output, clock, token, "projectRequired", "No project given and none configured.", new CommandHintDocument("projects", []), async (session, configuration, value, cancellation) =>
+        return await RunAsync("wikiPageCatalog", names, project, config, compact, store, pat, sessions, output, clock, token, "projectRequired", "No project given and none configured.", new CommandHintDocument(names.Root.Path("projects"), []), async (session, configuration, value, cancellation) =>
         {
             WikiVersionDocument? selectedVersion = await ResolveVersionAsync(session.Wikis, value, wiki, version, versionType, cancellation);
-            return await new WikiCatalogReader(session.Wikis, configuration.OrganizationUrl, clock).ReadPagesAsync(value, wiki, selectedVersion, requestedTop, continuation, cancellation);
+            return await new WikiCatalogReader(session.Wikis, configuration.OrganizationUrl, clock, names).ReadPagesAsync(value, wiki, selectedVersion, requestedTop, continuation, cancellation);
         });
     }
 
@@ -44,7 +70,7 @@ public static class WikiDiscoveryCommands
         return WikiVersionResolver.Resolve(wikiMatches[0].Versions, version, versionType) ?? throw new ConfigurationException("invalidWikiReference", "The Wiki version must match exactly one advertised version.");
     }
 
-    private static async Task<int> RunAsync<T>(string kind, string? project, string? config, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token, string missingCode, string missingMessage, CommandHintDocument missingHint, Func<IAdoSession, AdoReadConfiguration, string, CancellationToken, Task<SearchEnvelope<T>>> read)
+    private static async Task<int> RunAsync<T>(string kind, ToolCommandNames names, string? project, string? config, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token, string missingCode, string missingMessage, CommandHintDocument missingHint, Func<IAdoSession, AdoReadConfiguration, string, CancellationToken, Task<SearchEnvelope<T>>> read)
     {
         string? selectedProject = null;
         if (project is not null && string.IsNullOrWhiteSpace(project)) return await Error(kind, "projectRequired", "The explicit project cannot be blank.", missingHint, output, clock, compact, token, "command");
@@ -59,12 +85,13 @@ public static class WikiDiscoveryCommands
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat());
             SearchEnvelope<T> envelope = await read(session, configuration, selectedProject, requestTimeout.Token);
-            await output.WriteAsync(envelope, compact, token); return ExitCodes.FromStatus(envelope.Status);
+            await output.WriteAsync(envelope, compact, token);
+            return ExitCodes.FromStatus(envelope.Status);
         }
         catch (ConfigurationException exception)
         {
             CommandHintDocument next = kind == "wikiPageCatalog" && selectedProject is not null && exception.Code is "wikiRequired" or "invalidWikiReference"
-                ? new CommandHintDocument("wikis", ["--project", selectedProject])
+                ? new CommandHintDocument(names.Path("list"), ["--project", selectedProject])
                 : missingHint;
             return await Error(kind, exception.Code, exception.Message, next, output, clock, compact, token);
         }

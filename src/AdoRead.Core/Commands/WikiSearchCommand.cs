@@ -8,14 +8,25 @@ namespace AdoRead.Commands;
 
 public static class WikiSearchCommand
 {
-    public static Command AddTo(RootCommand root, Option<bool> compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock)
+    public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
-        var text = new Argument<string>("text"); var project = new Option<string?>("--project"); var allProjects = new Option<bool>("--all-projects"); var wiki = new Option<string?>("--wiki"); var skip = new Option<int?>("--skip"); var top = new Option<int?>("--top"); var config = new Option<string?>("--config");
-        var command = new Command("wiki-search", "Search Azure DevOps Wiki text."); command.Arguments.Add(text); foreach (Option option in new Option[] { project, allProjects, wiki, skip, top, config }) command.Options.Add(option);
-        command.SetAction((result, token) => RunAsync(result.GetValue(text) ?? string.Empty, result.GetValue(project), result.GetValue(allProjects), result.GetValue(wiki), result.GetValue(skip), result.GetValue(top), result.GetValue(config), result.GetValue(compact), store, pat, sessions, output, clock, token)); root.Subcommands.Add(command); return command;
+        var (store, pat, sessions, output, clock, compact) = services;
+        var text = new Argument<string>("text");
+        var project = new Option<string?>("--project");
+        var allProjects = new Option<bool>("--all-projects");
+        var wiki = new Option<string?>("--wiki");
+        var skip = new Option<int?>("--skip");
+        var top = new Option<int?>("--top");
+        var config = new Option<string?>("--config");
+        var command = new Command("search", "Search Azure DevOps Wiki text.");
+        command.Arguments.Add(text);
+        foreach (Option option in new Option[] { project, allProjects, wiki, skip, top, config }) command.Options.Add(option);
+        command.SetAction((result, token) => RunAsync(names, result.GetValue(text) ?? string.Empty, result.GetValue(project), result.GetValue(allProjects), result.GetValue(wiki), result.GetValue(skip), result.GetValue(top), result.GetValue(config), result.GetValue(compact), store, pat, sessions, output, clock, token));
+        target.Subcommands.Add(command);
+        return new Dictionary<Command, string> { [command] = "wikiFullTextSearch" };
     }
 
-    private static async Task<int> RunAsync(string text, string? project, bool allProjects, string? wiki, int? skip, int? top, string? config, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token)
+    private static async Task<int> RunAsync(ToolCommandNames names, string text, string? project, bool allProjects, string? wiki, int? skip, int? top, string? config, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token)
     {
         if (allProjects && project is not null) return await WriteError("command", "invalidWikiSearch", "The Wiki search request is invalid.", false, ExitCodes.InvalidInputOrConfiguration, output, clock, compact, token);
         if (project is not null && string.IsNullOrWhiteSpace(project)) return await WriteError("command", "projectRequired", "The explicit project cannot be blank.", false, ExitCodes.InvalidInputOrConfiguration, output, clock, compact, token);
@@ -27,10 +38,15 @@ public static class WikiSearchCommand
         if (!string.IsNullOrWhiteSpace(wiki)) return await WriteError("command", "unsupportedWikiFilter", "Azure DevOps does not document a Wiki-name search filter.", false, ExitCodes.InvalidInputOrConfiguration, output, clock, compact, token);
         try
         {
-            AdoReadConfiguration configuration = await store.LoadAsync(config, token); string? selectedProject = allProjects ? null : project ?? configuration.DefaultProject;
+            AdoReadConfiguration configuration = await store.LoadAsync(config, token);
+            string? selectedProject = allProjects ? null : project ?? configuration.DefaultProject;
             if (selectedProject is not null && !WikiIdentifier.IsSafeProject(selectedProject)) return await WriteError("configuration", "invalidProject", "The configured Azure DevOps project identifier is invalid.", false, ExitCodes.InvalidInputOrConfiguration, output, clock, compact, token);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(configuration.RequestTimeout); await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat());
-            SearchEnvelope<WikiSearchHitDocument> envelope = await new WikiSearchReader(session.Wikis, clock).ReadAsync(text, selectedProject, null, skip ?? 0, top ?? 10, timeout.Token); await output.WriteAsync(envelope, compact, token); return ExitCodes.FromStatus(envelope.Status);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(configuration.RequestTimeout);
+            await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat());
+            SearchEnvelope<WikiSearchHitDocument> envelope = await new WikiSearchReader(session.Wikis, clock, names).ReadAsync(text, selectedProject, null, skip ?? 0, top ?? 10, timeout.Token);
+            await output.WriteAsync(envelope, compact, token);
+            return ExitCodes.FromStatus(envelope.Status);
         }
         catch (ConfigurationException exception) { return await WriteError("configuration", exception.Code, exception.Message, false, ExitCodes.InvalidInputOrConfiguration, output, clock, compact, token); }
         catch (CredentialException exception) { return await WriteError("authentication", exception.Code, exception.Message, false, ExitCodes.Error, output, clock, compact, token); }

@@ -11,7 +11,7 @@ public sealed class ReleasePackageValidationTests
         string toolRoot = FindToolRoot();
         string scriptPath = Path.Combine(toolRoot, "scripts", "Verify-ReleasePackage.ps1");
         string temporaryDirectory = Path.Combine(Path.GetTempPath(), $"ado-read-package-validation-{Guid.NewGuid():N}");
-        string packagePath = Path.Combine(temporaryDirectory, "AdoRead.Tool.0.5.0.nupkg");
+        string packagePath = Path.Combine(temporaryDirectory, "AdoRead.Tool.1.0.0.nupkg");
         try
         {
             Directory.CreateDirectory(temporaryDirectory);
@@ -31,28 +31,44 @@ public sealed class ReleasePackageValidationTests
         }
     }
 
+    private static readonly (string Project, string PackageId, string Command)[] Tools =
+    [
+        ("AdoRead.Cli", "AdoRead.Tool", "ado-read"),
+        ("AdoRead.PullRequests.Cli", "AdoRead.PullRequests.Tool", "ado-read-pr"),
+        ("AdoRead.WorkItems.Cli", "AdoRead.WorkItems.Tool", "ado-read-work-item"),
+        ("AdoRead.Wiki.Cli", "AdoRead.Wiki.Tool", "ado-read-wiki"),
+        ("AdoRead.Sprints.Cli", "AdoRead.Sprints.Tool", "ado-read-sprints"),
+    ];
+
     [Fact]
     public async Task ReleaseMetadata_UsesTheV2PackageAndReviewContract()
     {
         string toolRoot = FindToolRoot();
-        string projectFile = Path.Combine(toolRoot, "src", "AdoRead.Cli", "AdoRead.Cli.csproj");
         string smokeScript = Path.Combine(toolRoot, "scripts", "Test-ToolPackage.ps1");
         string readme = Path.Combine(toolRoot, "README.md");
         string workflow = Path.Combine(toolRoot, ".github", "workflows", "ci.yml");
         string liveWikiSmoke = Path.Combine(toolRoot, "tests", "AdoRead.IntegrationTests", "Wikis", "LiveWikiSmokeTests.cs");
         string liveWorkItemSmoke = Path.Combine(toolRoot, "tests", "AdoRead.IntegrationTests", "WorkItems", "LiveWorkItemSmokeTests.cs");
 
-        Assert.Contains("<Version>0.5.0</Version>", await File.ReadAllTextAsync(projectFile), StringComparison.Ordinal);
+        foreach ((string project, string packageId, string command) in Tools)
+        {
+            string projectFile = Path.Combine(toolRoot, "src", project, $"{project}.csproj");
+            string projectContract = await File.ReadAllTextAsync(projectFile);
+            Assert.Contains("<Version>1.0.0</Version>", projectContract, StringComparison.Ordinal);
+            Assert.Contains($"<PackageId>{packageId}</PackageId>", projectContract, StringComparison.Ordinal);
+            Assert.Contains($"<ToolCommandName>{command}</ToolCommandName>", projectContract, StringComparison.Ordinal);
+        }
+
         string smokeContract = await File.ReadAllTextAsync(smokeScript);
-        Assert.Contains("AdoRead.Tool.0.5.0.nupkg", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("expectedPackageVersion = '0.5.0'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("[string]$PackageVersion = '1.0.0'", smokeContract, StringComparison.Ordinal);
         Assert.Contains("--download-images", smokeContract, StringComparison.Ordinal);
         Assert.Contains("schemaVersion -ne '2.1'", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("wiki-page", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("wiki-pages", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("wiki-search", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'wiki', 'list'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'wiki', 'pages'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'wiki', 'page'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("wiki search authentication", smokeContract, StringComparison.Ordinal);
         string readmeContract = await File.ReadAllTextAsync(readme);
-        Assert.Contains("--version 0.5.0", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("--version 1.0.0", readmeContract, StringComparison.Ordinal);
         Assert.Contains("--download-images", readmeContract, StringComparison.Ordinal);
         Assert.Contains("schema `2.1`", readmeContract, StringComparison.Ordinal);
         Assert.Contains("non-image", readmeContract, StringComparison.Ordinal);
@@ -74,7 +90,12 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("ADO_READ_WIKI_PAGE_PATH", liveSmokeContract, StringComparison.Ordinal);
         Assert.Contains("ADO_READ_WIKI_SEARCH_TEXT", liveSmokeContract, StringComparison.Ordinal);
         string workflowContract = await File.ReadAllTextAsync(workflow);
-        Assert.Contains("AdoRead.Tool.0.5.0.nupkg", workflowContract, StringComparison.Ordinal);
+        Assert.Contains("$version = '1.0.0'", workflowContract, StringComparison.Ordinal);
+        foreach ((string _, string packageId, string command) in Tools)
+        {
+            Assert.Contains($"PackageId = '{packageId}'", workflowContract, StringComparison.Ordinal);
+            Assert.Contains($"CommandName = '{command}'", workflowContract, StringComparison.Ordinal);
+        }
 
         string liveImageContract = await File.ReadAllTextAsync(liveWorkItemSmoke);
         Assert.Contains("ADO_READ_LIVE_IMAGE_WORK_ITEM_ID", liveImageContract, StringComparison.Ordinal);

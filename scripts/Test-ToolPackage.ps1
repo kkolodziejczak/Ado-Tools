@@ -2,19 +2,65 @@
 param(
     [Parameter(Mandatory)]
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
-    [string]$PackagePath
+    [string]$PackagePath,
+
+    [Parameter(Mandatory)]
+    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool')]
+    [string]$PackageId,
+
+    [Parameter(Mandatory)]
+    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprints')]
+    [string]$CommandName,
+
+    [string]$PackageVersion = '1.0.0'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Commands each package must list under its help, and the foreign command it must reject.
+$toolContracts = @{
+    'AdoRead.Tool' = @{
+        Command = 'ado-read'
+        Commands = @('config', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints')
+        Foreign = $null
+    }
+    'AdoRead.PullRequests.Tool' = @{
+        Command = 'ado-read-pr'
+        Commands = @('config', 'projects', 'teams')
+        Foreign = @('wiki', 'list')
+    }
+    'AdoRead.WorkItems.Tool' = @{
+        Command = 'ado-read-work-item'
+        Commands = @('config', 'projects', 'teams')
+        Foreign = @('wiki', 'list')
+    }
+    'AdoRead.Wiki.Tool' = @{
+        Command = 'ado-read-wiki'
+        Commands = @('config', 'projects', 'teams', 'list', 'pages', 'page', 'search')
+        Foreign = @('pr', '1')
+    }
+    'AdoRead.Sprints.Tool' = @{
+        Command = 'ado-read-sprints'
+        Commands = @('config', 'projects', 'teams', 'list', 'show')
+        Foreign = @('wiki', 'list')
+    }
+}
+
+$contract = $toolContracts[$PackageId]
+if ($contract.Command -ne $CommandName)
+{
+    throw "Package $PackageId exposes the command $($contract.Command), not $CommandName."
+}
+
+$isUmbrella = $PackageId -eq 'AdoRead.Tool'
 $packageFullPath = (Resolve-Path -LiteralPath $PackagePath).Path
 $packageDirectory = Split-Path -Parent $packageFullPath
-$expectedPackageName = 'AdoRead.Tool.0.5.0.nupkg'
-$expectedPackageVersion = '0.5.0'
+$expectedPackageName = "$PackageId.$PackageVersion.nupkg"
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "ado-read-package-$([Guid]::NewGuid().ToString('N'))"
 $toolPath = Join-Path $temporaryRoot 'tool'
 $configPath = Join-Path $temporaryRoot 'config.json'
+$toolExecutable = Join-Path $toolPath "$CommandName.exe"
 
 function Assert-JsonValidationError
 {
@@ -37,6 +83,40 @@ function Assert-JsonValidationError
     {
         throw "Expected JSON error '$ExpectedCode' for '$($Arguments -join ' ')'."
     }
+}
+
+function Get-ListedCommands
+{
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string[]]$HelpLines
+    )
+
+    $names = [System.Collections.Generic.List[string]]::new()
+    $inCommandSection = $false
+    foreach ($line in $HelpLines)
+    {
+        if ($line -eq 'Commands:')
+        {
+            $inCommandSection = $true
+            continue
+        }
+
+        if (-not $inCommandSection)
+        {
+            continue
+        }
+
+        if ([string]::IsNullOrWhiteSpace($line))
+        {
+            break
+        }
+
+        $names.Add(($line.Trim() -split '\s+')[0])
+    }
+
+    return , $names.ToArray()
 }
 
 function Invoke-FixtureCommand
@@ -101,31 +181,76 @@ function Invoke-FixtureMediaCommand
     return $document
 }
 
-try
+function Test-InstalledTool
 {
-    if ([System.IO.Path]::GetFileName($packageFullPath) -ne $expectedPackageName)
-    {
-        throw "Expected package '$expectedPackageName', received '$([System.IO.Path]::GetFileName($packageFullPath))'."
-    }
-
     New-Item -ItemType Directory -Path $toolPath -Force | Out-Null
-    & dotnet tool install --tool-path $toolPath --add-source $packageDirectory AdoRead.Tool --version $expectedPackageVersion --ignore-failed-sources
+    & dotnet tool install --tool-path $toolPath --add-source $packageDirectory $PackageId --version $PackageVersion --ignore-failed-sources
     if ($LASTEXITCODE -ne 0)
     {
-        throw 'Could not install the produced ado-read package.'
+        throw "Could not install the produced $PackageId package."
     }
 
     $installedTools = & dotnet tool list --tool-path $toolPath
-    if ($LASTEXITCODE -ne 0 -or ($installedTools -join [Environment]::NewLine) -notmatch "(?im)^AdoRead\.Tool\s+$([regex]::Escape($expectedPackageVersion))\s+")
+    if ($LASTEXITCODE -ne 0 -or ($installedTools -join [Environment]::NewLine) -notmatch "(?im)^$([regex]::Escape($PackageId))\s+$([regex]::Escape($PackageVersion))\s+")
     {
-        throw "Installed ado-read package did not report version $expectedPackageVersion."
+        throw "Installed $PackageId package did not report version $PackageVersion."
     }
 
-    $toolExecutable = Join-Path $toolPath 'ado-read.exe'
     if (-not (Test-Path -LiteralPath $toolExecutable -PathType Leaf))
     {
         throw "Installed tool executable was not found at $toolExecutable."
     }
+}
+
+function Test-InstalledHelp
+{
+    $help = @(& $toolExecutable --help)
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "Installed $CommandName --help exited with code $LASTEXITCODE."
+    }
+
+    $listed = Get-ListedCommands -HelpLines $help
+    $expected = @($contract.Commands | Sort-Object)
+    $actual = @($listed | Sort-Object)
+    if (($expected -join ',') -ne ($actual -join ','))
+    {
+        throw "Installed $CommandName help listed '$($actual -join ', ')' instead of '$($expected -join ', ')'."
+    }
+}
+
+function Test-InstalledConfiguration
+{
+    $initialized = & $toolExecutable config init --organization https://dev.azure.com/fabricated --config $configPath --compact
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "Installed $CommandName could not initialize isolated configuration."
+    }
+
+    $configuration = & $toolExecutable config show --config $configPath --compact
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "Installed $CommandName could not read isolated configuration."
+    }
+
+    $configurationDocument = ($configuration -join [Environment]::NewLine) | ConvertFrom-Json
+    if ($configurationDocument.status -ne 'success' -or $configurationDocument.results[0].organizationUrl -ne 'https://dev.azure.com/fabricated/')
+    {
+        throw "Installed $CommandName returned an unexpected configuration document."
+    }
+}
+
+function Test-SliceSmoke
+{
+    Test-InstalledTool
+    Test-InstalledHelp
+    Test-InstalledConfiguration
+    Assert-JsonValidationError -Arguments ([string[]]$contract.Foreign + @('--compact')) -ExpectedCode 'invalidArguments'
+}
+
+function Test-UmbrellaSmoke
+{
+    Test-InstalledTool
 
     $workItemHelp = @(& $toolExecutable work-item --help)
     if ($LASTEXITCODE -ne 0 -or ($workItemHelp -join [Environment]::NewLine) -notmatch '(?i)--download-images')
@@ -144,10 +269,10 @@ try
         $configPath,
         '--compact') -ExpectedCode 'invalidImageOutputDirectory'
 
-    $installedCliAssembly = Get-ChildItem -LiteralPath $toolPath -Recurse -Filter 'AdoRead.Cli.dll' | Select-Object -First 1
-    if ($null -eq $installedCliAssembly)
+    $installedCoreAssembly = Get-ChildItem -LiteralPath $toolPath -Recurse -Filter 'AdoRead.Core.dll' | Select-Object -First 1
+    if ($null -eq $installedCoreAssembly)
     {
-        throw 'Installed ado-read package did not contain AdoRead.Cli.dll.'
+        throw 'Installed ado-read package did not contain AdoRead.Core.dll.'
     }
 
     $repositoryToolRoot = Split-Path -Parent $PSScriptRoot
@@ -161,7 +286,7 @@ try
     $fakeHostOutput = Join-Path $temporaryRoot 'fake-host'
     $fakeHostIntermediate = Join-Path $temporaryRoot 'fake-host-obj'
     $fakeHostProperties = @(
-        "--property:AdoReadCliAssemblyPath=$($installedCliAssembly.FullName)",
+        "--property:AdoReadCoreAssemblyPath=$($installedCoreAssembly.FullName)",
         "--property:BaseOutputPath=$fakeHostOutput\",
         "--property:BaseIntermediateOutputPath=$fakeHostIntermediate\",
         "--property:MSBuildProjectExtensionsPath=$fakeHostIntermediate\"
@@ -178,17 +303,17 @@ try
         throw 'Could not build the fabricated E2E host against the installed package assembly.'
     }
 
-    $fixtureHostAssembly = Join-Path $fakeHostOutput 'Release\net10.0\AdoRead.FakeHost.dll'
-    $fixtureCliAssembly = Join-Path $fakeHostOutput 'Release\net10.0\AdoRead.Cli.dll'
-    if (-not (Test-Path -LiteralPath $fixtureHostAssembly -PathType Leaf) -or -not (Test-Path -LiteralPath $fixtureCliAssembly -PathType Leaf))
+    $script:fixtureHostAssembly = Join-Path $fakeHostOutput 'Release\net10.0\AdoRead.FakeHost.dll'
+    $fixtureCoreAssembly = Join-Path $fakeHostOutput 'Release\net10.0\AdoRead.Core.dll'
+    if (-not (Test-Path -LiteralPath $fixtureHostAssembly -PathType Leaf) -or -not (Test-Path -LiteralPath $fixtureCoreAssembly -PathType Leaf))
     {
         throw 'Fabricated E2E host output did not contain the installed package assembly.'
     }
 
-    Get-ChildItem -LiteralPath (Split-Path -Parent $installedCliAssembly.FullName) -Filter '*.dll' |
+    Get-ChildItem -LiteralPath (Split-Path -Parent $installedCoreAssembly.FullName) -Filter '*.dll' |
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Split-Path -Parent $fixtureHostAssembly) -Force }
 
-    if ((Get-FileHash -LiteralPath $installedCliAssembly.FullName).Hash -ne (Get-FileHash -LiteralPath $fixtureCliAssembly).Hash)
+    if ((Get-FileHash -LiteralPath $installedCoreAssembly.FullName).Hash -ne (Get-FileHash -LiteralPath $fixtureCoreAssembly).Hash)
     {
         throw 'Fabricated E2E host did not use the installed package assembly.'
     }
@@ -201,53 +326,46 @@ try
         throw 'Installed package media smoke test returned an unexpected image format.'
     }
 
-    $help = & $toolExecutable --help
-    $helpText = $help -join [Environment]::NewLine
-    $requiredCommands = @('work-item', 'pr', 'wikis', 'wiki-pages', 'wiki-page', 'wiki-search')
-    $missingCommands = @($requiredCommands | Where-Object { $helpText -notmatch [regex]::Escape($_) })
-    if ($LASTEXITCODE -ne 0 -or $missingCommands.Count -ne 0)
-    {
-        throw "Installed ado-read package help omitted: $($missingCommands -join ', ')."
-    }
-
-    $initialized = & $toolExecutable config init --organization https://dev.azure.com/fabricated --config $configPath --compact
-    if ($LASTEXITCODE -ne 0)
-    {
-        throw 'Installed ado-read package could not initialize isolated configuration.'
-    }
-
-    $configuration = & $toolExecutable config show --config $configPath --compact
-    if ($LASTEXITCODE -ne 0)
-    {
-        throw 'Installed ado-read package could not read isolated configuration.'
-    }
-
-    $configurationDocument = ($configuration -join [Environment]::NewLine) | ConvertFrom-Json
-    if ($configurationDocument.status -ne 'success' -or $configurationDocument.results[0].organizationUrl -ne 'https://dev.azure.com/fabricated/')
-    {
-        throw 'Installed ado-read package returned an unexpected configuration document.'
-    }
+    Test-InstalledHelp
+    Test-InstalledConfiguration
 
     Assert-JsonValidationError -Arguments @('work-item', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidWorkItemId'
     Assert-JsonValidationError -Arguments @('pr', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidPullRequestId'
     Invoke-FixtureCommand -Arguments @('work-item', 'https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123', '--compact') -ExpectedKind 'workItemSearch' -ExpectedId 123 -ExpectedSchemaVersion '2.0'
     Invoke-FixtureCommand -Arguments @('pr', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--compact') -ExpectedKind 'pullRequestSearch' -ExpectedId 126
-    Invoke-FixtureCommand -Arguments @('wikis', '--compact') -ExpectedKind 'wikiCatalog'
-    Invoke-FixtureCommand -Arguments @('wiki-pages', '--wiki', 'FabricatedApp.wiki', '--compact') -ExpectedKind 'wikiPageCatalog'
-    Invoke-FixtureCommand -Arguments @('wiki-page', 'https://dev.azure.com/fabricated/FabricatedApp/_wiki/wikis/FabricatedApp.wiki/51/Authentication', '--compact') -ExpectedKind 'wikiPageLookup' -ExpectedId 51
-    $searchOutput = & dotnet $fixtureHostAssembly wiki-search authentication --compact
+    Invoke-FixtureCommand -Arguments @('wiki', 'list', '--compact') -ExpectedKind 'wikiCatalog'
+    Invoke-FixtureCommand -Arguments @('wiki', 'pages', '--wiki', 'FabricatedApp.wiki', '--compact') -ExpectedKind 'wikiPageCatalog'
+    Invoke-FixtureCommand -Arguments @('wiki', 'page', 'https://dev.azure.com/fabricated/FabricatedApp/_wiki/wikis/FabricatedApp.wiki/51/Authentication', '--compact') -ExpectedKind 'wikiPageLookup' -ExpectedId 51
+    $searchOutput = & dotnet $fixtureHostAssembly wiki search authentication --compact
     if ($LASTEXITCODE -ne 0)
     {
-        throw "Fixture wiki-search failed with exit code $LASTEXITCODE."
+        throw "Fixture wiki search failed with exit code $LASTEXITCODE."
     }
 
     $search = ($searchOutput -join [Environment]::NewLine) | ConvertFrom-Json
     if ($search.status -ne 'success' -or $search.kind -ne 'wikiFullTextSearch' -or $search.results.Count -ne 1)
     {
-        throw 'Fixture wiki-search returned an unexpected success document.'
+        throw 'Fixture wiki search returned an unexpected success document.'
     }
 
-    Invoke-FixtureCommand -Arguments (@('wiki-page') + [string[]]$search.results[0].next.arguments + @('--compact')) -ExpectedKind 'wikiPageLookup'
+    Invoke-FixtureCommand -Arguments (@('wiki', 'page') + [string[]]$search.results[0].next.arguments + @('--compact')) -ExpectedKind 'wikiPageLookup'
+}
+
+try
+{
+    if ([System.IO.Path]::GetFileName($packageFullPath) -ne $expectedPackageName)
+    {
+        throw "Expected package '$expectedPackageName', received '$([System.IO.Path]::GetFileName($packageFullPath))'."
+    }
+
+    if ($isUmbrella)
+    {
+        Test-UmbrellaSmoke
+    }
+    else
+    {
+        Test-SliceSmoke
+    }
 }
 finally
 {
@@ -257,4 +375,4 @@ finally
     }
 }
 
-Write-Host 'Installed package smoke test passed.'
+Write-Host "Installed package smoke test passed: $PackageId $PackageVersion ($CommandName)."

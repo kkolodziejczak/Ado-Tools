@@ -118,12 +118,12 @@ public sealed class WorkItemCommandTests
         var writer = new StringWriter();
         var configurationStore = new CountingConfigurationStore();
         var patProvider = new CountingPatProvider();
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             configurationStore,
             new JsonOutput(writer),
             TimeProvider.System,
             patProvider,
-            new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource()))).Create();
+            new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource())));
 
         int exitCode = await application.InvokeAsync(
             ["work-item", "https://dev.azure.com/fabricated/Payments/_workitems/edit/42", "--compact"],
@@ -144,12 +144,12 @@ public sealed class WorkItemCommandTests
     {
         var writer = new StringWriter();
         var configurationStore = new CountingConfigurationStore();
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             configurationStore,
             new JsonOutput(writer),
             TimeProvider.System,
             new CountingPatProvider(),
-            new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource()))).Create();
+            new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource())));
 
         int exitCode = await application.InvokeAsync(
             ["work-item", reference, "--compact"],
@@ -173,12 +173,12 @@ public sealed class WorkItemCommandTests
             var configurationStore = new CountingConfigurationStore();
             var patProvider = new CountingPatProvider();
             var sessionFactory = new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource()));
-            CommandApplication application = new CommandFactory(
+            CommandApplication application = TestTool.Umbrella(
                 configurationStore,
                 new JsonOutput(writer),
                 TimeProvider.System,
                 patProvider,
-                sessionFactory).Create();
+                sessionFactory);
 
             int exitCode = await application.InvokeAsync(
                 ["work-item", "42", "--download-images", outputDirectory, "--compact"],
@@ -215,12 +215,12 @@ public sealed class WorkItemCommandTests
             var configurationStore = new CountingConfigurationStore();
             var patProvider = new CountingPatProvider();
             var sessionFactory = new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource()));
-            CommandApplication application = new CommandFactory(
+            CommandApplication application = TestTool.Umbrella(
                 configurationStore,
                 new JsonOutput(writer),
                 TimeProvider.System,
                 patProvider,
-                sessionFactory).Create();
+                sessionFactory);
 
             int exitCode = await application.InvokeAsync(
                 ["work-item", "42", "--download-images", link, "--compact"],
@@ -281,12 +281,12 @@ public sealed class WorkItemCommandTests
 
         try
         {
-            CommandApplication application = new CommandFactory(
+            CommandApplication application = TestTool.Umbrella(
                 configurationStore,
                 new JsonOutput(writer),
                 TimeProvider.System,
                 patProvider,
-                new FakeAdoSessionFactory(new FakeAdoSession(source))).Create();
+                new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
             int exitCode = await application.InvokeAsync(
                 ["work-item", "42", "--download-images", outputDirectory, "--compact"],
@@ -425,12 +425,12 @@ public sealed class WorkItemCommandTests
         var configurationStore = new CountingConfigurationStore();
         var patProvider = new CountingPatProvider();
         var sessionFactory = new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource()));
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             configurationStore,
             new JsonOutput(writer),
             TimeProvider.System,
             patProvider,
-            sessionFactory).Create();
+            sessionFactory);
 
         int exitCode = await application.InvokeAsync(["work-item", "0", "--compact"], CancellationToken.None);
 
@@ -447,12 +447,12 @@ public sealed class WorkItemCommandTests
     {
         var writer = new StringWriter();
         var sessionFactory = new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource()));
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             new CountingConfigurationStore(),
             new JsonOutput(writer),
             TimeProvider.System,
             new MissingPatProvider(),
-            sessionFactory).Create();
+            sessionFactory);
 
         int exitCode = await application.InvokeAsync(["work-item", "42", "--compact"], CancellationToken.None);
 
@@ -469,12 +469,12 @@ public sealed class WorkItemCommandTests
     {
         var writer = new StringWriter();
         var source = new FakeWorkItemSource { DelayUntilCancelled = true };
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             new CountingConfigurationStore(requestTimeoutSeconds: 1),
             new JsonOutput(writer),
             TimeProvider.System,
             new CountingPatProvider(),
-            new FakeAdoSessionFactory(new FakeAdoSession(source))).Create();
+            new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
         int exitCode = await application.InvokeAsync(["work-item", "42", "--compact"], CancellationToken.None);
 
@@ -506,12 +506,12 @@ public sealed class WorkItemCommandTests
             DelayAttachmentUntilCancelled = true
         };
         var writer = new StringWriter();
-        CommandApplication application = new CommandFactory(
+        CommandApplication application = TestTool.Umbrella(
             new CountingConfigurationStore(requestTimeoutSeconds: 1),
             new JsonOutput(writer),
             TimeProvider.System,
             new CountingPatProvider(),
-            new FakeAdoSessionFactory(new FakeAdoSession(source))).Create();
+            new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
         try
         {
@@ -534,12 +534,12 @@ public sealed class WorkItemCommandTests
     private static CommandApplication CreateApplication(
         StringWriter writer,
         IAdoSessionFactory sessionFactory) =>
-        new CommandFactory(
+        TestTool.Umbrella(
             new CountingConfigurationStore(),
             new JsonOutput(writer),
             TimeProvider.System,
             new CountingPatProvider(),
-            sessionFactory).Create();
+            sessionFactory);
 
     private static void CreateJunction(string link, string target)
     {

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>AdoRead.Core</AssemblyName>
+    <RootNamespace>AdoRead</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="Microsoft.TeamFoundationServer.Client" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
+</Project>

@@ -9,7 +9,7 @@ public sealed class WikiCatalogReaderTests
     [Fact]
     public async Task ReadPagesAsync_MapsMissingPagePathToAStableError()
     {
-        var reader = new WikiCatalogReader(new Source(), new Uri("https://dev.azure.com/fabricated/"), TimeProvider.System);
+        var reader = new WikiCatalogReader(new Source(), new Uri("https://dev.azure.com/fabricated/"), TimeProvider.System, new ToolCommandNames("ado-read", "wiki"));
 
         SearchEnvelope<WikiPageSummaryDocument> result = await reader.ReadPagesAsync("Project", "Wiki", null, 50, null, CancellationToken.None);
 

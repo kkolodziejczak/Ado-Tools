@@ -40,7 +40,7 @@ public sealed class ConfigurationStore : IConfigurationStore
         {
             throw new ConfigurationException(
                 "configurationNotFound",
-                $"Configuration was not found at '{path}'. Run 'ado-read config init' first.");
+                $"Configuration was not found at '{path}'. Run the config init command first.");
         }
 
         try

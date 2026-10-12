@@ -2,29 +2,23 @@ using System.CommandLine;
 using AdoRead.Configuration;
 using AdoRead.Output;
 
-namespace AdoRead.Commands;
+namespace AdoRead.Commands.Shared;
 
 public static class ConfigCommands
 {
-    public static Command AddTo(
-        RootCommand rootCommand,
-        Option<bool> compactOption,
-        IConfigurationStore configurationStore,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider)
+    public static IReadOnlyDictionary<Command, string> Configure(
+        Command target,
+        ToolCommandNames names,
+        CommandServices services)
     {
-        var configCommand = new Command("config", "Manage non-secret ado-read configuration.");
-        configCommand.Subcommands.Add(CreateInitCommand(compactOption, configurationStore, jsonOutput, timeProvider));
-        configCommand.Subcommands.Add(CreateShowCommand(compactOption, configurationStore, jsonOutput, timeProvider));
-        rootCommand.Subcommands.Add(configCommand);
-        return configCommand;
+        var configCommand = new Command("config", "Manage non-secret configuration.");
+        configCommand.Subcommands.Add(CreateInitCommand(names, services));
+        configCommand.Subcommands.Add(CreateShowCommand(services));
+        target.Subcommands.Add(configCommand);
+        return new Dictionary<Command, string> { [configCommand] = "configuration" };
     }
 
-    private static Command CreateInitCommand(
-        Option<bool> compactOption,
-        IConfigurationStore configurationStore,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider)
+    private static Command CreateInitCommand(ToolCommandNames names, CommandServices services)
     {
         var organizationOption = new Option<string>("--organization")
         {
@@ -38,13 +32,13 @@ public static class ConfigCommands
         };
         var projectOption = new Option<string?>("--project")
         {
-            Description = "Default project for the sprint commands. Discover one with 'ado-read projects'."
+            Description = $"Default project for the sprint and wiki commands. Discover one with '{names.Invocation("projects")}'."
         };
         var teamOption = new Option<string?>("--team")
         {
-            Description = "Default team for the sprint commands. Discover one with 'ado-read teams'."
+            Description = $"Default team for the sprint commands. Discover one with '{names.Invocation("teams")}'."
         };
-        var command = new Command("init", "Create ado-read configuration.");
+        var command = new Command("init", "Create configuration.");
         command.Options.Add(organizationOption);
         command.Options.Add(configOption);
         command.Options.Add(forceOption);
@@ -56,10 +50,8 @@ public static class ConfigCommands
             parseResult.GetValue(forceOption),
             parseResult.GetValue(projectOption),
             parseResult.GetValue(teamOption),
-            parseResult.GetValue(compactOption),
-            configurationStore,
-            jsonOutput,
-            timeProvider,
+            parseResult.GetValue(services.CompactOption),
+            services,
             cancellationToken));
         return command;
     }
@@ -71,16 +63,14 @@ public static class ConfigCommands
         string? project,
         string? team,
         bool compact,
-        IConfigurationStore configurationStore,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider,
+        CommandServices services,
         CancellationToken cancellationToken)
     {
         try
         {
             AdoReadConfiguration configuration = CreateConfiguration(organization, project, team);
-            await configurationStore.SaveAsync(configPath, configuration, force, cancellationToken);
-            await WriteSuccessAsync(configuration, compact, jsonOutput, timeProvider, cancellationToken);
+            await services.ConfigurationStore.SaveAsync(configPath, configuration, force, cancellationToken);
+            await WriteSuccessAsync(configuration, compact, services, cancellationToken);
             return ExitCodes.Success;
         }
         catch (Exception exception) when (exception is ConfigurationException or UriFormatException)
@@ -93,7 +83,7 @@ public static class ConfigCommands
                     "The organization URL must use the form https://dev.azure.com/{organization}.",
                     false)
                 : SearchError.FromException(exception);
-            await WriteErrorAsync(error, compact, jsonOutput, timeProvider, cancellationToken);
+            await WriteErrorAsync(error, compact, services, cancellationToken);
             return ExitCodes.InvalidInputOrConfiguration;
         }
     }
@@ -116,21 +106,15 @@ public static class ConfigCommands
             team);
     }
 
-    private static Command CreateShowCommand(
-        Option<bool> compactOption,
-        IConfigurationStore configurationStore,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider)
+    private static Command CreateShowCommand(CommandServices services)
     {
         var configOption = CreateConfigOption();
-        var command = new Command("show", "Show ado-read configuration without credentials.");
+        var command = new Command("show", "Show configuration without credentials.");
         command.Options.Add(configOption);
         command.SetAction(async (parseResult, cancellationToken) => await ShowAsync(
             parseResult.GetValue(configOption),
-            parseResult.GetValue(compactOption),
-            configurationStore,
-            jsonOutput,
-            timeProvider,
+            parseResult.GetValue(services.CompactOption),
+            services,
             cancellationToken));
         return command;
     }
@@ -138,25 +122,18 @@ public static class ConfigCommands
     private static async Task<int> ShowAsync(
         string? configPath,
         bool compact,
-        IConfigurationStore configurationStore,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider,
+        CommandServices services,
         CancellationToken cancellationToken)
     {
         try
         {
-            AdoReadConfiguration configuration = await configurationStore.LoadAsync(configPath, cancellationToken);
-            await WriteSuccessAsync(configuration, compact, jsonOutput, timeProvider, cancellationToken);
+            AdoReadConfiguration configuration = await services.ConfigurationStore.LoadAsync(configPath, cancellationToken);
+            await WriteSuccessAsync(configuration, compact, services, cancellationToken);
             return ExitCodes.Success;
         }
         catch (ConfigurationException exception)
         {
-            await WriteErrorAsync(
-                SearchError.FromException(exception),
-                compact,
-                jsonOutput,
-                timeProvider,
-                cancellationToken);
+            await WriteErrorAsync(SearchError.FromException(exception), compact, services, cancellationToken);
             return ExitCodes.InvalidInputOrConfiguration;
         }
     }
@@ -164,8 +141,7 @@ public static class ConfigCommands
     private static async Task WriteSuccessAsync(
         AdoReadConfiguration configuration,
         bool compact,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider,
+        CommandServices services,
         CancellationToken cancellationToken)
     {
         var view = new ConfigurationView(
@@ -178,22 +154,21 @@ public static class ConfigCommands
         SearchEnvelope<ConfigurationView> envelope = SearchEnvelopeFactory.Success(
             "configuration",
             [view],
-            timeProvider.GetUtcNow());
-        await jsonOutput.WriteAsync(envelope, compact, cancellationToken);
+            services.TimeProvider.GetUtcNow());
+        await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
     }
 
     private static async Task WriteErrorAsync(
         SearchError error,
         bool compact,
-        IJsonOutput jsonOutput,
-        TimeProvider timeProvider,
+        CommandServices services,
         CancellationToken cancellationToken)
     {
         SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
             "configuration",
             [error],
-            timeProvider.GetUtcNow());
-        await jsonOutput.WriteAsync(envelope, compact, cancellationToken);
+            services.TimeProvider.GetUtcNow());
+        await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
     }
 
     private static Option<string?> CreateConfigOption() => new("--config")

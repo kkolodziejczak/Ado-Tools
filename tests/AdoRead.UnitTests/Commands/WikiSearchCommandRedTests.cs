@@ -13,9 +13,9 @@ public sealed class WikiSearchCommandRedTests
     public async Task WikiSearch_RejectsTopAboveTwentyFiveWithItsOwnV2Envelope()
     {
         var writer = new StringWriter();
-        var application = new CommandFactory(new Store(), new JsonOutput(writer), TimeProvider.System).Create();
+        var application = TestTool.Umbrella(new Store(), new JsonOutput(writer), TimeProvider.System);
 
-        int exit = await application.InvokeAsync(["wiki-search", "authentication", "--top", "26", "--compact"], CancellationToken.None);
+        int exit = await application.InvokeAsync(["wiki", "search", "authentication", "--top", "26", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -29,7 +29,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki-search", "authentication", "--skip", "-1", "--top", "5", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "search", "authentication", "--skip", "-1", "--top", "5", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         AssertError(writer, "command", "invalidSkip", "The Wiki search offset cannot be negative.", transient: false);
@@ -40,7 +40,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(), new MissingPat(), new Factory(new Source()), writer).InvokeAsync(["wiki-search", "authentication", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new MissingPat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "search", "authentication", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Error, exit);
         AssertError(writer, "authentication", "missingPat", "Environment variable ADO_READ_PAT is required.", transient: false);
@@ -51,7 +51,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new MissingStore(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki-search", "authentication", "--compact"], CancellationToken.None);
+        int exit = await App(new MissingStore(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "search", "authentication", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         AssertError(writer, "configuration", "configurationNotFound", "Configuration file was not found at x.", transient: false);
@@ -62,7 +62,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(timeoutSeconds: 1), new Pat(), new Factory(new Source(delay: true)), writer).InvokeAsync(["wiki-search", "authentication", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(timeoutSeconds: 1), new Pat(), new Factory(new Source(delay: true)), writer).InvokeAsync(["wiki", "search", "authentication", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Error, exit);
         AssertError(writer, "azureDevOps", "timeout", "The Azure DevOps request timed out.", transient: true);
@@ -73,7 +73,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki-search", "authentication", "--wiki", "Wiki", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "search", "authentication", "--wiki", "Wiki", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         AssertError(writer, "command", "unsupportedWikiFilter", "Azure DevOps does not document a Wiki-name search filter.", transient: false);
@@ -85,7 +85,7 @@ public sealed class WikiSearchCommandRedTests
         var writer = new StringWriter();
         var source = new Source();
 
-        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki-search", "authentication", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "search", "authentication", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.NotFound, exit);
         Assert.Equal(0, source.LastSkip);
@@ -100,7 +100,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
         var source = new Source();
-        var arguments = new List<string> { "wiki-search", "authentication" };
+        var arguments = new List<string> { "wiki", "search", "authentication" };
         if (explicitProject is not null) { arguments.Add("--project"); arguments.Add(explicitProject); }
         if (allProjects) arguments.Add("--all-projects");
         arguments.Add("--compact");
@@ -116,7 +116,7 @@ public sealed class WikiSearchCommandRedTests
     {
         var writer = new StringWriter();
         var source = new Source();
-        var arguments = new List<string> { "wiki-search", "authentication", "--project", "   " };
+        var arguments = new List<string> { "wiki", "search", "authentication", "--project", "   " };
         arguments.Add("--compact");
 
         int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(source), writer).InvokeAsync(arguments.ToArray(), CancellationToken.None);
@@ -134,7 +134,7 @@ public sealed class WikiSearchCommandRedTests
         var writer = new StringWriter();
         var source = new Source();
 
-        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki-search", "authentication", "--project", project, "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "search", "authentication", "--project", project, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         AssertError(writer, "command", "invalidProject", "The Azure DevOps project identifier is invalid.", transient: false);
@@ -149,7 +149,7 @@ public sealed class WikiSearchCommandRedTests
         var writer = new StringWriter();
         var source = new Source();
 
-        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki-search", "authentication", "--all-projects", "--project", project, "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "search", "authentication", "--all-projects", "--project", project, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         AssertError(writer, "command", "invalidWikiSearch", "The Wiki search request is invalid.", transient: false);
@@ -168,7 +168,7 @@ public sealed class WikiSearchCommandRedTests
     }
 
     private static CommandApplication App(IConfigurationStore store, IPatProvider pat, IAdoSessionFactory factory, StringWriter writer) =>
-        new CommandFactory(store, new JsonOutput(writer), TimeProvider.System, pat, factory).Create();
+        TestTool.Umbrella(store, new JsonOutput(writer), TimeProvider.System, pat, factory);
 
     private sealed class Store(int timeoutSeconds = AdoReadConfiguration.DefaultRequestTimeoutSeconds, string? defaultProject = null) : IConfigurationStore
     {

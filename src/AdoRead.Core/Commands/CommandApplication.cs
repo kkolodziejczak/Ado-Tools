@@ -1,83 +1,8 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
-using AdoRead.AzureDevOps;
-using AdoRead.Configuration;
 using AdoRead.Output;
 
 namespace AdoRead.Commands;
-
-public sealed class CommandFactory(
-    IConfigurationStore configurationStore,
-    IJsonOutput jsonOutput,
-    TimeProvider timeProvider,
-    IPatProvider? patProvider = null,
-    IAdoSessionFactory? sessionFactory = null)
-{
-    private readonly IConfigurationStore _configurationStore = configurationStore;
-    private readonly IJsonOutput _jsonOutput = jsonOutput;
-    private readonly TimeProvider _timeProvider = timeProvider;
-    private readonly IPatProvider _patProvider = patProvider ?? new PatProvider();
-    private readonly IAdoSessionFactory _sessionFactory = sessionFactory ?? new AdoSessionFactory();
-
-    public CommandApplication Create()
-    {
-        var rootCommand = new RootCommand("Read Azure DevOps context as structured JSON.");
-        var compactOption = new Option<bool>("--compact")
-        {
-            Description = "Emit compact JSON.",
-            Recursive = true
-        };
-        rootCommand.Options.Add(compactOption);
-        Command configCommand = ConfigCommands.AddTo(
-            rootCommand,
-            compactOption,
-            _configurationStore,
-            _jsonOutput,
-            _timeProvider);
-        Command workItemCommand = WorkItemCommand.AddTo(
-            rootCommand,
-            compactOption,
-            _configurationStore,
-            _patProvider,
-            _sessionFactory,
-            _jsonOutput,
-            _timeProvider);
-        Command pullRequestCommand = PullRequestCommand.AddTo(
-            rootCommand,
-            compactOption,
-            _configurationStore,
-            _patProvider,
-            _sessionFactory,
-            _jsonOutput,
-            _timeProvider);
-        Command wikiPageCommand = WikiPageCommand.AddTo(
-            rootCommand, compactOption, _configurationStore, _patProvider, _sessionFactory, _jsonOutput, _timeProvider);
-        Command wikiSearchCommand = WikiSearchCommand.AddTo(rootCommand, compactOption, _configurationStore, _patProvider, _sessionFactory, _jsonOutput, _timeProvider);
-        IReadOnlyDictionary<Command, string> wikiKinds = WikiDiscoveryCommands.AddTo(rootCommand, compactOption, _configurationStore, _patProvider, _sessionFactory, _jsonOutput, _timeProvider);
-        IReadOnlyDictionary<Command, string> sprintKinds = SprintCommands.AddTo(
-            rootCommand,
-            compactOption,
-            _configurationStore,
-            _patProvider,
-            _sessionFactory,
-            _jsonOutput,
-            _timeProvider);
-        var kinds = new Dictionary<Command, string>
-        {
-            [configCommand] = "configuration",
-            [workItemCommand] = "workItemSearch",
-            [pullRequestCommand] = "pullRequestSearch",
-            [wikiPageCommand] = "wikiPageLookup",
-            [wikiSearchCommand] = "wikiFullTextSearch"
-        };
-        foreach ((Command command, string kind) in sprintKinds)
-        {
-            kinds[command] = kind;
-        }
-        foreach ((Command command, string kind) in wikiKinds) kinds[command] = kind;
-        return new CommandApplication(rootCommand, compactOption, kinds, _jsonOutput, _timeProvider);
-    }
-}
 
 public sealed class CommandApplication(
     RootCommand rootCommand,

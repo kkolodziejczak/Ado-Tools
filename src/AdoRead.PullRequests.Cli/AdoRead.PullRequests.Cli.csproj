@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AdoRead.PullRequests.Cli</AssemblyName>
+    <RootNamespace>AdoRead</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <PackRelease>true</PackRelease>
+    <ToolCommandName>ado-read-pr</ToolCommandName>
+    <PackageId>AdoRead.PullRequests.Tool</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Read-only Azure DevOps pull-request context as agent-friendly JSON.</Description>
+    <PackageTags>azure-devops;pull-requests;cli;json</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+  </ItemGroup>
+</Project>

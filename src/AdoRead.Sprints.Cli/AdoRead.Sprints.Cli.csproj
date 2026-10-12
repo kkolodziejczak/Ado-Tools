@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AdoRead.Sprints.Cli</AssemblyName>
+    <RootNamespace>AdoRead</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <PackRelease>true</PackRelease>
+    <ToolCommandName>ado-read-sprints</ToolCommandName>
+    <PackageId>AdoRead.Sprints.Tool</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Read-only Azure DevOps sprints and their work items as agent-friendly JSON.</Description>
+    <PackageTags>azure-devops;sprints;agile;cli;json</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+  </ItemGroup>
+</Project>

@@ -12,6 +12,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AdoRead.Cli\AdoRead.Cli.csproj" />
+    <ProjectReference Include="..\..\src\AdoRead.Core\AdoRead.Core.csproj" />
   </ItemGroup>
 </Project>

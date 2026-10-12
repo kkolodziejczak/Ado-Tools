@@ -3,12 +3,12 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-  <ItemGroup Condition="'$(AdoReadCliAssemblyPath)' == ''">
-    <ProjectReference Include="..\..\src\AdoRead.Cli\AdoRead.Cli.csproj" />
+  <ItemGroup Condition="'$(AdoReadCoreAssemblyPath)' == ''">
+    <ProjectReference Include="..\..\src\AdoRead.Core\AdoRead.Core.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(AdoReadCliAssemblyPath)' != ''">
-    <Reference Include="AdoRead.Cli">
-      <HintPath>$(AdoReadCliAssemblyPath)</HintPath>
+  <ItemGroup Condition="'$(AdoReadCoreAssemblyPath)' != ''">
+    <Reference Include="AdoRead.Core">
+      <HintPath>$(AdoReadCoreAssemblyPath)</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

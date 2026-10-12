@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>AdoRead.Wiki.Cli</AssemblyName>
+    <RootNamespace>AdoRead</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <PackRelease>true</PackRelease>
+    <ToolCommandName>ado-read-wiki</ToolCommandName>
+    <PackageId>AdoRead.Wiki.Tool</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Read-only Azure DevOps Wiki pages and search as agent-friendly JSON.</Description>
+    <PackageTags>azure-devops;wiki;cli;json</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+  </ItemGroup>
+</Project>
