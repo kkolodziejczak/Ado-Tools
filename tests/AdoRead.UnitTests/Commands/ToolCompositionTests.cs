@@ -240,7 +240,7 @@ public sealed class ToolCompositionTests
 
     private sealed class Pat : IPatProvider
     {
-        public string GetRequiredPat() => "pat";
+        public string GetRequiredPat(Uri organizationUrl) => "pat";
     }
 
     private sealed class UnusedSessionFactory : IAdoSessionFactory

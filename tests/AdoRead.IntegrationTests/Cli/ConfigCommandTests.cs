@@ -8,7 +8,7 @@ public sealed class ConfigCommandTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"ado-read-e2e-{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task ConfigInit_EmitsOneJsonDocumentAndNeverPersistsPat()
+    public async Task ConfigInit_EmitsOneJsonDocumentAndNeverPersistsToken()
     {
         string configPath = Path.Combine(_directory, "custom", "config.json");
 
@@ -23,8 +23,8 @@ public sealed class ConfigCommandTests : IDisposable
         Assert.Equal("success", stdout.RootElement.GetProperty("status").GetString());
         Assert.True(File.Exists(configPath));
         string persisted = await File.ReadAllTextAsync(configPath, CancellationToken.None);
-        Assert.DoesNotContain("stage-one-secret", persisted, StringComparison.Ordinal);
-        Assert.DoesNotContain("stage-one-secret", result.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("token", persisted, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("token", result.StandardOutput, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -94,7 +94,6 @@ public sealed class ConfigCommandTests : IDisposable
             startInfo.ArgumentList.Add(argument);
         }
 
-        startInfo.Environment["ADO_READ_PAT"] = "stage-one-secret";
         using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start ado-read.");
         Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
         Task<string> standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);

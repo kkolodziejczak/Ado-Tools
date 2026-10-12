@@ -43,7 +43,7 @@ public sealed class WikiSearchCommandRedTests
         int exit = await App(new Store(), new MissingPat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "search", "authentication", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Error, exit);
-        AssertError(writer, "authentication", "missingPat", "Environment variable ADO_READ_PAT is required.", transient: false);
+        AssertError(writer, "authentication", "missingPat", "No token is stored for https://dev.azure.com/fabricated. Run `ado-read auth login`.", transient: false);
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public sealed class WikiSearchCommandRedTests
         public Task SaveAsync(string? path, AdoReadConfiguration configuration, bool overwrite, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class Pat : IPatProvider { public string GetRequiredPat() => "pat"; }
-    private sealed class MissingPat : IPatProvider { public string GetRequiredPat() => throw new CredentialException("missingPat", "Environment variable ADO_READ_PAT is required."); }
+    private sealed class Pat : IPatProvider { public string GetRequiredPat(Uri organizationUrl) => "pat"; }
+    private sealed class MissingPat : IPatProvider { public string GetRequiredPat(Uri organizationUrl) => throw new CredentialException("missingPat", "No token is stored for https://dev.azure.com/fabricated. Run `ado-read auth login`."); }
     private sealed class Factory(IWikiSource source) : IAdoSessionFactory { public IAdoSession Create(Uri organizationUrl, string pat) => new Session(source); }
     private sealed class Session(IWikiSource source) : IAdoSession
     {

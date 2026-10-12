@@ -22,7 +22,7 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
         try
         {
             AdoReadConfiguration configuration = await services.ConfigurationStore.LoadAsync(configPath, cancellationToken);
-            string pat = services.PatProvider.GetRequiredPat();
+            string pat = services.PatProvider.GetRequiredPat(configuration.OrganizationUrl);
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoSession session = services.SessionFactory.Create(configuration.OrganizationUrl, pat);

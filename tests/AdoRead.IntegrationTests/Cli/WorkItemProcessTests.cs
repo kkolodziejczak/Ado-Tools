@@ -441,7 +441,6 @@ public sealed class WorkItemProcessTests
             startInfo.ArgumentList.Add(argument);
         }
 
-        startInfo.Environment.Remove("ADO_READ_PAT");
 
         using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start ado-read process.");
         Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);

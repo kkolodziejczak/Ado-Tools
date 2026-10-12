@@ -43,7 +43,6 @@ function Test-TextForSensitiveData
         [switch]$PatOnly
     )
 
-    $redactedText = $Text -replace '(?im)^\s*(?:\$env:)?ADO_READ_PAT\s*=\s*["''](?:your-pat|example-pat|fabricated-test-pat)["'']\s*$', ''
     $patterns = if ($PatOnly)
     {
         @('(?i)\b[a-z0-9]{75}azdo[a-z0-9]{5}\b')
@@ -53,14 +52,14 @@ function Test-TextForSensitiveData
         @(
             '(?im)^\s*(?:\$env:)?ADO_READ_PAT\s*=',
             '(?i)\b[a-z0-9]{75}azdo[a-z0-9]{5}\b',
-            '(?i)https://dev\.azure\.com/(?!(?:example|fabricated|original|replacement|first|second|\{organization\})(?:[^a-z0-9-]|$))[^\s"<>]+',
+            '(?i)https://dev\.azure\.com/(?!(?:example|fabricated|original|replacement|first|second|\{organization\})(?:[^a-z0-9-]|$)|ado-read-test-)[^\s"<>]+',
             '(?i)\b[A-Z0-9._%+-]+@(?!example\.(?:com|invalid|test)\b)[A-Z0-9.-]+\.[A-Z]{2,}\b'
         )
     }
 
     foreach ($pattern in $patterns)
     {
-        if ($redactedText -match $pattern)
+        if ($Text -match $pattern)
         {
             $findings.Add("Possible credential or live fixture data in $Location.")
             return
@@ -90,6 +89,29 @@ try
     foreach ($entry in $fixtureEntries)
     {
         $findings.Add("Package contains test or fixture content: $($entry.FullName).")
+    }
+
+    $noticesEntry = $archive.Entries | Where-Object { $_.FullName -eq 'THIRD-PARTY-NOTICES.md' } | Select-Object -First 1
+    if ($null -eq $noticesEntry)
+    {
+        $findings.Add('Package does not contain THIRD-PARTY-NOTICES.md.')
+    }
+    else
+    {
+        $noticesReader = [System.IO.StreamReader]::new($noticesEntry.Open())
+        try
+        {
+            $noticesText = $noticesReader.ReadToEnd()
+        }
+        finally
+        {
+            $noticesReader.Dispose()
+        }
+
+        if ($noticesText -notmatch 'Git Credential Manager' -or $noticesText -notmatch 'MIT License')
+        {
+            $findings.Add('THIRD-PARTY-NOTICES.md does not contain the Git Credential Manager MIT License notice.')
+        }
     }
 
     if ($PackageId)

@@ -10,7 +10,7 @@ public static class WikiCatalogCommands
 {
     public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
-        var (store, pat, sessions, output, clock, compact) = services;
+        var (store, pat, sessions, output, clock, compact, _, _) = services;
         var wikis = new Command("list", "List the Wikis in a project.");
         var wikiPages = new Command("pages", "List the pages of one Wiki, with paging.");
         var project = new Option<string?>("--project");
@@ -83,7 +83,7 @@ public static class WikiCatalogCommands
             if (!WikiIdentifier.IsSafeProject(selectedProject)) throw new ConfigurationException("invalidProject", "The configured Azure DevOps project identifier is invalid.");
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
-            await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat());
+            await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat(configuration.OrganizationUrl));
             SearchEnvelope<T> envelope = await read(session, configuration, selectedProject, requestTimeout.Token);
             await output.WriteAsync(envelope, compact, token);
             return ExitCodes.FromStatus(envelope.Status);

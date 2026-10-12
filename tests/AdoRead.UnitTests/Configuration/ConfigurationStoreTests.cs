@@ -28,7 +28,7 @@ public sealed class ConfigurationStoreTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(45), loaded.RequestTimeout);
         Assert.Equal(7, loaded.MaxParallelProjects);
         string persisted = await File.ReadAllTextAsync(path, CancellationToken.None);
-        Assert.DoesNotContain("ADO_READ_PAT", persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain("token", persisted, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("secret", persisted, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(Directory.GetFiles(_directory, "*.tmp", SearchOption.AllDirectories));
     }

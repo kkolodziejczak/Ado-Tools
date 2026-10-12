@@ -60,7 +60,7 @@ The documented batch endpoint uses a continuation header and accepts a body cont
 
 Every examined Wiki/page/search read endpoint declares OAuth scope `vso.wiki`, which grants reading wikis, pages, and attachments and searching wiki pages. A least-privilege PAT should therefore have **Wiki (Read)** only; it should not gain the Wiki write scope. [Wikis - List](https://learn.microsoft.com/en-us/rest/api/azure/devops/wiki/wikis/list?view=azure-devops-rest-7.1) [Wiki Search Results - Fetch](https://learn.microsoft.com/en-us/rest/api/azure/devops/search/wiki-search-results/fetch-wiki-search-results?view=azure-devops-rest-7.1)
 
-PATs remain usable with most Azure DevOps REST APIs, but Microsoft recommends Microsoft Entra tokens where practical and advises granting only the minimum scopes. `ado-read` already deliberately obtains a PAT from `ADO_READ_PAT`; this proposal changes neither its storage policy nor its credential mechanism. [Use personal access tokens](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops)
+PATs remain usable with most Azure DevOps REST APIs, but Microsoft recommends Microsoft Entra tokens where practical and advises granting only the minimum scopes. `ado-read` already deliberately obtains a PAT from the operating system credential vault, written only by `auth login`; this proposal changes neither its storage policy nor its credential mechanism. [Use personal access tokens](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops)
 
 The read-only guarantee must be enforced in code, not inferred from a command name:
 
@@ -115,7 +115,7 @@ Use `notFound` / exit `3` only after a completed single wiki/page lookup returns
 - **Source tests:** mock `IWikiSource`/`IWikiSearchSource` for correct SDK argument mapping; `includeContent=true`; path versus ID dispatch; ETag preservation; page children mapping; null/optional fields; and no write method reachable from the source contract.
 - **Reader/contract tests:** exact JSON property names and schema version; deterministic Wiki/page/hit ordering; always-array collections; Markdown content preserved byte-for-character as a JSON string; `notFound`, authorization, throttling, and partial/non-zero search-info behavior.
 - **Pagination tests:** bounded `$skip`/`$top` validation and search `count` handling. If/when `wiki pages` is added, fake the `x-ms-continuationtoken` header across multiple batches and prove termination on missing/repeated token.
-- **CLI/fake-host tests:** help text, `--compact`, `ADO_READ_PAT` requirement, organization mismatch, one JSON output document, exit codes, and explicit proof that URI/method allow-lists contain only GET plus the Search/pages-batch POSTs.
+- **CLI/fake-host tests:** help text, `--compact`, `missingPat` when no token is stored, organization mismatch, one JSON output document, exit codes, and explicit proof that URI/method allow-lists contain only GET plus the Search/pages-batch POSTs.
 - **Optional live smoke test:** a dedicated Wiki PAT with Wiki (Read), a configured project/wiki/path and page ID, and assertions only against read responses; never save returned page content in fixtures or logs.
 
 ## Documented gaps and non-goals

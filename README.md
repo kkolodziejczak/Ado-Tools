@@ -4,22 +4,22 @@ This repository ships five read-only .NET tools that retrieve Azure DevOps work-
 
 ## Tools
 
-`ado-read` is the umbrella tool and contains every feature. Four slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, and the same `projects` and `teams` discovery commands.
+`ado-read` is the umbrella tool and contains every feature. Four slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, and the same `projects` and `teams` discovery commands.
 
 | Package ID | Command | Commands |
 | --- | --- | --- |
-| `AdoRead.Tool` | `ado-read` | `config`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show` |
-| `AdoRead.PullRequests.Tool` | `ado-read-pr` | `<id-or-url>`, `config`, `projects`, `teams` |
-| `AdoRead.WorkItems.Tool` | `ado-read-work-item` | `<id-or-url> [--download-images]`, `config`, `projects`, `teams` |
-| `AdoRead.Wiki.Tool` | `ado-read-wiki` | `list`, `pages`, `page`, `search`, `config`, `projects`, `teams` |
-| `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `projects`, `teams` |
+| `AdoRead.Tool` | `ado-read` | `config`, `auth`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show` |
+| `AdoRead.PullRequests.Tool` | `ado-read-pr` | `<id-or-url>`, `config`, `auth`, `projects`, `teams` |
+| `AdoRead.WorkItems.Tool` | `ado-read-work-item` | `<id-or-url> [--download-images]`, `config`, `auth`, `projects`, `teams` |
+| `AdoRead.Wiki.Tool` | `ado-read-wiki` | `list`, `pages`, `page`, `search`, `config`, `auth`, `projects`, `teams` |
+| `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `auth`, `projects`, `teams` |
 
 In a slice tool the feature command sits directly on the executable, so `ado-read-wiki page <url>` and `ado-read-sprints show` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
 
 ## Requirements
 
 - .NET SDK or runtime 10.0.
-- An Azure DevOps personal access token in `ADO_READ_PAT`. Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is additionally needed only when `wiki page` follows a selected search hit to its exact Wiki-backed Git path. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
+- An Azure DevOps personal access token, stored by `auth login` in your operating system's credential vault (see below). Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is additionally needed only when `wiki page` follows a selected search hit to its exact Wiki-backed Git path. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
 - One configured Azure DevOps Services organization at `https://dev.azure.com/{organization}`. Azure DevOps Server is not supported.
 
 ## Install
@@ -62,19 +62,51 @@ dotnet tool uninstall --global AdoRead.PullRequests.Tool
 
 ## Configure authentication and the organization
 
-The tool only reads its PAT from `ADO_READ_PAT`; never put a token in the command line, config file, source control, or a fixture.
+The token lives only in your operating system's credential vault, and only `auth login` writes it there. The tool never accepts a token as a command-line argument, never reads one from an environment variable or a file, and never writes one to a config file, log, or command output. Keep tokens out of source control and fixtures.
 
 The command examples below assume a global installation or that the tool directory is on `PATH`. For the isolated installation above, replace `ado-read` with `.\.tools\ado-read\ado-read`.
 
 ```powershell
-$env:ADO_READ_PAT = "your-pat"
 ado-read config init --organization https://dev.azure.com/example
+ado-read auth login
+ado-read auth status
 ado-read config show
 ```
 
+```mermaid
+flowchart LR
+    A[auth login] -->|masked prompt| V[(OS credential vault)]
+    V -->|token held in command memory| R[read commands]
+    R -->|read-only requests| D[Azure DevOps]
+```
+
+Legend: `auth login` is the only writer of the token. Read commands fetch it from the vault for their configured organization and send it only to that Azure DevOps organization.
+
 By default, the non-secret configuration is stored at `~/.ado-read/config.json`. Pass `--config <path>` to any command to use another file, for example in CI or a test. `config init` does not overwrite an existing file unless `--force` is supplied.
 
-The configuration holds the organization URL, a whole-command timeout (1–300 seconds), and the bounded project-search concurrency (1–16). It never contains a PAT.
+The configuration holds the organization URL, a whole-command timeout (1–300 seconds), and the bounded project-search concurrency (1–16). It never contains a token.
+
+### Sign in per organization
+
+Create the token in Azure DevOps with only the scopes listed under Requirements. Then run `auth login` in an interactive terminal. It prompts `Personal access token for <organization>:` on stderr, masks the input, and stores the token for the configured organization. Pass `--organization <url>` to store a token for another organization. Every tool has the same commands; in the umbrella tool they are `ado-read auth …`, and in a slice tool they sit on the executable, for example `ado-read-wiki auth login`.
+
+| Command | What it does |
+| --- | --- |
+| `auth login [--config <path>] [--organization <url>]` | Stores the typed token. Fails with `interactiveTerminalRequired` (exit 2) when input is redirected, and with `tokenRequired` (exit 2) when the token is blank. The output names the vault and confirms storage; it never includes the token. |
+| `auth status [--config <path>] [--organization <url>]` | Reports whether a token is stored for the organization and which vault holds it. It never shows any part of the token. |
+| `auth logout [--config <path>] [--organization <url>]` | Removes the stored token and reports whether one was removed. |
+
+A read command with no stored token fails with `missingPat` (exit 5) and names the login command to run.
+
+### Credential vaults
+
+| Operating system | Vault | Notes |
+| --- | --- | --- |
+| Windows | Windows Credential Manager | Stored for the current user on this machine. Not roaming with the domain profile. |
+| macOS | Keychain | The current user's login keychain. |
+| Linux | Secret Service through libsecret | Needs `libsecret` and a running Secret Service provider in your desktop session, such as gnome-keyring. |
+
+There is no plaintext or file fallback. When no vault is available, for example on Linux without a Secret Service, every command that needs a token fails with `credentialStoreUnavailable` (exit 5). Commands that do not need a token, such as `--help` and `config show`, keep working.
 
 ## Commands
 
@@ -282,4 +314,4 @@ dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --conf
 
 `scripts/Verify-ReleasePackage.ps1 -PackagePath <nupkg> -PackageId <id>` scans tracked tool files and the package for likely secrets or live fixture data, and checks the package manifest identity. `scripts/Test-ToolPackage.ps1 -PackagePath <nupkg> -PackageId <id> -CommandName <command>` installs the package into a temporary tool path and runs its smoke test. The umbrella smoke test verifies `--help`, configuration, JSON validation paths, and every Wiki command against fabricated fixtures. A slice smoke test verifies `--help` lists exactly the tool's commands, `config init` and `config show` work, and a command of another feature is rejected with `invalidArguments`. The fake-host process tests cover fabricated work-item, pull-request, and Wiki E2E data without contacting Azure DevOps.
 
-Optional live smoke tests are disabled by default. They require `ADO_READ_LIVE_TESTS=1`, `ADO_READ_PAT`, a valid local config, and either `ADO_READ_WORK_ITEM_ID`, `ADO_READ_PR_ID`, or explicitly selected `ADO_READ_WIKI_PROJECT`, `ADO_READ_WIKI`, `ADO_READ_WIKI_PAGE_PATH`, and `ADO_READ_WIKI_SEARCH_TEXT`. The dedicated image acceptance additionally requires `ADO_READ_LIVE_IMAGE_WORK_ITEM_ID` for a sanitized work item with a known Acceptance Criteria screenshot and `ADO_READ_LIVE_IMAGE_FORMAT` set to `png`, `jpg`, or `webp`. It creates and removes only an owned temporary image directory, validates the schema, file containment, supported signature, byte length, and SHA-256, and never persists or logs returned page/search content or private image artifacts. The automated test does not invoke a vision model; a vision-capable agent must open the owned image during a deliberately enabled acceptance run and compare the pre-agreed visual fact. If that fixture or vision facility is unavailable, record consumer vision as `BLOCKED` rather than claiming visual acceptance.
+Optional live smoke tests are disabled by default. They require `ADO_READ_LIVE_TESTS=1`, a token stored by `auth login` for the configured organization, a valid local config, and either `ADO_READ_WORK_ITEM_ID`, `ADO_READ_PR_ID`, or explicitly selected `ADO_READ_WIKI_PROJECT`, `ADO_READ_WIKI`, `ADO_READ_WIKI_PAGE_PATH`, and `ADO_READ_WIKI_SEARCH_TEXT`. The dedicated image acceptance additionally requires `ADO_READ_LIVE_IMAGE_WORK_ITEM_ID` for a sanitized work item with a known Acceptance Criteria screenshot and `ADO_READ_LIVE_IMAGE_FORMAT` set to `png`, `jpg`, or `webp`. It creates and removes only an owned temporary image directory, validates the schema, file containment, supported signature, byte length, and SHA-256, and never persists or logs returned page/search content or private image artifacts. The automated test does not invoke a vision model; a vision-capable agent must open the owned image during a deliberately enabled acceptance run and compare the pre-agreed visual fact. If that fixture or vision facility is unavailable, record consumer vision as `BLOCKED` rather than claiming visual acceptance.

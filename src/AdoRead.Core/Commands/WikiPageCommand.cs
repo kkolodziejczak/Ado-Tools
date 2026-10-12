@@ -10,7 +10,7 @@ public static class WikiPageCommand
 {
     public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
-        var (store, pat, sessions, output, clock, compact) = services;
+        var (store, pat, sessions, output, clock, compact, _, _) = services;
         var reference = new Argument<string?>("url") { Arity = ArgumentArity.ZeroOrOne };
         var project = new Option<string?>("--project");
         var wiki = new Option<string?>("--wiki");
@@ -61,7 +61,7 @@ public static class WikiPageCommand
             }
             if (reference is null) return await WriteError("command", "invalidWikiReference", "The Wiki reference must be a supported Wiki URL or one valid selector.", ExitCodes.InvalidInputOrConfiguration);
             if (!string.IsNullOrEmpty(reference.Organization) && !reference.IsFor(configuration.OrganizationUrl)) return await WriteError("command", "organizationMismatch", "The Wiki URL belongs to a different organization than the configured organization.", ExitCodes.InvalidInputOrConfiguration);
-            string credential = pat.GetRequiredPat();
+            string credential = pat.GetRequiredPat(configuration.OrganizationUrl);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, credential);

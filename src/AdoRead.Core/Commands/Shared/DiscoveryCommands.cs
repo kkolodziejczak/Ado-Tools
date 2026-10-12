@@ -62,7 +62,7 @@ public static class DiscoveryCommands
         {
             Description = "Include teams you are not a member of."
         };
-        var command = new Command("teams", "List teams in a project, to pick one for the sprint commands.");
+        var command = new Command("teams", "List teams in a project.");
         command.Options.Add(configOption);
         command.Options.Add(projectOption);
         command.Options.Add(allOption);

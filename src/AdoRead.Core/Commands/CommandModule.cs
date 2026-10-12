@@ -1,7 +1,9 @@
 using System.CommandLine;
 using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
+using AdoRead.Credentials;
 using AdoRead.Output;
+using AdoRead.Terminal;
 
 namespace AdoRead.Commands;
 
@@ -24,4 +26,6 @@ public sealed record CommandServices(
     IAdoSessionFactory SessionFactory,
     IJsonOutput JsonOutput,
     TimeProvider TimeProvider,
-    Option<bool> CompactOption);
+    Option<bool> CompactOption,
+    ICredentialVault CredentialVault,
+    ITerminalInput TerminalInput);

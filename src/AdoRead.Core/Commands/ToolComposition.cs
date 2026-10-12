@@ -2,7 +2,9 @@ using System.CommandLine;
 using AdoRead.AzureDevOps;
 using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
+using AdoRead.Credentials;
 using AdoRead.Output;
+using AdoRead.Terminal;
 
 namespace AdoRead.Commands;
 
@@ -15,16 +17,19 @@ public sealed class ToolComposition(
     IJsonOutput jsonOutput,
     TimeProvider timeProvider,
     IPatProvider? patProvider = null,
-    IAdoSessionFactory? sessionFactory = null)
+    IAdoSessionFactory? sessionFactory = null,
+    ICredentialVault? credentialVault = null,
+    ITerminalInput? terminalInput = null)
 {
-    private readonly IPatProvider _patProvider = patProvider ?? new PatProvider();
     private readonly IAdoSessionFactory _sessionFactory = sessionFactory ?? new AdoSessionFactory();
+    private readonly ICredentialVault _credentialVault = credentialVault ?? CredentialVault.ForCurrentPlatform();
+    private readonly ITerminalInput _terminalInput = terminalInput ?? new ConsoleTerminalInput();
 
     public CommandApplication CreateUmbrella(string executable, IReadOnlyList<CommandModule> modules)
     {
         var rootCommand = new RootCommand("Read Azure DevOps context as structured JSON.");
         Option<bool> compactOption = AddCompactOption(rootCommand);
-        CommandServices services = CreateServices(compactOption);
+        CommandServices services = CreateServices(compactOption, executable);
         var sharedNames = new ToolCommandNames(executable, null);
         Dictionary<Command, string> kinds = ConfigureShared(rootCommand, sharedNames, services);
         foreach (CommandModule module in modules)
@@ -41,7 +46,7 @@ public sealed class ToolComposition(
     {
         var rootCommand = new RootCommand(module.Description);
         Option<bool> compactOption = AddCompactOption(rootCommand);
-        CommandServices services = CreateServices(compactOption);
+        CommandServices services = CreateServices(compactOption, executable);
         var names = new ToolCommandNames(executable, null);
         Dictionary<Command, string> kinds = ConfigureShared(rootCommand, names, services);
         Include(kinds, module.Configure(rootCommand, names, services));
@@ -60,13 +65,15 @@ public sealed class ToolComposition(
         return compactOption;
     }
 
-    private CommandServices CreateServices(Option<bool> compactOption) => new(
+    private CommandServices CreateServices(Option<bool> compactOption, string executable) => new(
         configurationStore,
-        _patProvider,
+        patProvider ?? new VaultPatProvider(_credentialVault, new ToolCommandNames(executable, null).Invocation("auth login")),
         _sessionFactory,
         jsonOutput,
         timeProvider,
-        compactOption);
+        compactOption,
+        _credentialVault,
+        _terminalInput);
 
     private static Dictionary<Command, string> ConfigureShared(
         RootCommand rootCommand,
@@ -75,6 +82,7 @@ public sealed class ToolComposition(
     {
         var kinds = new Dictionary<Command, string>();
         Include(kinds, ConfigCommands.Configure(rootCommand, names, services));
+        Include(kinds, AuthCommands.Configure(rootCommand, services));
         Include(kinds, DiscoveryCommands.Configure(rootCommand, names, services));
         return kinds;
     }

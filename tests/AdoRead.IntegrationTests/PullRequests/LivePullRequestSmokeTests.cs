@@ -18,7 +18,7 @@ public sealed class LivePullRequestSmokeTests
             ?? throw new InvalidOperationException("ADO_READ_PR_ID is required for the live smoke test.");
         Assert.True(int.TryParse(idValue, out int id) && id > 0, "ADO_READ_PR_ID must be a positive integer.");
         AdoReadConfiguration configuration = await new ConfigurationStore().LoadAsync(null, CancellationToken.None);
-        string pat = new PatProvider().GetRequiredPat();
+        string pat = LiveTestCredentials.TokenFor(configuration);
         await using IAdoSession session = new AdoSessionFactory()
             .Create(configuration.OrganizationUrl, pat);
         var reader = new PullRequestReader(

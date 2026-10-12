@@ -235,12 +235,12 @@ public sealed class WikiDiscoveryCommandTests
 
     private sealed class Pat : IPatProvider
     {
-        public string GetRequiredPat() => "pat";
+        public string GetRequiredPat(Uri organizationUrl) => "pat";
     }
 
     private sealed class MissingPat : IPatProvider
     {
-        public string GetRequiredPat() => throw new CredentialException("missingPat", "Environment variable ADO_READ_PAT is required.");
+        public string GetRequiredPat(Uri organizationUrl) => throw new CredentialException("missingPat", "No token is stored for https://dev.azure.com/fabricated. Run `ado-read auth login`.");
     }
 
     private sealed class Factory : IAdoSessionFactory

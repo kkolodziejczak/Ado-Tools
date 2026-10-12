@@ -10,7 +10,7 @@ public static class WikiSearchCommand
 {
     public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
-        var (store, pat, sessions, output, clock, compact) = services;
+        var (store, pat, sessions, output, clock, compact, _, _) = services;
         var text = new Argument<string>("text");
         var project = new Option<string?>("--project");
         var allProjects = new Option<bool>("--all-projects");
@@ -43,7 +43,7 @@ public static class WikiSearchCommand
             if (selectedProject is not null && !WikiIdentifier.IsSafeProject(selectedProject)) return await WriteError("configuration", "invalidProject", "The configured Azure DevOps project identifier is invalid.", false, ExitCodes.InvalidInputOrConfiguration, output, clock, compact, token);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(configuration.RequestTimeout);
-            await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat());
+            await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, pat.GetRequiredPat(configuration.OrganizationUrl));
             SearchEnvelope<WikiSearchHitDocument> envelope = await new WikiSearchReader(session.Wikis, clock, names).ReadAsync(text, selectedProject, null, skip ?? 0, top ?? 10, timeout.Token);
             await output.WriteAsync(envelope, compact, token);
             return ExitCodes.FromStatus(envelope.Status);

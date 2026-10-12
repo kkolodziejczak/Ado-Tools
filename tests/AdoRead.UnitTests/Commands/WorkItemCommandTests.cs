@@ -585,7 +585,7 @@ public sealed class WorkItemCommandTests
     {
         public int ReadCount { get; private set; }
 
-        public string GetRequiredPat()
+        public string GetRequiredPat(Uri organizationUrl)
         {
             ReadCount++;
             return "test-pat";
@@ -594,7 +594,7 @@ public sealed class WorkItemCommandTests
 
     private sealed class MissingPatProvider : IPatProvider
     {
-        public string GetRequiredPat() => throw new CredentialException("missingPat", "ADO_READ_PAT is required.");
+        public string GetRequiredPat(Uri organizationUrl) => throw new CredentialException("missingPat", "No token is stored for https://dev.azure.com/fabricated. Run `ado-read auth login`.");
     }
 
     private sealed class FakeAdoSessionFactory(FakeAdoSession session) : IAdoSessionFactory

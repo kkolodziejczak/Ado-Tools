@@ -17,7 +17,7 @@ public sealed class LiveWikiSmokeTests
         WikiReference? reference = WikiReferenceParser.Create(project, wiki, path, null, null, null, null);
         Assert.NotNull(reference);
         AdoReadConfiguration configuration = await new ConfigurationStore().LoadAsync(null, CancellationToken.None);
-        string pat = new PatProvider().GetRequiredPat();
+        string pat = LiveTestCredentials.TokenFor(configuration);
         await using IAdoSession session = new AdoSessionFactory().Create(configuration.OrganizationUrl, pat);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 
@@ -36,7 +36,7 @@ public sealed class LiveWikiSmokeTests
         (string project, string wiki) = WikiSelection();
         string searchText = RequiredEnvironmentVariable("ADO_READ_WIKI_SEARCH_TEXT");
         AdoReadConfiguration configuration = await new ConfigurationStore().LoadAsync(null, CancellationToken.None);
-        string pat = new PatProvider().GetRequiredPat();
+        string pat = LiveTestCredentials.TokenFor(configuration);
         await using IAdoSession session = new AdoSessionFactory().Create(configuration.OrganizationUrl, pat);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 

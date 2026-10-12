@@ -124,7 +124,7 @@ public static class WorkItemModule
                     mediaRequested);
             }
 
-            string pat = patProvider.GetRequiredPat();
+            string pat = patProvider.GetRequiredPat(configuration.OrganizationUrl);
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoSession session = sessionFactory.Create(configuration.OrganizationUrl, pat);

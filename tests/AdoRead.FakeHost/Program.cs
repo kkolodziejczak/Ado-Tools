@@ -38,7 +38,7 @@ internal sealed class FixtureConfigurationStore : IConfigurationStore
 
 internal sealed class FixturePatProvider : IPatProvider
 {
-    public string GetRequiredPat() => "fabricated-test-pat";
+    public string GetRequiredPat(Uri organizationUrl) => "fabricated-test-pat";
 }
 
 internal sealed class FixtureAdoSessionFactory(bool includeImages) : IAdoSessionFactory

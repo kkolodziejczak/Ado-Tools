@@ -11,6 +11,8 @@ public sealed class CommandApplication(
     IJsonOutput jsonOutput,
     TimeProvider timeProvider)
 {
+    public RootCommand RootCommand => rootCommand;
+
     public async Task<int> InvokeAsync(string[] args, CancellationToken cancellationToken)
     {
         ParseResult parseResult = rootCommand.Parse(args);

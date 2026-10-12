@@ -22,7 +22,7 @@ public sealed class LiveWorkItemSmokeTests
             ?? throw new InvalidOperationException("ADO_READ_WORK_ITEM_ID is required for the live smoke test.");
         Assert.True(int.TryParse(idValue, out int id) && id > 0, "ADO_READ_WORK_ITEM_ID must be a positive integer.");
         AdoReadConfiguration configuration = await new ConfigurationStore().LoadAsync(null, CancellationToken.None);
-        string pat = new PatProvider().GetRequiredPat();
+        string pat = LiveTestCredentials.TokenFor(configuration);
         await using IAdoSession session = new AdoSessionFactory()
             .Create(configuration.OrganizationUrl, pat);
         var reader = new WorkItemReader(

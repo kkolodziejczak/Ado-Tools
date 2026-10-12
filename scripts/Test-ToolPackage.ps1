@@ -22,27 +22,27 @@ $ErrorActionPreference = 'Stop'
 $toolContracts = @{
     'AdoRead.Tool' = @{
         Command = 'ado-read'
-        Commands = @('config', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints')
+        Commands = @('config', 'auth', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints')
         Foreign = $null
     }
     'AdoRead.PullRequests.Tool' = @{
         Command = 'ado-read-pr'
-        Commands = @('config', 'projects', 'teams')
+        Commands = @('config', 'auth', 'projects', 'teams')
         Foreign = @('wiki', 'list')
     }
     'AdoRead.WorkItems.Tool' = @{
         Command = 'ado-read-work-item'
-        Commands = @('config', 'projects', 'teams')
+        Commands = @('config', 'auth', 'projects', 'teams')
         Foreign = @('wiki', 'list')
     }
     'AdoRead.Wiki.Tool' = @{
         Command = 'ado-read-wiki'
-        Commands = @('config', 'projects', 'teams', 'list', 'pages', 'page', 'search')
+        Commands = @('config', 'auth', 'projects', 'teams', 'list', 'pages', 'page', 'search')
         Foreign = @('pr', '1')
     }
     'AdoRead.Sprints.Tool' = @{
         Command = 'ado-read-sprints'
-        Commands = @('config', 'projects', 'teams', 'list', 'show')
+        Commands = @('config', 'auth', 'projects', 'teams', 'list', 'show')
         Foreign = @('wiki', 'list')
     }
 }

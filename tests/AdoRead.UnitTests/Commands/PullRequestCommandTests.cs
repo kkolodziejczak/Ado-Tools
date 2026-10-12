@@ -170,7 +170,7 @@ public sealed class PullRequestCommandTests
 
     private sealed class FakePatProvider : IPatProvider
     {
-        public string GetRequiredPat() => "test-pat";
+        public string GetRequiredPat(Uri organizationUrl) => "test-pat";
     }
 
     private sealed class FakeAdoSessionFactory(FakeAdoSession session) : IAdoSessionFactory
