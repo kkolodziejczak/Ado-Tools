@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "2.0",
+  "kind": "wikiCatalog",
+  "status": "success",
+  "query": {
+    "organizationUrl": "https://dev.azure.com/fabricated/",
+    "project": "FabricatedApp"
+  },
+  "generatedAtUtc": "2026-07-10T08:30:00.0000000Z",
+  "results": [
+    {
+      "id": "00000000-0000-0000-0000-000000000401",
+      "name": "FabricatedApp.wiki",
+      "type": "projectWiki",
+      "projectId": "00000000-0000-0000-0000-000000000101",
+      "mappedPath": "/",
+      "versions": [
+        {
+          "value": "wikiMaster",
+          "type": "branch",
+          "next": {
+            "command": "wiki-pages",
+            "arguments": ["--project", "00000000-0000-0000-0000-000000000101", "--wiki", "00000000-0000-0000-0000-000000000401", "--version", "wikiMaster", "--version-type", "branch"]
+          }
+        }
+      ],
+      "links": { "rest": null, "browser": null }
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "2.0",
+  "kind": "workItemSearch",
+  "status": "success",
+  "query": {
+    "id": 123,
+    "organizationUrl": "https://dev.azure.com/fabricated/"
+  },
+  "generatedAtUtc": "2026-07-10T08:30:00.0000000Z",
+  "results": [
+    {
+      "id": 123,
+      "revision": 6,
+      "type": "User Story",
+      "title": "Fabricated checkout story",
+      "state": "Active",
+      "reason": null,
+      "priority": null,
+      "severity": null,
+      "organizationUrl": "https://dev.azure.com/fabricated/",
+      "project": "FabricatedApp",
+      "areaPath": null,
+      "iterationPath": null,
+      "description": {
+        "raw": "<p>As a shopper, I can <strong>check out</strong>.</p>",
+        "format": "html",
+        "plainText": "As a shopper, I can check out."
+      },
+      "acceptanceCriteria": {
+        "raw": null,
+        "format": "html",
+        "plainText": null
+      },
+      "assignedToUniqueName": "engineer@example.invalid",
+      "createdByUniqueName": null,
+      "changedByUniqueName": null,
+      "createdAtUtc": null,
+      "changedAtUtc": null,
+      "closedAtUtc": null,
+      "resolvedAtUtc": null,
+      "tags": ["agent-ready", "sample"],
+      "relations": [
+        {
+          "relationType": "System.LinkTypes.Hierarchy-Reverse",
+          "category": "parent",
+          "targetUrl": "https://dev.azure.com/fabricated/_apis/wit/workItems/100",
+          "targetId": 100,
+          "attributes": { "name": "Parent" }
+        }
+      ],
+      "comments": [
+        {
+          "id": 9,
+          "version": 2,
+          "createdByUniqueName": "reviewer@example.invalid",
+          "modifiedByUniqueName": null,
+          "createdAtUtc": "2026-07-08T12:00:00.0000000Z",
+          "modifiedAtUtc": null,
+          "isDeleted": false,
+          "sourceFormat": "markdown",
+          "rawText": "Please cover the declined-payment case.",
+          "renderedHtml": "<p>Please cover the declined-payment case.</p>",
+          "plainText": "Please cover the declined-payment case.",
+          "mentions": [],
+          "reactions": [
+            { "type": "like", "count": 1, "isCurrentUserEngaged": false }
+          ],
+          "url": "https://dev.azure.com/fabricated/_apis/wit/workItems/123/comments/9"
+        }
+      ],
+      "customFields": { "Custom.Risk": "low" },
+      "links": {
+        "rest": "https://dev.azure.com/fabricated/_apis/wit/workItems/123",
+        "browser": "https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123"
+      }
+    }
+  ],
+  "errors": []
+}

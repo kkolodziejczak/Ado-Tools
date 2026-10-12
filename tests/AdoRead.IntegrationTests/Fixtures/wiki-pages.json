@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "2.0",
+  "kind": "wikiPageCatalog",
+  "status": "success",
+  "query": { "project": "FabricatedApp", "wikiIdentifier": "FabricatedApp.wiki", "version": null },
+  "generatedAtUtc": "2026-07-10T08:30:00.0000000Z",
+  "results": [
+    {
+      "id": 51,
+      "path": "/Architecture/Authentication",
+      "next": {
+        "command": "wiki-page",
+        "arguments": ["--project", "FabricatedApp", "--wiki", "FabricatedApp.wiki", "--path", "/Architecture/Authentication"]
+      }
+    }
+  ],
+  "errors": [],
+  "page": { "requestedTop": 50, "returnedCount": 1, "continuationToken": "52" }
+}
