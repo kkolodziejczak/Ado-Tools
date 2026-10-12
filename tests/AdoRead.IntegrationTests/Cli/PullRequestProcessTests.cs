@@ -116,7 +116,7 @@ public sealed class PullRequestProcessTests
     }
 
     [Fact]
-    public async Task PullRequest_ProductionProcessReturnsAuthenticationErrorWhenPatIsMissing()
+    public async Task PullRequest_ProductionProcessRequiresPrivacyPolicyBeforeTokenLookup()
     {
         string toolRoot = FindToolRoot();
         string assemblyPath = Path.Combine(AppContext.BaseDirectory, "AdoRead.Cli.dll");
@@ -145,11 +145,11 @@ public sealed class PullRequestProcessTests
                 configPath,
                 "--compact");
 
-            Assert.Equal(5, result.ExitCode);
+            Assert.Equal(2, result.ExitCode);
             using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
             Assert.Equal("2.0", output.RootElement.GetProperty("schemaVersion").GetString());
-            Assert.Equal("authentication", output.RootElement.GetProperty("errors")[0].GetProperty("scope").GetString());
-            Assert.Equal("missingPat", output.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
+            Assert.Equal("privacy", output.RootElement.GetProperty("errors")[0].GetProperty("scope").GetString());
+            Assert.Equal("privacyPolicyRequired", output.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
         }
         finally
         {

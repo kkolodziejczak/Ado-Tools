@@ -1,3 +1,4 @@
+using AdoRead.IntegrationTests.Privacy;
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
 using AdoRead.Text;
@@ -20,7 +21,7 @@ public sealed class WorkItemReaderIntegrationTests
             source,
             new WorkItemMapper(new RichTextNormalizer()),
             new Uri("https://dev.azure.com/example/"),
-            TimeProvider.System);
+            TimeProvider.System, FullPrivacy.Value);
 
         var result = await reader.ReadAsync(77, CancellationToken.None);
 

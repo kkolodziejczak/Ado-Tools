@@ -1,4 +1,5 @@
 using AdoRead.Output;
+using AdoRead.IntegrationTests.Privacy;
 using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Wikis;
@@ -21,7 +22,7 @@ public sealed class LiveWikiSmokeTests
         await using IAdoSession session = new AdoSessionFactory().Create(configuration.OrganizationUrl, pat);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 
-        var reader = new WikiPageReader(session.Wikis, configuration.OrganizationUrl, TimeProvider.System);
+        var reader = new WikiPageReader(session.Wikis, configuration.OrganizationUrl, TimeProvider.System, FullPrivacy.Value);
         var result = await reader.ReadAsync(reference, timeout.Token);
 
         Assert.Equal("success", result.Status);
@@ -40,7 +41,7 @@ public sealed class LiveWikiSmokeTests
         await using IAdoSession session = new AdoSessionFactory().Create(configuration.OrganizationUrl, pat);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 
-        var reader = new WikiSearchReader(session.Wikis, TimeProvider.System, new ToolCommandNames("ado-read", "wiki"));
+        var reader = new WikiSearchReader(session.Wikis, TimeProvider.System, new ToolCommandNames("ado-read", "wiki"), FullPrivacy.Value);
         var result = await reader.ReadAsync(searchText, project, null, 0, 10, timeout.Token);
 
         Assert.Contains(result.Status, new[] { "success", "partial" });
@@ -51,7 +52,7 @@ public sealed class LiveWikiSmokeTests
         WikiSearchHitDocument hit = selected[0];
         WikiReference? reference = WikiReferenceParser.Create(hit.Project.Id.ToString(), hit.Wiki.Id.ToString(), null, null, hit.GitPath, hit.Wiki.Version, null);
         Assert.NotNull(reference);
-        var page = await new WikiPageReader(session.Wikis, configuration.OrganizationUrl, TimeProvider.System).ReadAsync(reference, timeout.Token);
+        var page = await new WikiPageReader(session.Wikis, configuration.OrganizationUrl, TimeProvider.System, FullPrivacy.Value).ReadAsync(reference, timeout.Token);
         Assert.Equal("success", page.Status);
         Assert.NotEmpty(page.Results);
     }

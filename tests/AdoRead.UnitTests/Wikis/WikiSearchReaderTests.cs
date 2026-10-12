@@ -1,5 +1,6 @@
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
+using AdoRead.UnitTests.Privacy;
 using AdoRead.Wikis;
 
 namespace AdoRead.UnitTests.Wikis;
@@ -24,7 +25,7 @@ public sealed class WikiSearchReaderTests
     [InlineData(99, "partial", "wikiSearchIncomplete", true)]
     public async Task ReadAsync_MapsEveryDocumentedInfoCodeClass(int infoCode, string status, string? errorCode, bool transient)
     {
-        SearchEnvelope<WikiSearchHitDocument> result = await new WikiSearchReader(new Source(infoCode), TimeProvider.System, new ToolCommandNames("ado-read", "wiki")).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
+        SearchEnvelope<WikiSearchHitDocument> result = await new WikiSearchReader(new Source(infoCode), TimeProvider.System, new ToolCommandNames("ado-read", "wiki"), TestPrivacy.Full).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
         Assert.Equal(status, result.Status); Assert.Equal(infoCode, result.Page!.ServiceInfoCode);
         if (errorCode is null) Assert.Empty(result.Errors);
         else { SearchError error = Assert.Single(result.Errors); Assert.Equal(errorCode, error.Code); Assert.Equal(transient, error.Transient); }
@@ -35,14 +36,14 @@ public sealed class WikiSearchReaderTests
     [InlineData(10, 4, "success")]
     public async Task ReadAsync_DistinguishesInitialNoResultsFromAnEmptyLaterPage(int skip, int totalCount, string status)
     {
-        SearchEnvelope<WikiSearchHitDocument> result = await new WikiSearchReader(new Source(0, includeHit: false, totalCount: totalCount), TimeProvider.System, new ToolCommandNames("ado-read", "wiki")).ReadAsync("x", null, null, skip, 10, CancellationToken.None);
+        SearchEnvelope<WikiSearchHitDocument> result = await new WikiSearchReader(new Source(0, includeHit: false, totalCount: totalCount), TimeProvider.System, new ToolCommandNames("ado-read", "wiki"), TestPrivacy.Full).ReadAsync("x", null, null, skip, 10, CancellationToken.None);
         Assert.Equal(status, result.Status);
     }
 
     [Fact]
     public async Task ReadAsync_DoesNotReportNotFoundWhenAzureDevOpsReturnsAHitWithZeroCount()
     {
-        SearchEnvelope<WikiSearchHitDocument> result = await new WikiSearchReader(new Source(0, includeHit: true, totalCount: 0), TimeProvider.System, new ToolCommandNames("ado-read", "wiki")).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
+        SearchEnvelope<WikiSearchHitDocument> result = await new WikiSearchReader(new Source(0, includeHit: true, totalCount: 0), TimeProvider.System, new ToolCommandNames("ado-read", "wiki"), TestPrivacy.Full).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
 
         Assert.Equal("success", result.Status);
         Assert.Single(result.Results);
@@ -54,8 +55,8 @@ public sealed class WikiSearchReaderTests
         SourceWikiSearchHit first = Hit("/Zulu.md", "Zulu.md", new Guid("00000000-0000-0000-0000-000000000002"));
         SourceWikiSearchHit second = Hit("/Alpha.md", "Alpha.md", new Guid("00000000-0000-0000-0000-000000000001"));
 
-        SearchEnvelope<WikiSearchHitDocument> forward = await new WikiSearchReader(new SequenceSource([first, second]), TimeProvider.System, new ToolCommandNames("ado-read", "wiki")).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
-        SearchEnvelope<WikiSearchHitDocument> reversed = await new WikiSearchReader(new SequenceSource([second, first]), TimeProvider.System, new ToolCommandNames("ado-read", "wiki")).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
+        SearchEnvelope<WikiSearchHitDocument> forward = await new WikiSearchReader(new SequenceSource([first, second]), TimeProvider.System, new ToolCommandNames("ado-read", "wiki"), TestPrivacy.Full).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
+        SearchEnvelope<WikiSearchHitDocument> reversed = await new WikiSearchReader(new SequenceSource([second, first]), TimeProvider.System, new ToolCommandNames("ado-read", "wiki"), TestPrivacy.Full).ReadAsync("x", null, null, 0, 10, CancellationToken.None);
 
         Assert.Equal(forward.Results.Select(hit => hit.GitPath), reversed.Results.Select(hit => hit.GitPath));
         Assert.Equal(["/Alpha.md", "/Zulu.md"], forward.Results.Select(hit => hit.GitPath));

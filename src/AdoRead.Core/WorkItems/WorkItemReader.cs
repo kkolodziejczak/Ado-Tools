@@ -1,5 +1,6 @@
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
+using AdoRead.Privacy;
 
 namespace AdoRead.WorkItems;
 
@@ -7,7 +8,8 @@ public sealed class WorkItemReader(
     IWorkItemSource source,
     WorkItemMapper mapper,
     Uri organizationUrl,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    EffectivePrivacy privacy)
 {
     public Task<SearchEnvelope<WorkItemDocument>> ReadAsync(
         int id,
@@ -19,23 +21,26 @@ public sealed class WorkItemReader(
         string? downloadImagesDirectory,
         CancellationToken cancellationToken)
     {
-        var query = new WorkItemQuery(id, organizationUrl, downloadImagesDirectory);
+        string? imagesDirectory = privacy.Allows(PrivacyCategory.Images) ? downloadImagesDirectory : null;
+        var query = new WorkItemQuery(id, organizationUrl, imagesDirectory);
         try
         {
-            SourceWorkItem? workItem = await source.GetAsync(id, cancellationToken);
-            if (workItem is null)
+            SourceWorkItem? sourceWorkItem = await source.GetAsync(id, cancellationToken);
+            if (sourceWorkItem is null)
             {
                 return CreateEnvelope(query, "notFound", [], []);
             }
+
+            SourceWorkItem workItem = WorkItemPrivacy.AliasIdentities(sourceWorkItem, privacy);
 
             string project = RequireProject(workItem);
             IReadOnlyList<WorkItemCommentDocument> comments = await source.GetAllCommentsAsync(
                 project,
                 id,
                 cancellationToken);
-            WorkItemDocument document = mapper.Map(workItem, comments, organizationUrl);
+            WorkItemDocument document = WorkItemPrivacy.Apply(mapper.Map(workItem, comments, organizationUrl), privacy);
             string status = "success";
-            if (downloadImagesDirectory is not null)
+            if (imagesDirectory is not null)
             {
                 IReadOnlyList<WorkItemImageCandidate> candidates =
                     WorkItemImageCandidateCollector.Collect(workItem, comments, organizationUrl);
@@ -45,7 +50,7 @@ public sealed class WorkItemReader(
                     media = await new WorkItemImageDownloader(source).DownloadAsync(
                         candidates,
                         project,
-                        downloadImagesDirectory,
+                        imagesDirectory,
                         cancellationToken);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -98,14 +103,17 @@ public sealed class WorkItemReader(
         string status,
         IReadOnlyList<WorkItemDocument> results,
         IReadOnlyList<SearchError> errors) =>
-        new(
-            query.DownloadImagesDirectory is null ? "2.0" : "2.1",
-            "workItemSearch",
-            status,
-            query,
-            timeProvider.GetUtcNow(),
-            results,
-            errors);
+        PrivacyEnvelopes.Describe(
+            new SearchEnvelope<WorkItemDocument>(
+                query.DownloadImagesDirectory is null ? "2.0" : "2.1",
+                "workItemSearch",
+                status,
+                query,
+                timeProvider.GetUtcNow(),
+                results,
+                errors),
+            privacy,
+            WorkItemPrivacy.Categories);
 
     private static string RequireProject(SourceWorkItem workItem)
     {

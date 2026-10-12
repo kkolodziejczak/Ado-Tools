@@ -1,3 +1,4 @@
+using AdoRead.IntegrationTests.Privacy;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -29,7 +30,7 @@ public sealed class LiveWorkItemSmokeTests
             session.WorkItems,
             new WorkItemMapper(new RichTextNormalizer()),
             configuration.OrganizationUrl,
-            TimeProvider.System);
+            TimeProvider.System, FullPrivacy.Value);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 
         var result = await reader.ReadAsync(id, timeout.Token);

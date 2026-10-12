@@ -22,27 +22,27 @@ $ErrorActionPreference = 'Stop'
 $toolContracts = @{
     'AdoRead.Tool' = @{
         Command = 'ado-read'
-        Commands = @('config', 'auth', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints')
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints')
         Foreign = $null
     }
     'AdoRead.PullRequests.Tool' = @{
         Command = 'ado-read-pr'
-        Commands = @('config', 'auth', 'projects', 'teams')
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams')
         Foreign = @('wiki', 'list')
     }
     'AdoRead.WorkItems.Tool' = @{
         Command = 'ado-read-work-item'
-        Commands = @('config', 'auth', 'projects', 'teams')
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams')
         Foreign = @('wiki', 'list')
     }
     'AdoRead.Wiki.Tool' = @{
         Command = 'ado-read-wiki'
-        Commands = @('config', 'auth', 'projects', 'teams', 'list', 'pages', 'page', 'search')
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'list', 'pages', 'page', 'search')
         Foreign = @('pr', '1')
     }
     'AdoRead.Sprints.Tool' = @{
         Command = 'ado-read-sprints'
-        Commands = @('config', 'auth', 'projects', 'teams', 'list', 'show')
+        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'list', 'show')
         Foreign = @('wiki', 'list')
     }
 }
@@ -238,6 +238,22 @@ function Test-InstalledConfiguration
     {
         throw "Installed $CommandName returned an unexpected configuration document."
     }
+
+    # No privacy policy is stored for the fabricated organization on a clean machine, so a read must refuse
+    # before it touches a token, and privacy show must report that nothing is configured.
+    Assert-JsonValidationError -Arguments @('projects', '--config', $configPath, '--compact') -ExpectedCode 'privacyPolicyRequired'
+
+    $privacy = & $toolExecutable privacy show --config $configPath --compact
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "Installed $CommandName could not show its privacy policy."
+    }
+
+    $privacyDocument = ($privacy -join [Environment]::NewLine) | ConvertFrom-Json
+    if ($privacyDocument.status -ne 'success' -or $privacyDocument.results[0].configured)
+    {
+        throw "Installed $CommandName reported a privacy policy on a clean machine."
+    }
 }
 
 function Test-SliceSmoke
@@ -260,15 +276,6 @@ function Test-UmbrellaSmoke
 
     $invalidImageDirectory = Join-Path $temporaryRoot 'image-output-file'
     New-Item -ItemType File -Path $invalidImageDirectory -Force | Out-Null
-    Assert-JsonValidationError -Arguments @(
-        'work-item',
-        '123',
-        '--download-images',
-        $invalidImageDirectory,
-        '--config',
-        $configPath,
-        '--compact') -ExpectedCode 'invalidImageOutputDirectory'
-
     $installedCoreAssembly = Get-ChildItem -LiteralPath $toolPath -Recurse -Filter 'AdoRead.Core.dll' | Select-Object -First 1
     if ($null -eq $installedCoreAssembly)
     {
@@ -326,8 +333,46 @@ function Test-UmbrellaSmoke
         throw 'Installed package media smoke test returned an unexpected image format.'
     }
 
+    # Withheld images must not be downloaded or written, and the privacy section must say so.
+    $withheldOutputDirectory = Join-Path $temporaryRoot 'withheld-image-output'
+    $withheldOutput = & dotnet $fixtureHostAssembly work-item 123 --download-images $withheldOutputDirectory --withhold images --compact
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "Fixture withheld-image command failed with exit code $LASTEXITCODE."
+    }
+
+    $withheld = ($withheldOutput -join [Environment]::NewLine) | ConvertFrom-Json
+    $withheldFields = @($withheld.results[0].PSObject.Properties.Name)
+    if (($withheld.status -ne 'success') -or ($withheld.schemaVersion -ne '2.0') -or ($withheld.privacy.withheld -notcontains 'images') -or ($withheldFields -contains 'media') -or (Test-Path -LiteralPath $withheldOutputDirectory))
+    {
+        throw 'Fixture withheld-image command downloaded or wrote images, or did not report them as withheld.'
+    }
+
+    # The fixture host has a full policy, so an invalid image directory is reported as before.
+    $invalidImageOutput = & dotnet $fixtureHostAssembly work-item 123 --download-images $invalidImageDirectory --compact
+    if ($LASTEXITCODE -ne 2)
+    {
+        throw "Fixture invalid image directory exited with code $LASTEXITCODE instead of 2."
+    }
+
+    $invalidImageDocument = ($invalidImageOutput -join [Environment]::NewLine) | ConvertFrom-Json
+    if ($invalidImageDocument.errors[0].code -ne 'invalidImageOutputDirectory')
+    {
+        throw 'Fixture invalid image directory did not report invalidImageOutputDirectory.'
+    }
+
     Test-InstalledHelp
     Test-InstalledConfiguration
+
+    # A clean machine has no privacy policy, so the read refuses before it looks at the image directory.
+    Assert-JsonValidationError -Arguments @(
+        'work-item',
+        '123',
+        '--download-images',
+        $invalidImageDirectory,
+        '--config',
+        $configPath,
+        '--compact') -ExpectedCode 'privacyPolicyRequired'
 
     Assert-JsonValidationError -Arguments @('work-item', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidWorkItemId'
     Assert-JsonValidationError -Arguments @('pr', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidPullRequestId'

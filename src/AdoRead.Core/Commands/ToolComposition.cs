@@ -4,6 +4,7 @@ using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Output;
+using AdoRead.Privacy;
 using AdoRead.Terminal;
 
 namespace AdoRead.Commands;
@@ -65,15 +66,22 @@ public sealed class ToolComposition(
         return compactOption;
     }
 
-    private CommandServices CreateServices(Option<bool> compactOption, string executable) => new(
-        configurationStore,
-        patProvider ?? new VaultPatProvider(_credentialVault, new ToolCommandNames(executable, null).Invocation("auth login")),
-        _sessionFactory,
-        jsonOutput,
-        timeProvider,
-        compactOption,
-        _credentialVault,
-        _terminalInput);
+    private CommandServices CreateServices(Option<bool> compactOption, string executable)
+    {
+        var privacyPolicies = new PrivacyPolicyStore(_credentialVault);
+        var names = new ToolCommandNames(executable, null);
+        return new(
+            configurationStore,
+            patProvider ?? new VaultPatProvider(_credentialVault, names.Invocation("auth login")),
+            _sessionFactory,
+            jsonOutput,
+            timeProvider,
+            compactOption,
+            _credentialVault,
+            _terminalInput,
+            new PrivacyGate(privacyPolicies, names),
+            privacyPolicies);
+    }
 
     private static Dictionary<Command, string> ConfigureShared(
         RootCommand rootCommand,
@@ -82,7 +90,8 @@ public sealed class ToolComposition(
     {
         var kinds = new Dictionary<Command, string>();
         Include(kinds, ConfigCommands.Configure(rootCommand, names, services));
-        Include(kinds, AuthCommands.Configure(rootCommand, services));
+        Include(kinds, AuthCommands.Configure(rootCommand, names, services));
+        Include(kinds, PrivacyCommands.Configure(rootCommand, services));
         Include(kinds, DiscoveryCommands.Configure(rootCommand, names, services));
         return kinds;
     }

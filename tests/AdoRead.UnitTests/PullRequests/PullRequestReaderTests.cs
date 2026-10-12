@@ -1,3 +1,4 @@
+using AdoRead.UnitTests.Privacy;
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
 using AdoRead.PullRequests;
@@ -18,7 +19,8 @@ public sealed class PullRequestReaderTests
             new DirectHitSource(),
             OrganizationUrl,
             2,
-            new FixedTimeProvider(Now));
+            new FixedTimeProvider(Now),
+            TestPrivacy.Full);
 
         var result = await reader.ReadAsync(42, CancellationToken.None);
 
@@ -119,7 +121,8 @@ public sealed class PullRequestReaderTests
             new FakePullRequestSource(new Dictionary<string, ProbeBehavior>()),
             OrganizationUrl,
             2,
-            new FixedTimeProvider(Now));
+            new FixedTimeProvider(Now),
+            TestPrivacy.Full);
 
         var result = await reader.ReadAsync(42, CancellationToken.None);
 
@@ -197,7 +200,8 @@ public sealed class PullRequestReaderTests
             source,
             OrganizationUrl,
             maxParallelProjects,
-            new FixedTimeProvider(Now));
+            new FixedTimeProvider(Now),
+            TestPrivacy.Full);
 
     private sealed class FakeProjectCatalog(IReadOnlyList<AdoProject> projects) : IProjectCatalog
     {

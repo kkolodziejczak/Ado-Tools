@@ -28,4 +28,6 @@
     }
   ],
   "errors": []
+,
+  "privacy": {"level": "full", "withheld": [], "aliased": [], "restrictedByCall": false}
 }

@@ -1,7 +1,9 @@
 using AdoRead.AzureDevOps;
 using AdoRead.Commands;
 using AdoRead.Configuration;
+using AdoRead.Credentials;
 using AdoRead.Output;
+using AdoRead.Privacy;
 using AdoRead.PullRequests;
 using AdoRead.Sprints;
 using AdoRead.WorkItems;
@@ -11,7 +13,8 @@ var application = new ToolComposition(
     new JsonOutput(Console.Out),
     new FixtureTimeProvider(),
     new FixturePatProvider(),
-    new FixtureAdoSessionFactory(args.Contains("--download-images", StringComparer.OrdinalIgnoreCase))).CreateUmbrella(
+    new FixtureAdoSessionFactory(args.Contains("--download-images", StringComparer.OrdinalIgnoreCase)),
+    new FixtureCredentialVault()).CreateUmbrella(
     "ado-read",
     [PullRequestModule.Definition, WorkItemModule.Definition, WikiModule.Definition, SprintModule.Definition]);
 
@@ -508,4 +511,25 @@ internal sealed class FixturePullRequestSource : IPullRequestSource
                 new Uri($"https://dev.azure.com/fabricated/{project.Name}/_apis/git/pullRequests/{id}"),
                 new Uri($"https://dev.azure.com/fabricated/{project.Name}/_git/{repositoryName}/pullrequest/{id}")));
     }
+}
+
+/// <summary>
+/// Holds the fabricated organization's privacy policy as a full policy, so the fixture commands return
+/// their content. Other vault accounts are empty, as on a machine where no token or policy was stored.
+/// </summary>
+internal sealed class FixtureCredentialVault : ICredentialVault
+{
+    private readonly Dictionary<string, string> _secrets = new(StringComparer.Ordinal)
+    {
+        [CredentialAccount.ForPrivacy(new Uri("https://dev.azure.com/fabricated/"))] =
+            new StoredPrivacyPolicy(new PrivacyPolicy(PrivacyLevel.Full), new byte[32]).ToJson()
+    };
+
+    public string Kind => "fixture";
+
+    public string? Read(string account) => _secrets.GetValueOrDefault(account);
+
+    public void Write(string account, string secret) => _secrets[account] = secret;
+
+    public bool Remove(string account) => _secrets.Remove(account);
 }

@@ -3,6 +3,7 @@ using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Output;
+using AdoRead.Privacy;
 using AdoRead.Terminal;
 
 namespace AdoRead.Commands;
@@ -28,4 +29,6 @@ public sealed record CommandServices(
     TimeProvider TimeProvider,
     Option<bool> CompactOption,
     ICredentialVault CredentialVault,
-    ITerminalInput TerminalInput);
+    ITerminalInput TerminalInput,
+    PrivacyGate Privacy,
+    PrivacyPolicyStore PrivacyPolicies);

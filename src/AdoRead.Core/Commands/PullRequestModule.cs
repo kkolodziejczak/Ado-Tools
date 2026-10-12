@@ -1,7 +1,9 @@
 using System.CommandLine;
 using AdoRead.AzureDevOps;
+using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
 using AdoRead.Output;
+using AdoRead.Privacy;
 using AdoRead.PullRequests;
 
 namespace AdoRead.Commands;
@@ -29,10 +31,14 @@ public static class PullRequestModule
         };
         target.Arguments.Add(referenceArgument);
         target.Options.Add(configOption);
+        var privacyOptions = new PrivacyRequestOptions();
+        privacyOptions.AddTo(target);
         target.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
             parseResult.GetValue(referenceArgument),
             parseResult.GetValue(configOption),
             parseResult.GetValue(services.CompactOption),
+            privacyOptions.Read(parseResult),
+            services.Privacy,
             services.ConfigurationStore,
             services.PatProvider,
             services.SessionFactory,
@@ -46,6 +52,8 @@ public static class PullRequestModule
         string? value,
         string? configPath,
         bool compact,
+        PrivacyRequest privacyRequest,
+        PrivacyGate privacyGate,
         IConfigurationStore configurationStore,
         IPatProvider patProvider,
         IAdoSessionFactory sessionFactory,
@@ -83,6 +91,7 @@ public static class PullRequestModule
                     cancellationToken);
             }
 
+            EffectivePrivacy privacy = privacyGate.Require(configuration.OrganizationUrl, privacyRequest);
             string pat = patProvider.GetRequiredPat(configuration.OrganizationUrl);
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
@@ -92,7 +101,8 @@ public static class PullRequestModule
                 session.PullRequests,
                 configuration.OrganizationUrl,
                 configuration.MaxParallelProjects,
-                timeProvider);
+                timeProvider,
+                privacy);
             SearchEnvelope<PullRequestDocument> envelope = await reader.ReadAsync(reference.Id, requestTimeout.Token);
             cancellationToken.ThrowIfCancellationRequested();
             envelope = WithTimeoutErrors(envelope, requestTimeout.IsCancellationRequested);
@@ -103,6 +113,18 @@ public static class PullRequestModule
         {
             return await WriteErrorAsync(
                 "configuration",
+                exception.Code,
+                exception.Message,
+                ExitCodes.InvalidInputOrConfiguration,
+                compact,
+                jsonOutput,
+                timeProvider,
+                cancellationToken);
+        }
+        catch (PrivacyException exception)
+        {
+            return await WriteErrorAsync(
+                "privacy",
                 exception.Code,
                 exception.Message,
                 ExitCodes.InvalidInputOrConfiguration,

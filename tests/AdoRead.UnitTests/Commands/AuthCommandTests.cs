@@ -26,7 +26,7 @@ public sealed class AuthCommandTests
     public async Task Login_StoresTypedTokenForTheConfiguredOrganizationWithoutEchoingIt()
     {
         var vault = new MemoryCredentialVault();
-        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token);
+        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2");
         var writer = new StringWriter();
 
         int exitCode = await App(vault, terminal, writer).InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
@@ -51,7 +51,7 @@ public sealed class AuthCommandTests
     public async Task Login_UsesTheOrganizationOptionAndNormalizesItsAccount()
     {
         var vault = new MemoryCredentialVault();
-        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token);
+        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2");
 
         int exitCode = await App(vault, terminal, new StringWriter()).InvokeAsync(
             ["auth", "login", "--organization", "https://dev.azure.com/Fabricated/", "--compact"],
@@ -65,7 +65,7 @@ public sealed class AuthCommandTests
     public async Task Login_RefusesRedirectedInputBeforePromptingOrStoring()
     {
         var vault = new MemoryCredentialVault();
-        var terminal = new ScriptedTerminalInput(isInputRedirected: true, answer: Token);
+        var terminal = new ScriptedTerminalInput(isInputRedirected: true, answer: Token, "2");
         var writer = new StringWriter();
 
         int exitCode = await App(vault, terminal, writer).InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
@@ -92,7 +92,7 @@ public sealed class AuthCommandTests
     public async Task Login_ReportsAnUnavailableVaultAsAnAuthenticationError()
     {
         var vault = new MemoryCredentialVault(available: false);
-        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token);
+        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2");
         var writer = new StringWriter();
 
         int exitCode = await App(vault, terminal, writer).InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
@@ -157,7 +157,7 @@ public sealed class AuthCommandTests
     public async Task NoAuthCommandAcceptsATokenValueAsAnArgument(string[] arguments)
     {
         var vault = new MemoryCredentialVault();
-        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token);
+        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2");
         var writer = new StringWriter();
 
         int exitCode = await App(vault, terminal, writer).InvokeAsync([.. arguments, "--compact"], CancellationToken.None);

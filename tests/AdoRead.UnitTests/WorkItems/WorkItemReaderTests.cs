@@ -1,3 +1,4 @@
+using AdoRead.UnitTests.Privacy;
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
 using AdoRead.Text;
@@ -176,7 +177,8 @@ public sealed class WorkItemReaderTests
             source,
             new WorkItemMapper(new RichTextNormalizer()),
             OrganizationUrl,
-            new FixedTimeProvider(Now));
+            new FixedTimeProvider(Now),
+            TestPrivacy.Full);
 
     private static byte[] PngBytes() =>
         Convert.FromBase64String(

@@ -1,12 +1,14 @@
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
+using AdoRead.Privacy;
 
 namespace AdoRead.Sprints;
 
 public sealed class SprintReader(
     ISprintSource source,
     Uri organizationUrl,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    EffectivePrivacy privacy)
 {
     /// <summary>
     /// Reads one sprint as a shallow overview. <paramref name="sprint"/> is null for the team's
@@ -38,13 +40,13 @@ public sealed class SprintReader(
                 iteration.Id,
                 cancellationToken);
             IReadOnlyList<SprintWorkItemDocument> matched = Filter(workItems, states);
-            var document = new SprintDocument(
+            SprintDocument document = SprintPrivacy.Apply(new SprintDocument(
                 organizationUrl,
                 project,
                 team,
                 iteration,
                 CountByState(matched),
-                matched);
+                matched), privacy);
             return CreateEnvelope(query, "success", [document], []);
         }
         catch (WorkItemSourceException exception)
@@ -74,13 +76,16 @@ public sealed class SprintReader(
                 team,
                 timeframe,
                 cancellationToken);
-            return new SearchEnvelope<SprintIterationDocument>(
-                "1.0",
-                "iterationSearch",
-                iterations.Count > 0 ? "success" : "notFound",
-                query,
-                timeProvider.GetUtcNow(),
-                iterations,
+            return PrivacyEnvelopes.Describe(
+                new SearchEnvelope<SprintIterationDocument>(
+                    "1.0",
+                    "iterationSearch",
+                    iterations.Count > 0 ? "success" : "notFound",
+                    query,
+                    timeProvider.GetUtcNow(),
+                    iterations,
+                    []),
+                privacy,
                 []);
         }
         catch (WorkItemSourceException exception)
@@ -152,12 +157,15 @@ public sealed class SprintReader(
         string status,
         IReadOnlyList<SprintDocument> results,
         IReadOnlyList<SearchError> errors) =>
-        new(
-            "1.0",
-            "sprintSearch",
-            status,
-            query,
-            timeProvider.GetUtcNow(),
-            results,
-            errors);
+        PrivacyEnvelopes.Describe(
+            new SearchEnvelope<SprintDocument>(
+                "1.0",
+                "sprintSearch",
+                status,
+                query,
+                timeProvider.GetUtcNow(),
+                results,
+                errors),
+            privacy,
+            SprintPrivacy.Categories);
 }

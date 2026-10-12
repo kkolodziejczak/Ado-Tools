@@ -3,6 +3,7 @@ using AdoRead.AzureDevOps;
 using AdoRead.Commands;
 using AdoRead.Configuration;
 using AdoRead.Output;
+using AdoRead.UnitTests.Privacy;
 
 namespace AdoRead.UnitTests.Commands;
 
@@ -13,6 +14,9 @@ public sealed class ToolCompositionTests
     public static TheoryData<string[]> UmbrellaCommands => new()
     {
         new[] { "config", "show" },
+        new[] { "privacy", "show" },
+        new[] { "privacy", "set", "minimal" },
+        new[] { "privacy", "reset" },
         new[] { "projects" },
         new[] { "teams" },
         new[] { "pr", "1" },
@@ -38,6 +42,7 @@ public sealed class ToolCompositionTests
     public static TheoryData<string, string[]> SliceCommands => new()
     {
         { "pr", ["1"] },
+        { "pr", ["privacy", "show"] },
         { "pr", ["config", "show"] },
         { "pr", ["projects"] },
         { "pr", ["teams"] },
@@ -53,6 +58,8 @@ public sealed class ToolCompositionTests
         { "sprints", ["show"] },
         { "sprints", ["config", "show"] },
         { "sprints", ["projects"] },
+        { "sprints", ["privacy", "reset"] },
+        { "wiki", ["privacy", "set", "minimal"] },
     };
 
     public static TheoryData<string, string[]> ForeignCommands => new()
@@ -85,7 +92,7 @@ public sealed class ToolCompositionTests
     public async Task Umbrella_MountsEveryFeatureCommandUnderItsGroup(string[] arguments)
     {
         var writer = new StringWriter();
-        CommandApplication application = new ToolComposition(new ProbeStore(), new JsonOutput(writer), TimeProvider.System)
+        CommandApplication application = new ToolComposition(new ProbeStore(), new JsonOutput(writer), TimeProvider.System, credentialVault: TestPrivacy.ConsentedVault())
             .CreateUmbrella("ado-read", AllModules);
 
         int exitCode = await application.InvokeAsync([.. arguments, "--compact"], CancellationToken.None);
@@ -98,7 +105,7 @@ public sealed class ToolCompositionTests
     public async Task Umbrella_NoLongerMountsTheFlatCommandNames(string[] arguments)
     {
         var writer = new StringWriter();
-        CommandApplication application = new ToolComposition(new ProbeStore(), new JsonOutput(writer), TimeProvider.System)
+        CommandApplication application = new ToolComposition(new ProbeStore(), new JsonOutput(writer), TimeProvider.System, credentialVault: TestPrivacy.ConsentedVault())
             .CreateUmbrella("ado-read", AllModules);
 
         int exitCode = await application.InvokeAsync([.. arguments, "--compact"], CancellationToken.None);
@@ -150,7 +157,7 @@ public sealed class ToolCompositionTests
     public async Task UmbrellaWiki_HintsNameTheGroupedCommands(string command, string nextCommand)
     {
         var writer = new StringWriter();
-        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System)
+        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, credentialVault: TestPrivacy.ConsentedVault())
             .CreateUmbrella("ado-read", AllModules);
 
         await application.InvokeAsync(["wiki", command, "--compact"], CancellationToken.None);
@@ -163,7 +170,7 @@ public sealed class ToolCompositionTests
     public async Task SliceSprints_MissingProjectNamesTheSliceProjectsCommand()
     {
         var writer = new StringWriter();
-        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new UnusedSessionFactory())
+        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new UnusedSessionFactory(), credentialVault: TestPrivacy.ConsentedVault())
             .CreateSlice("ado-read-sprints", SprintModule.Definition);
 
         await application.InvokeAsync(["show", "--compact"], CancellationToken.None);
@@ -177,7 +184,7 @@ public sealed class ToolCompositionTests
     public async Task UmbrellaSprints_MissingProjectNamesTheUmbrellaProjectsCommand()
     {
         var writer = new StringWriter();
-        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new UnusedSessionFactory())
+        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new UnusedSessionFactory(), credentialVault: TestPrivacy.ConsentedVault())
             .CreateUmbrella("ado-read", AllModules);
 
         await application.InvokeAsync(["sprints", "show", "--compact"], CancellationToken.None);
@@ -188,7 +195,7 @@ public sealed class ToolCompositionTests
     }
 
     private static CommandApplication ComposeSlice(string feature, StringWriter writer, IConfigurationStore? store = null) =>
-        new ToolComposition(store ?? new ProbeStore(), new JsonOutput(writer), TimeProvider.System)
+        new ToolComposition(store ?? new ProbeStore(), new JsonOutput(writer), TimeProvider.System, credentialVault: TestPrivacy.ConsentedVault())
             .CreateSlice($"ado-read-{feature}", feature switch
             {
                 "pr" => PullRequestModule.Definition,

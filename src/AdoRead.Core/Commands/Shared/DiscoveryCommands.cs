@@ -1,7 +1,7 @@
 using System.CommandLine;
 using AdoRead.AzureDevOps;
-using AdoRead.Configuration;
 using AdoRead.Output;
+using AdoRead.Privacy;
 using AdoRead.Sprints;
 
 namespace AdoRead.Commands.Shared;
@@ -32,16 +32,19 @@ public static class DiscoveryCommands
     private static Command CreateProjectsCommand(ReadCommandContext context, CommandServices services)
     {
         Option<string?> configOption = ReadCommandContext.CreateConfigOption();
+        var privacyOptions = new PrivacyRequestOptions();
         var command = new Command("projects", "List every accessible project in the organization.");
         command.Options.Add(configOption);
+        privacyOptions.AddTo(command);
         command.SetAction(async (parseResult, cancellationToken) => await context.RunAsync(
             "projectSearch",
             parseResult.GetValue(configOption),
             parseResult.GetValue(services.CompactOption),
-            async (session, configuration, token) =>
+            privacyOptions.Read(parseResult),
+            async (session, configuration, privacy, token) =>
             {
                 IReadOnlyList<AdoProject> projects = await session.Projects.GetAllAsync(token);
-                return new SearchEnvelope<ProjectDocument>(
+                var envelope = new SearchEnvelope<ProjectDocument>(
                     "1.0",
                     "projectSearch",
                     projects.Count > 0 ? "success" : "notFound",
@@ -49,6 +52,7 @@ public static class DiscoveryCommands
                     services.TimeProvider.GetUtcNow(),
                     projects.Select(project => new ProjectDocument(project.Id, project.Name, project.Url)).ToArray(),
                     []);
+                return PrivacyEnvelopes.Describe(envelope, privacy, []);
             },
             cancellationToken));
         return command;
@@ -58,6 +62,7 @@ public static class DiscoveryCommands
     {
         Option<string?> configOption = ReadCommandContext.CreateConfigOption();
         Option<string?> projectOption = ReadCommandContext.CreateProjectOption();
+        var privacyOptions = new PrivacyRequestOptions();
         var allOption = new Option<bool>("--all")
         {
             Description = "Include teams you are not a member of."
@@ -66,16 +71,18 @@ public static class DiscoveryCommands
         command.Options.Add(configOption);
         command.Options.Add(projectOption);
         command.Options.Add(allOption);
+        privacyOptions.AddTo(command);
         command.SetAction(async (parseResult, cancellationToken) => await context.RunAsync(
             "teamSearch",
             parseResult.GetValue(configOption),
             parseResult.GetValue(services.CompactOption),
-            async (session, configuration, token) =>
+            privacyOptions.Read(parseResult),
+            async (session, configuration, privacy, token) =>
             {
                 string project = context.RequireProject(parseResult.GetValue(projectOption), configuration);
                 bool mineOnly = !parseResult.GetValue(allOption);
                 IReadOnlyList<AdoTeam> teams = await session.Teams.GetTeamsAsync(project, mineOnly, token);
-                return new SearchEnvelope<TeamDocument>(
+                var envelope = new SearchEnvelope<TeamDocument>(
                     "1.0",
                     "teamSearch",
                     teams.Count > 0 ? "success" : "notFound",
@@ -83,6 +90,7 @@ public static class DiscoveryCommands
                     services.TimeProvider.GetUtcNow(),
                     teams.Select(team => new TeamDocument(team.Id, team.Name, team.Description)).ToArray(),
                     []);
+                return PrivacyEnvelopes.Filter(envelope, privacy, TeamPrivacy.Categories, team => TeamPrivacy.Apply(team, privacy));
             },
             cancellationToken));
         return command;

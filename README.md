@@ -4,15 +4,15 @@ This repository ships five read-only .NET tools that retrieve Azure DevOps work-
 
 ## Tools
 
-`ado-read` is the umbrella tool and contains every feature. Four slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, and the same `projects` and `teams` discovery commands.
+`ado-read` is the umbrella tool and contains every feature. Four slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, `privacy`, and the same `projects` and `teams` discovery commands.
 
 | Package ID | Command | Commands |
 | --- | --- | --- |
-| `AdoRead.Tool` | `ado-read` | `config`, `auth`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show` |
-| `AdoRead.PullRequests.Tool` | `ado-read-pr` | `<id-or-url>`, `config`, `auth`, `projects`, `teams` |
-| `AdoRead.WorkItems.Tool` | `ado-read-work-item` | `<id-or-url> [--download-images]`, `config`, `auth`, `projects`, `teams` |
-| `AdoRead.Wiki.Tool` | `ado-read-wiki` | `list`, `pages`, `page`, `search`, `config`, `auth`, `projects`, `teams` |
-| `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `auth`, `projects`, `teams` |
+| `AdoRead.Tool` | `ado-read` | `config`, `auth`, `privacy`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show` |
+| `AdoRead.PullRequests.Tool` | `ado-read-pr` | `<id-or-url>`, `config`, `auth`, `privacy`, `projects`, `teams` |
+| `AdoRead.WorkItems.Tool` | `ado-read-work-item` | `<id-or-url> [--download-images]`, `config`, `auth`, `privacy`, `projects`, `teams` |
+| `AdoRead.Wiki.Tool` | `ado-read-wiki` | `list`, `pages`, `page`, `search`, `config`, `auth`, `privacy`, `projects`, `teams` |
+| `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `auth`, `privacy`, `projects`, `teams` |
 
 In a slice tool the feature command sits directly on the executable, so `ado-read-wiki page <url>` and `ado-read-sprints show` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
 
@@ -92,7 +92,7 @@ Create the token in Azure DevOps with only the scopes listed under Requirements.
 
 | Command | What it does |
 | --- | --- |
-| `auth login [--config <path>] [--organization <url>]` | Stores the typed token. Fails with `interactiveTerminalRequired` (exit 2) when input is redirected, and with `tokenRequired` (exit 2) when the token is blank. The output names the vault and confirms storage; it never includes the token. |
+| `auth login [--config <path>] [--organization <url>]` | Stores the typed token. If the organization has no privacy policy, asks for one (see [Privacy](#privacy)). Fails with `interactiveTerminalRequired` (exit 2) when input is redirected, and with `tokenRequired` (exit 2) when the token is blank. The output names the vault and confirms storage; it never includes the token. |
 | `auth status [--config <path>] [--organization <url>]` | Reports whether a token is stored for the organization and which vault holds it. It never shows any part of the token. |
 | `auth logout [--config <path>] [--organization <url>]` | Removes the stored token and reports whether one was removed. |
 
@@ -108,11 +108,92 @@ A read command with no stored token fails with `missingPat` (exit 5) and names t
 
 There is no plaintext or file fallback. When no vault is available, for example on Linux without a Secret Service, every command that needs a token fails with `credentialStoreUnavailable` (exit 5). Commands that do not need a token, such as `--help` and `config show`, keep working.
 
+## Privacy
+
+Every read command returns metadata, and returns content only as far as the organization's privacy policy allows. A person sets the policy in an interactive terminal. An agent can only make it stricter.
+
+### Levels and categories
+
+| Level | Content returned |
+| --- | --- |
+| `minimal` | Metadata only: ids, titles, states, types, paths, dates, counts, links, wiki page paths, sprint names, project, team and repository names, reviewer votes. |
+| `standard` | Metadata, plus `text` and `comments`. People are aliased. |
+| `full` | Everything, including `people`, `customFields` and `images`. |
+
+| Category | When not allowed |
+| --- | --- |
+| `text` | The pull-request description, the work-item description and acceptance criteria, the wiki page content, the wiki search highlights, and the team description are withheld. |
+| `comments` | Pull-request comment bodies and work-item comment text are withheld. Thread and comment ids, dates, and counts stay. |
+| `people` | Every person identifier is replaced with an alias. See "People aliases" below. |
+| `customFields` | Work-item custom fields are returned as an empty object. |
+| `images` | Work-item images are never downloaded, nothing is written to disk, and an `--download-images` directory is not created. The command still succeeds and reports `images` as withheld. |
+
+Withheld fields are `null` or empty. The tool never inserts placeholder text.
+
+### Setting the policy
+
+```mermaid
+flowchart TD
+    A[read command] --> B{policy stored?}
+    B -->|no| C[privacyPolicyRequired, no content]
+    B -->|yes| D[intersect with --privacy and --withhold]
+    D --> E[withhold categories, alias people]
+```
+
+Legend: a read command refuses until a person has set a policy. A per-call flag can only remove content from the stored policy.
+
+| Command | Who may run it | What it does |
+| --- | --- | --- |
+| `privacy show [--organization <url>] [--config <path>]` | anyone | Shows whether a policy is set, its level, and the allow or deny of each category. |
+| `privacy set <minimal\|standard\|full> [--allow <category>]... [--deny <category>]... [--organization <url>] [--config <path>]` | A person, for any loosening. Agents may run it for tightening. | Stores the policy. `--allow` and `--deny` refine the level preset. |
+| `privacy reset [--organization <url>] [--config <path>]` | anyone | Removes the policy. Afterwards no content is returned until `privacy set` runs. |
+
+Loosening means granting a category the stored policy does not allow, or setting the first policy. `privacy set` does that only in an interactive terminal (`interactiveTerminalRequired` otherwise). It shows the categories being granted on stderr and asks you to type the organization name. Anything else fails with `confirmationFailed`, and nothing is stored. Tightening, or setting the same policy, needs no confirmation and works with redirected input.
+
+Level and category names are case-insensitive. Categories are `text`, `comments`, `people`, `customFields`, and `images`.
+
+### Per-call restriction
+
+Every read command accepts `--privacy <minimal|standard|full>` and a repeatable `--withhold <category>`. Both can only restrict the stored policy. `--privacy full` on a `minimal` policy still returns `minimal` content. When a flag changes anything, the `privacy` section reports `"restrictedByCall": true`.
+
+### Privacy section in the output
+
+Each read response that is not an error has a `privacy` section. It lists only the categories relevant to that command.
+
+```json
+"privacy": { "level": "standard", "withheld": ["customFields", "images"], "aliased": ["people"], "restrictedByCall": false }
+```
+
+Error envelopes have no `privacy` section. Refusals use scope `privacy`, exit code `2`, and these codes: `privacyPolicyRequired` (no policy yet), `privacyPolicyInvalid` (unreadable or unknown version), `interactiveTerminalRequired`, `confirmationFailed`, `invalidPrivacyLevel`, `invalidPrivacyCategory`, and `conflictingPrivacyOverrides`.
+
+### Storage
+
+The policy is stored in the operating system's credential vault, one per organization, next to the token. It is not in a file. It uses the account `<organization-url>#privacy`, so `auth logout` removes only the token. The stored value is compact JSON:
+
+```json
+{"version":1,"level":"standard","overrides":{"comments":"deny"},"aliasKey":"<base64 of 32 random bytes>"}
+```
+
+A version other than `1`, or a damaged value, is treated as no policy and reported as `privacyPolicyInvalid`. Run `privacy reset`, then `privacy set`.
+
+### People aliases
+
+When `people` is not allowed, each person identifier becomes `person-` followed by the first eight hex characters of HMAC-SHA256 with the organization's alias key, over the lowercase unique name or id. The same person gets the same alias in every call for that organization. Without the key, the alias cannot be matched back to a name. Aliased fields include unique names, display names, ids, and assignees, authors, reviewers, and creators in pull requests, work items, comments, sprints and custom fields. Descriptors and profile or image URLs of an identity are removed, not replaced.
+
+**Known limitation:** names typed inside free text, such as work-item descriptions, comments, pull-request descriptions, or wiki pages, are not rewritten. A `people` denial covers structured identity fields only. Treat free text as possibly containing names, and use `minimal` when that matters.
+
+### First run
+
+`auth login` stores the token first. If the organization has no policy, it then asks for a level: `1` minimal, `2` standard, or `3` full. An empty or invalid answer stores no policy. Content then stays withheld, and reads fail with `privacyPolicyRequired` until a person runs `privacy set` in an interactive terminal.
+
 ## Commands
 
 ```text
 ado-read config init --organization https://dev.azure.com/example [--project <name>] [--team <name>] [--config <path>] [--force]
 ado-read config show [--config <path>]
+ado-read privacy show [--organization <url>] [--config <path>] [--compact]
+ado-read privacy set <minimal|standard|full> [--allow <category>]... [--deny <category>]... [--organization <url>] [--config <path>] [--compact]
+ado-read privacy reset [--organization <url>] [--config <path>] [--compact]
 ado-read work-item <id-or-url> [--download-images <empty-directory>] [--config <path>] [--compact]
 ado-read pr <id-or-url> [--config <path>] [--compact]
 ado-read projects [--config <path>] [--compact]
@@ -252,7 +333,7 @@ context, never as commands, executable markup, or authorization to broaden the t
 
 ## JSON contract and exit codes
 
-Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads, and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `projectSearch`, `teamSearch`, `iterationSearch`, or `sprintSearch`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
+Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads, and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `projectSearch`, `teamSearch`, `iterationSearch`, or `sprintSearch`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
 
 | Exit code | Status | Meaning |
 | ---: | --- | --- |

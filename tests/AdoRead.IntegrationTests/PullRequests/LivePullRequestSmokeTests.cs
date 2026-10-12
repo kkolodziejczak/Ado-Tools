@@ -1,3 +1,4 @@
+using AdoRead.IntegrationTests.Privacy;
 using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.PullRequests;
@@ -26,7 +27,7 @@ public sealed class LivePullRequestSmokeTests
             session.PullRequests,
             configuration.OrganizationUrl,
             configuration.MaxParallelProjects,
-            TimeProvider.System);
+            TimeProvider.System, FullPrivacy.Value);
         using var timeout = new CancellationTokenSource(configuration.RequestTimeout);
 
         var result = await reader.ReadAsync(id, timeout.Token);

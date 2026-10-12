@@ -6,6 +6,12 @@ public sealed class ConsoleTerminalInput : ITerminalInput
 {
     public bool IsInputRedirected => Console.IsInputRedirected;
 
+    public string ReadLine(string prompt)
+    {
+        Console.Error.Write(prompt);
+        return Console.ReadLine() ?? string.Empty;
+    }
+
     public string ReadMaskedLine(string prompt)
     {
         Console.Error.Write(prompt);

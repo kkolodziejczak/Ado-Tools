@@ -125,7 +125,8 @@ public sealed class SprintSource(
             GetString(fields, "System.State"),
             GetString(fields, "System.IterationPath"),
             GetIdentity(fields, "System.AssignedTo"),
-            CreateBrowserUrl(GetString(fields, "System.TeamProject"), id));
+            CreateBrowserUrl(GetString(fields, "System.TeamProject"), id),
+            GetUniqueName(fields, "System.AssignedTo"));
     }
 
     private Uri? CreateBrowserUrl(string? project, int id) => string.IsNullOrWhiteSpace(project) || id <= 0
@@ -135,6 +136,11 @@ public sealed class SprintSource(
     private static string? GetString(IReadOnlyDictionary<string, object> fields, string name) =>
         fields.TryGetValue(name, out object? value)
             ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private static string? GetUniqueName(IReadOnlyDictionary<string, object> fields, string name) =>
+        fields.TryGetValue(name, out object? value) && value is IdentityRef identity
+            ? identity.UniqueName
             : null;
 
     private static string? GetIdentity(IReadOnlyDictionary<string, object> fields, string name) =>

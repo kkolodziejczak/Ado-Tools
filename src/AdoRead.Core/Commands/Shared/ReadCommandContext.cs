@@ -2,13 +2,14 @@ using System.CommandLine;
 using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Output;
+using AdoRead.Privacy;
 
 namespace AdoRead.Commands.Shared;
 
 /// <summary>
-/// Shared plumbing for the Azure DevOps read commands: load configuration, read the PAT, apply the
-/// whole-command timeout, open one session, and map every expected failure onto a single JSON
-/// envelope and exit code. Hints name commands through the tool's root names.
+/// Shared plumbing for the Azure DevOps read commands: load configuration, apply the privacy policy,
+/// read the PAT, apply the whole-command timeout, open one session, and map every expected failure
+/// onto a single JSON envelope and exit code. Hints name commands through the tool's root names.
 /// </summary>
 internal sealed class ReadCommandContext(CommandServices services, ToolCommandNames names)
 {
@@ -16,17 +17,19 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
         string kind,
         string? configPath,
         bool compact,
-        Func<IAdoSession, AdoReadConfiguration, CancellationToken, Task<SearchEnvelope<T>>> readAsync,
+        PrivacyRequest privacyRequest,
+        Func<IAdoSession, AdoReadConfiguration, EffectivePrivacy, CancellationToken, Task<SearchEnvelope<T>>> readAsync,
         CancellationToken cancellationToken)
     {
         try
         {
             AdoReadConfiguration configuration = await services.ConfigurationStore.LoadAsync(configPath, cancellationToken);
+            EffectivePrivacy privacy = services.Privacy.Require(configuration.OrganizationUrl, privacyRequest);
             string pat = services.PatProvider.GetRequiredPat(configuration.OrganizationUrl);
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoSession session = services.SessionFactory.Create(configuration.OrganizationUrl, pat);
-            SearchEnvelope<T> envelope = await readAsync(session, configuration, requestTimeout.Token);
+            SearchEnvelope<T> envelope = await readAsync(session, configuration, privacy, requestTimeout.Token);
             cancellationToken.ThrowIfCancellationRequested();
             await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
             return ExitCodes.FromStatus(envelope.Status);
@@ -36,6 +39,15 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
             return await WriteErrorAsync(
                 kind,
                 new SearchError("configuration", null, exception.Code, exception.Message, false),
+                ExitCodes.InvalidInputOrConfiguration,
+                compact,
+                cancellationToken);
+        }
+        catch (PrivacyException exception)
+        {
+            return await WriteErrorAsync(
+                kind,
+                new SearchError("privacy", null, exception.Code, exception.Message, false),
                 ExitCodes.InvalidInputOrConfiguration,
                 compact,
                 cancellationToken);

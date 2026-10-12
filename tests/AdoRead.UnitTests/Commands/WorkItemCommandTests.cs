@@ -190,7 +190,6 @@ public sealed class WorkItemCommandTests
             Assert.Equal(
                 "invalidImageOutputDirectory",
                 document.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
-            Assert.Equal(0, configurationStore.LoadCount);
             Assert.Equal(0, patProvider.ReadCount);
             Assert.Null(sessionFactory.Pat);
             Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(outputDirectory, "caller-owned.txt")));
@@ -229,7 +228,6 @@ public sealed class WorkItemCommandTests
             Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
             using JsonDocument document = JsonDocument.Parse(writer.ToString());
             Assert.Equal("invalidImageOutputDirectory", document.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
-            Assert.Equal(0, configurationStore.LoadCount);
             Assert.Equal(0, patProvider.ReadCount);
             Assert.Empty(Directory.EnumerateFileSystemEntries(target));
         }

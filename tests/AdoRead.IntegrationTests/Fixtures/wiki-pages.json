@@ -16,4 +16,6 @@
   ],
   "errors": [],
   "page": { "requestedTop": 50, "returnedCount": 1, "continuationToken": "52" }
+,
+  "privacy": {"level": "full", "withheld": [], "aliased": [], "restrictedByCall": false}
 }

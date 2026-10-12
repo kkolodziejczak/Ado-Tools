@@ -1,3 +1,5 @@
+using AdoRead.Privacy;
+
 namespace AdoRead.Output;
 
 public sealed record SearchEnvelope<T>(
@@ -8,7 +10,8 @@ public sealed record SearchEnvelope<T>(
     DateTimeOffset GeneratedAtUtc,
     IReadOnlyList<T> Results,
     IReadOnlyList<SearchError> Errors,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] PageMetadataDocument? Page = null);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] PageMetadataDocument? Page = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] PrivacySection? Privacy = null);
 
 public static class SearchEnvelopeFactory
 {

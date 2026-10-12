@@ -1,20 +1,30 @@
 using System.CommandLine;
+using System.Text.Json.Serialization;
 using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Output;
+using AdoRead.Privacy;
 
 namespace AdoRead.Commands.Shared;
 
 /// <summary>
 /// Stores, checks and removes the personal access token of one organization in the OS credential
-/// vault. No command accepts a token value: login reads it from a masked terminal prompt.
+/// vault. No command accepts a token value: login reads it from a masked terminal prompt. Login also
+/// asks a person for the privacy level when the organization has none yet.
 /// </summary>
 public static class AuthCommands
 {
-    public static IReadOnlyDictionary<Command, string> Configure(Command target, CommandServices services)
+    private const string PrivacyLevelPrompt =
+        "Choose what AI agents may receive from this organization:\n"
+        + "  1 minimal   metadata only: ids, titles, states, paths, dates, counts and links\n"
+        + "  2 standard  metadata plus text and comments; people are aliased\n"
+        + "  3 full      everything, including custom fields, images and people\n"
+        + "Privacy level 1, 2 or 3 (empty keeps content withheld): ";
+
+    public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
         var authCommand = new Command("auth", "Store, check or remove the token of an organization in the OS credential vault.");
-        Command login = CreateLoginCommand(services);
+        Command login = CreateLoginCommand(names, services);
         Command status = CreateStatusCommand(services);
         Command logout = CreateLogoutCommand(services);
         authCommand.Subcommands.Add(login);
@@ -29,7 +39,7 @@ public static class AuthCommands
         };
     }
 
-    private static Command CreateLoginCommand(CommandServices services)
+    private static Command CreateLoginCommand(ToolCommandNames names, CommandServices services)
     {
         Option<string?> organizationOption = CreateOrganizationOption();
         Option<string?> configOption = ReadCommandContext.CreateConfigOption();
@@ -42,6 +52,7 @@ public static class AuthCommands
             parseResult.GetValue(organizationOption),
             parseResult.GetValue(configOption),
             parseResult.GetValue(services.CompactOption),
+            names,
             services,
             cancellationToken));
         return command;
@@ -87,6 +98,7 @@ public static class AuthCommands
         string? organization,
         string? configPath,
         bool compact,
+        ToolCommandNames names,
         CommandServices services,
         CancellationToken cancellationToken)
     {
@@ -112,7 +124,7 @@ public static class AuthCommands
             configPath,
             compact,
             services,
-            organizationUrl => Task.FromResult(StoreToken(organizationUrl, services)),
+            organizationUrl => Task.FromResult(Login(organizationUrl, names, services)),
             cancellationToken);
     }
 
@@ -127,7 +139,7 @@ public static class AuthCommands
     {
         try
         {
-            Uri organizationUrl = await ResolveOrganizationAsync(organization, configPath, services.ConfigurationStore, cancellationToken);
+            Uri organizationUrl = await OrganizationSelection.ResolveAsync(organization, configPath, services.ConfigurationStore, cancellationToken);
             TView view = await operation(organizationUrl);
             var envelope = new SearchEnvelope<TView>(
                 "1.0",
@@ -162,7 +174,7 @@ public static class AuthCommands
         }
     }
 
-    private static TokenStateView StoreToken(Uri organizationUrl, CommandServices services)
+    private static LoginView Login(Uri organizationUrl, ToolCommandNames names, CommandServices services)
     {
         string account = CredentialAccount.For(organizationUrl);
         string token = services.TerminalInput.ReadMaskedLine($"Personal access token for {account}: ").Trim();
@@ -172,8 +184,54 @@ public static class AuthCommands
         }
 
         services.CredentialVault.Write(account, token);
-        return new TokenStateView(services.CredentialVault.Kind, TokenStored: true);
+        bool privacyConfigured = EnsurePrivacyLevel(organizationUrl, services);
+        return new LoginView(
+            services.CredentialVault.Kind,
+            TokenStored: true,
+            PrivacyConfigured: privacyConfigured,
+            Notice: privacyConfigured
+                ? null
+                : $"No privacy level was set, so content stays withheld until '{names.Invocation("privacy set <minimal|standard|full>")}' is run in an interactive terminal.");
     }
+
+    /// <summary>Asks for a level when the organization has none. An empty or invalid answer stores nothing.</summary>
+    private static bool EnsurePrivacyLevel(Uri organizationUrl, CommandServices services)
+    {
+        if (FindPolicy(organizationUrl, services) is not null)
+        {
+            return true;
+        }
+
+        PrivacyLevel? level = ParseLevelChoice(services.TerminalInput.ReadLine(PrivacyLevelPrompt));
+        if (level is null)
+        {
+            return false;
+        }
+
+        services.PrivacyPolicies.Save(organizationUrl, StoredPrivacyPolicy.CreateNew(new PrivacyPolicy(level.Value)));
+        return true;
+    }
+
+    /// <summary>An unreadable stored policy counts as none, so the person is asked again and the new answer replaces it.</summary>
+    private static StoredPrivacyPolicy? FindPolicy(Uri organizationUrl, CommandServices services)
+    {
+        try
+        {
+            return services.PrivacyPolicies.Find(organizationUrl);
+        }
+        catch (PrivacyException)
+        {
+            return null;
+        }
+    }
+
+    private static PrivacyLevel? ParseLevelChoice(string answer) => answer.Trim() switch
+    {
+        "1" => PrivacyLevel.Minimal,
+        "2" => PrivacyLevel.Standard,
+        "3" => PrivacyLevel.Full,
+        _ => null
+    };
 
     private static TokenStateView ReadTokenState(Uri organizationUrl, CommandServices services)
     {
@@ -183,28 +241,6 @@ public static class AuthCommands
 
     private static TokenRemovalView RemoveToken(Uri organizationUrl, CommandServices services) =>
         new(services.CredentialVault.Kind, TokenRemoved: services.CredentialVault.Remove(CredentialAccount.For(organizationUrl)));
-
-    private static async Task<Uri> ResolveOrganizationAsync(
-        string? organization,
-        string? configPath,
-        IConfigurationStore configurationStore,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(organization))
-        {
-            if (!Uri.TryCreate(organization.Trim(), UriKind.Absolute, out Uri? organizationUrl))
-            {
-                throw new ConfigurationException(
-                    "invalidOrganizationUrl",
-                    "The organization URL must use the form https://dev.azure.com/{organization}.");
-            }
-
-            return AdoReadConfiguration.Create(organizationUrl).OrganizationUrl;
-        }
-
-        AdoReadConfiguration configuration = await configurationStore.LoadAsync(configPath, cancellationToken);
-        return configuration.OrganizationUrl;
-    }
 
     private static async Task<int> WriteErrorAsync(
         string kind,
@@ -227,6 +263,12 @@ public static class AuthCommands
     private sealed record OrganizationQuery(Uri OrganizationUrl);
 
     private sealed record TokenStateView(string Vault, bool TokenStored);
+
+    private sealed record LoginView(
+        string Vault,
+        bool TokenStored,
+        bool PrivacyConfigured,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notice);
 
     private sealed record TokenRemovalView(string Vault, bool TokenRemoved);
 }

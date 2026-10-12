@@ -1,7 +1,9 @@
 using System.CommandLine;
 using AdoRead.AzureDevOps;
+using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
 using AdoRead.Output;
+using AdoRead.Privacy;
 using AdoRead.Text;
 using AdoRead.WorkItems;
 
@@ -30,16 +32,20 @@ public static class WorkItemModule
         };
         var downloadImagesOption = new Option<string?>("--download-images")
         {
-            Description = "Download supported work-item images to an empty directory."
+            Description = "Download supported work-item images to an empty directory. Needs the images privacy category."
         };
+        var privacyOptions = new PrivacyRequestOptions();
         target.Arguments.Add(referenceArgument);
         target.Options.Add(configOption);
         target.Options.Add(downloadImagesOption);
+        privacyOptions.AddTo(target);
         target.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
             parseResult.GetValue(referenceArgument),
             parseResult.GetValue(configOption),
             parseResult.GetValue(downloadImagesOption),
             parseResult.GetValue(services.CompactOption),
+            privacyOptions.Read(parseResult),
+            services.Privacy,
             services.ConfigurationStore,
             services.PatProvider,
             services.SessionFactory,
@@ -54,6 +60,8 @@ public static class WorkItemModule
         string? configPath,
         string? downloadImagesPath,
         bool compact,
+        PrivacyRequest privacyRequest,
+        PrivacyGate privacyGate,
         IConfigurationStore configurationStore,
         IPatProvider patProvider,
         IAdoSessionFactory sessionFactory,
@@ -61,7 +69,7 @@ public static class WorkItemModule
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        bool mediaRequested = downloadImagesPath is not null;
+        bool downloadRequested = downloadImagesPath is not null;
         string resolvedOutputDirectory = string.Empty;
         AdoReference? reference = AdoReferenceParser.ParseWorkItem(value);
         if (reference is null)
@@ -75,22 +83,7 @@ public static class WorkItemModule
                 jsonOutput,
                 timeProvider,
                 cancellationToken,
-                mediaRequested);
-        }
-
-        if (mediaRequested
-            && !WorkItemImageOutputDirectory.TryResolve(downloadImagesPath, out resolvedOutputDirectory))
-        {
-            return await WriteErrorAsync(
-                "command",
-                "invalidImageOutputDirectory",
-                "The image output directory must be nonexistent or an existing empty directory.",
-                ExitCodes.InvalidInputOrConfiguration,
-                compact,
-                jsonOutput,
-                timeProvider,
-                cancellationToken,
-                mediaRequested);
+                downloadRequested);
         }
 
         try
@@ -102,6 +95,24 @@ public static class WorkItemModule
                     "command",
                     "organizationMismatch",
                     "The work-item URL belongs to a different organization than the configured organization.",
+                    ExitCodes.InvalidInputOrConfiguration,
+                    compact,
+                    jsonOutput,
+                    timeProvider,
+                    cancellationToken,
+                    downloadRequested);
+            }
+
+            EffectivePrivacy privacy = privacyGate.Require(configuration.OrganizationUrl, privacyRequest);
+
+            // Withheld images are never downloaded, so their output directory is neither checked nor created.
+            bool mediaRequested = downloadRequested && privacy.Allows(PrivacyCategory.Images);
+            if (mediaRequested && !WorkItemImageOutputDirectory.TryResolve(downloadImagesPath, out resolvedOutputDirectory))
+            {
+                return await WriteErrorAsync(
+                    "command",
+                    "invalidImageOutputDirectory",
+                    "The image output directory must be nonexistent or an existing empty directory.",
                     ExitCodes.InvalidInputOrConfiguration,
                     compact,
                     jsonOutput,
@@ -132,7 +143,8 @@ public static class WorkItemModule
                 session.WorkItems,
                 new WorkItemMapper(new RichTextNormalizer()),
                 configuration.OrganizationUrl,
-                timeProvider);
+                timeProvider,
+                privacy);
             SearchEnvelope<WorkItemDocument> envelope = await reader.ReadAsync(
                 reference.Id,
                 mediaRequested ? resolvedOutputDirectory : null,
@@ -153,7 +165,20 @@ public static class WorkItemModule
                 jsonOutput,
                 timeProvider,
                 cancellationToken,
-                mediaRequested);
+                downloadRequested);
+        }
+        catch (PrivacyException exception)
+        {
+            return await WriteErrorAsync(
+                "privacy",
+                exception.Code,
+                exception.Message,
+                ExitCodes.InvalidInputOrConfiguration,
+                compact,
+                jsonOutput,
+                timeProvider,
+                cancellationToken,
+                downloadRequested);
         }
         catch (CredentialException exception)
         {
@@ -166,7 +191,7 @@ public static class WorkItemModule
                 jsonOutput,
                 timeProvider,
                 cancellationToken,
-                mediaRequested);
+                downloadRequested);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -179,7 +204,7 @@ public static class WorkItemModule
                 jsonOutput,
                 timeProvider,
                 CancellationToken.None,
-                mediaRequested,
+                downloadRequested,
                 transient: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -193,7 +218,7 @@ public static class WorkItemModule
                 jsonOutput,
                 timeProvider,
                 CancellationToken.None,
-                mediaRequested,
+                downloadRequested,
                 transient: true);
         }
     }

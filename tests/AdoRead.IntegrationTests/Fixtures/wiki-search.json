@@ -21,4 +21,6 @@
   ],
   "errors": [],
   "page": { "skip": 0, "requestedTop": 10, "returnedCount": 1, "totalCount": 1, "serviceInfoCode": 0 }
+,
+  "privacy": {"level": "full", "withheld": [], "aliased": [], "restrictedByCall": false}
 }

@@ -6,4 +6,6 @@
   "generatedAtUtc": "2026-07-10T08:30:00.0000000Z",
   "results": [{ "id": 51, "path": "/Architecture/Authentication", "gitItemPath": "/Architecture/Authentication.md", "source": "wikiApi", "format": "markdown", "content": "# Authentication\n\nUse the fabricated identity provider.", "version": null, "links": { "rest": "https://dev.azure.com/fabricated/FabricatedApp/_apis/wiki/wikis/FabricatedApp.wiki/pages/51", "browser": "https://dev.azure.com/fabricated/FabricatedApp/_wiki/wikis/FabricatedApp.wiki/51/Authentication" }}],
   "errors": []
+,
+  "privacy": {"level": "full", "withheld": [], "aliased": [], "restrictedByCall": false}
 }

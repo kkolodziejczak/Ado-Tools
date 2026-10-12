@@ -1,3 +1,4 @@
+using AdoRead.UnitTests.Privacy;
 using AdoRead.AzureDevOps;
 using AdoRead.Sprints;
 
@@ -108,7 +109,7 @@ public sealed class SprintReaderTests
     }
 
     private static SprintReader CreateReader(ISprintSource source) =>
-        new(source, OrganizationUrl, new FixedTimeProvider(Now));
+        new(source, OrganizationUrl, new FixedTimeProvider(Now), TestPrivacy.Full);
 
     private sealed class FakeSprintSource : ISprintSource
     {

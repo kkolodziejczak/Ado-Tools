@@ -27,7 +27,10 @@ public sealed record SprintWorkItemDocument(
     string? State,
     string? IterationPath,
     string? AssignedTo,
-    Uri? Browser);
+    Uri? Browser,
+    // Kept out of the JSON. The privacy filter aliases a person under the unique name, so the same
+    // person gets the same alias here as on a work item.
+    [property: System.Text.Json.Serialization.JsonIgnore] string? AssignedToUniqueName = null);
 
 public sealed record SprintQuery(
     int? Id,

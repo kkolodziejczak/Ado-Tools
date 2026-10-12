@@ -1,5 +1,6 @@
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
+using AdoRead.Privacy;
 
 namespace AdoRead.PullRequests;
 
@@ -8,7 +9,8 @@ public sealed class PullRequestReader(
     IPullRequestSource source,
     Uri organizationUrl,
     int maxParallelProjects,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    EffectivePrivacy privacy)
 {
     /// <summary>
     /// Resolves a pull request without the caller naming its project. An organization-scoped
@@ -135,14 +137,18 @@ public sealed class PullRequestReader(
         string status,
         IReadOnlyList<PullRequestDocument> results,
         IReadOnlyList<SearchError> errors) =>
-        new(
-            "2.0",
-            "pullRequestSearch",
-            status,
-            query,
-            timeProvider.GetUtcNow(),
-            results,
-            errors);
+        PrivacyEnvelopes.Filter(
+            new SearchEnvelope<PullRequestDocument>(
+                "2.0",
+                "pullRequestSearch",
+                status,
+                query,
+                timeProvider.GetUtcNow(),
+                results,
+                errors),
+            privacy,
+            PullRequestPrivacy.Categories,
+            pullRequest => PullRequestPrivacy.Apply(pullRequest, privacy));
 
     private static string GetStatus(int resultCount, int errorCount)
     {

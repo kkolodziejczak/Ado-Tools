@@ -1,6 +1,8 @@
 using System.CommandLine;
 using AdoRead.AzureDevOps;
+using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
+using AdoRead.Privacy;
 using AdoRead.Output;
 using AdoRead.Wikis;
 
@@ -10,7 +12,8 @@ public static class WikiPageCommand
 {
     public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
     {
-        var (store, pat, sessions, output, clock, compact, _, _) = services;
+        var (store, pat, sessions, output, clock, compact, _, _, gate, _) = services;
+        var privacyOptions = new PrivacyRequestOptions();
         var reference = new Argument<string?>("url") { Arity = ArgumentArity.ZeroOrOne };
         var project = new Option<string?>("--project");
         var wiki = new Option<string?>("--wiki");
@@ -23,12 +26,13 @@ public static class WikiPageCommand
         var command = new Command("page", "Read one Azure DevOps Wiki page as Markdown.");
         command.Arguments.Add(reference);
         foreach (Option option in new Option[] { project, wiki, path, pageId, gitPath, version, versionType, config }) command.Options.Add(option);
-        command.SetAction((result, token) => ReadAsync(names, result.GetValue(reference), result.GetValue(project), result.GetValue(wiki), result.GetValue(path), result.GetValue(pageId), result.GetValue(gitPath), result.GetValue(version), result.GetValue(versionType), result.GetValue(config), result.GetValue(compact), store, pat, sessions, output, clock, token));
+        privacyOptions.AddTo(command);
+        command.SetAction((result, token) => ReadAsync(names, result.GetValue(reference), result.GetValue(project), result.GetValue(wiki), result.GetValue(path), result.GetValue(pageId), result.GetValue(gitPath), result.GetValue(version), result.GetValue(versionType), result.GetValue(config), result.GetValue(compact), privacyOptions.Read(result), gate, store, pat, sessions, output, clock, token));
         target.Subcommands.Add(command);
         return new Dictionary<Command, string> { [command] = "wikiPageLookup" };
     }
 
-    private static async Task<int> ReadAsync(ToolCommandNames names, string? url, string? project, string? wiki, string? path, int? pageId, string? gitPath, string? version, string? versionType, string? configPath, bool compact, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token)
+    private static async Task<int> ReadAsync(ToolCommandNames names, string? url, string? project, string? wiki, string? path, int? pageId, string? gitPath, string? version, string? versionType, string? configPath, bool compact, PrivacyRequest privacyRequest, PrivacyGate gate, IConfigurationStore store, IPatProvider pat, IAdoSessionFactory sessions, IJsonOutput output, TimeProvider clock, CancellationToken token)
     {
         bool hasExplicitValues = project is not null || wiki is not null || path is not null || pageId is not null || gitPath is not null || version is not null || versionType is not null;
         bool hasPageSelector = path is not null || pageId is not null || gitPath is not null;
@@ -61,17 +65,19 @@ public static class WikiPageCommand
             }
             if (reference is null) return await WriteError("command", "invalidWikiReference", "The Wiki reference must be a supported Wiki URL or one valid selector.", ExitCodes.InvalidInputOrConfiguration);
             if (!string.IsNullOrEmpty(reference.Organization) && !reference.IsFor(configuration.OrganizationUrl)) return await WriteError("command", "organizationMismatch", "The Wiki URL belongs to a different organization than the configured organization.", ExitCodes.InvalidInputOrConfiguration);
+            EffectivePrivacy privacy = gate.Require(configuration.OrganizationUrl, privacyRequest);
             string credential = pat.GetRequiredPat(configuration.OrganizationUrl);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoSession session = sessions.Create(configuration.OrganizationUrl, credential);
             if (reference.Selector is WikiPathSelector && reference.Version is { Type: null } selectedVersion) reference = reference with { Version = await ResolveVersionAsync(session.Wikis, reference.Project, reference.Wiki, selectedVersion.Value, timeout.Token) };
             reference = reference with { Organization = Uri.UnescapeDataString(configuration.OrganizationUrl.AbsolutePath.Trim('/')) };
-            SearchEnvelope<WikiPageDocument> envelope = await new WikiPageReader(session.Wikis, configuration.OrganizationUrl, clock).ReadAsync(reference, timeout.Token);
+            SearchEnvelope<WikiPageDocument> envelope = await new WikiPageReader(session.Wikis, configuration.OrganizationUrl, clock, privacy).ReadAsync(reference, timeout.Token);
             await output.WriteAsync(envelope, compact, token);
             return ExitCodes.FromStatus(envelope.Status);
         }
         catch (ConfigurationException exception) { return await WriteError("configuration", exception.Code, exception.Message, ExitCodes.InvalidInputOrConfiguration); }
+        catch (PrivacyException exception) { return await WriteError("privacy", exception.Code, exception.Message, ExitCodes.InvalidInputOrConfiguration); }
         catch (CredentialException exception) { return await WriteError("authentication", exception.Code, exception.Message, ExitCodes.Error); }
         catch (WikiSourceException exception) { return await WriteError("azureDevOps", exception.Code, exception.Message, ExitCodes.Error, transient: exception.Transient); }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { return await WriteError("azureDevOps", "timeout", "The Azure DevOps request timed out.", ExitCodes.Error, transient: true, cancellation: CancellationToken.None); }
