@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -21,7 +22,7 @@ public sealed partial record CommentDraft(
 
     public static CommentDraft Create(string? body, string? agent, IReadOnlyList<string> mentions, string? key, bool dryRun)
     {
-        string normalizedBody = (body ?? string.Empty).ReplaceLineEndings("\n").Trim();
+        string normalizedBody = TrimBlankLines((body ?? string.Empty).ReplaceLineEndings("\n"));
         if (normalizedBody.Length == 0)
         {
             throw WriteException.Rejected("bodyRequired", "The comment body is empty.");
@@ -63,7 +64,11 @@ public sealed partial record CommentDraft(
         return new CommentDraft(normalizedBody, normalizedAgent, normalizedMentions, normalizedKey, dryRun);
     }
 
-    /// <summary>The duplicate key: the caller's, or a hash of the target, the mentions and the body.</summary>
+    /// <summary>
+    /// The duplicate key: the caller's, or a hash of the target, the mentions and the body. A key names
+    /// one comment per pull request or work item. Each hashed part is length-prefixed, so text moving
+    /// between the mentions and the body cannot produce the same key.
+    /// </summary>
     public string KeyFor(params object?[] target)
     {
         if (Key is not null)
@@ -71,13 +76,29 @@ public sealed partial record CommentDraft(
             return Key;
         }
 
-        string identity = string.Join(
-            '\n',
-            target.Select(part => part?.ToString() ?? string.Empty)
-                .Concat(Mentions.Select(mention => mention.ToLowerInvariant()))
-                .Append(Body));
+        IEnumerable<string> parts = target.Select(part => part?.ToString() ?? string.Empty)
+            .Append(Mentions.Count.ToString(CultureInfo.InvariantCulture))
+            .Concat(Mentions.Select(mention => mention.ToLowerInvariant()))
+            .Append(Body);
+        string identity = string.Concat(parts.Select(part => $"{part.Length}:{part}"));
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return Convert.ToHexStringLower(hash)[..16];
+    }
+
+    /// <summary>Drops blank lines around the text and trailing spaces, but keeps the first line's indentation, which Markdown can need.</summary>
+    private static string TrimBlankLines(string text)
+    {
+        string trimmed = text.TrimEnd();
+        int firstLine = 0;
+        for (int index = 0; index < trimmed.Length && char.IsWhiteSpace(trimmed[index]); index++)
+        {
+            if (trimmed[index] == '\n')
+            {
+                firstLine = index + 1;
+            }
+        }
+
+        return trimmed[firstLine..];
     }
 
     [GeneratedRegex(@"^[\p{L}\p{N} ._()+/-]+$")]

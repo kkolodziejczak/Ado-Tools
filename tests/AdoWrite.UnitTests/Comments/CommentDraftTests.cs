@@ -33,7 +33,7 @@ public sealed class CommentDraftTests
     {
         CommentDraft draft = CommentDraft.Create("\r\n Question?\r\nSecond line \r\n", " Claude Opus 5.5 ", ["a@example.com", " A@example.com ", ""], null, false);
 
-        Assert.Equal("Question?\nSecond line", draft.Body);
+        Assert.Equal(" Question?\nSecond line", draft.Body);
         Assert.Equal("Claude Opus 5.5", draft.Agent);
         Assert.Equal(["a@example.com"], draft.Mentions);
     }
@@ -50,6 +50,23 @@ public sealed class CommentDraftTests
         Assert.Equal(key, CommentDraft.Create("Question?", "Other agent", [], null, true).KeyFor("pullRequest", 42));
         Assert.NotEqual(key, draft.KeyFor("pullRequest", 43));
         Assert.NotEqual(key, other.KeyFor("pullRequest", 42));
+    }
+
+    [Fact]
+    public void Create_KeepsTheIndentationOfTheFirstLine()
+    {
+        CommentDraft draft = CommentDraft.Create("\n\n    var retries = 2;\n\nWhy two?  \n", "Agent", [], null, false);
+
+        Assert.Equal("    var retries = 2;\n\nWhy two?", draft.Body);
+    }
+
+    [Fact]
+    public void KeyFor_KeepsMentionsAndBodyApart()
+    {
+        CommentDraft mention = CommentDraft.Create("Question?", "Agent", ["a@example.com"], null, false);
+        CommentDraft inline = CommentDraft.Create("a@example.com\nQuestion?", "Agent", [], null, false);
+
+        Assert.NotEqual(mention.KeyFor("workItem", 7), inline.KeyFor("workItem", 7));
     }
 
     [Fact]

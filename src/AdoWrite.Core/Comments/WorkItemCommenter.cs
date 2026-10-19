@@ -4,7 +4,8 @@ namespace AdoWrite.Comments;
 
 /// <summary>
 /// Posts a Markdown comment to a work item's discussion. Work-item comments are not threaded, so a
-/// conversation continues with further comments; each first looks for an earlier one with the same key.
+/// conversation continues with further comments; each first looks for an earlier one of the signed-in
+/// user with the same key.
 /// </summary>
 internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDirectory people, Uri organizationUrl)
 {
@@ -16,15 +17,18 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
     {
         string project = await FindProjectAsync(workItemId, cancellationToken);
         string key = draft.KeyFor(Target, workItemId);
+        Person author = await _composer.GetAuthorAsync(cancellationToken);
         IReadOnlyList<WorkItemComment> comments = await AzureDevOpsCall.RunAsync(
             () => client.GetCommentsAsync(project, workItemId, cancellationToken),
             cancellationToken);
-        if (comments.FirstOrDefault(comment => !comment.IsDeleted && CommentMarker.Marks(comment.Text, key)) is { } earlier)
+        WorkItemComment? earlier = comments.FirstOrDefault(comment =>
+            !comment.IsDeleted && comment.AuthorId == author.Id && CommentMarker.Marks(comment.Text, key));
+        if (earlier is not null)
         {
             return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, [], key);
         }
 
-        ComposedComment comment = await _composer.ComposeAsync(draft, key, cancellationToken);
+        ComposedComment comment = await _composer.ComposeAsync(draft, key, author, cancellationToken);
         if (draft.DryRun)
         {
             return Result(CommentOutcomes.Preview, workItemId, project, null, comment.Mentions, key, text: comment.Text);

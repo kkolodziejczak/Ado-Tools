@@ -23,7 +23,7 @@ public interface IWorkItemCommentClient
 }
 
 /// <summary>The parts of a work-item comment that duplicate detection and the result need.</summary>
-public sealed record WorkItemComment(int Id, string? Text, bool IsDeleted);
+public sealed record WorkItemComment(int Id, string? Text, bool IsDeleted, Guid? AuthorId);
 
 public sealed class SdkWorkItemCommentClient(WorkItemTrackingHttpClient client) : IWorkItemCommentClient
 {
@@ -82,5 +82,10 @@ public sealed class SdkWorkItemCommentClient(WorkItemTrackingHttpClient client) 
             userState: null,
             cancellationToken));
 
-    private static WorkItemComment Map(Comment comment) => new(comment.Id, comment.Text, comment.IsDeleted);
+    private static WorkItemComment Map(Comment comment) =>
+        new(
+            comment.Id,
+            comment.Text,
+            comment.IsDeleted,
+            Guid.TryParse(comment.CreatedBy?.Id, out Guid authorId) ? authorId : null);
 }

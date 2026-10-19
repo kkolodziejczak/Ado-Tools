@@ -12,7 +12,9 @@ public sealed record LineSelection(string FilePath, int StartLine, int EndLine, 
 
 /// <summary>
 /// Posts pull-request comments: a new thread, general or attached to lines, or a reply in an existing
-/// thread. Every post first looks for an earlier comment with the same key and returns it instead.
+/// thread. Every post first looks for an earlier comment of the signed-in user with the same key
+/// anywhere in the pull request and returns it instead, before the lines are resolved again, so a
+/// retry after a later push still finds the comment.
 /// </summary>
 internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPeopleDirectory people, Uri organizationUrl)
 {
@@ -28,17 +30,15 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         CancellationToken cancellationToken)
     {
         PullRequestLocation location = await LocateAsync(pullRequestId, cancellationToken);
-        LineAnchor? anchor = lines is null ? null : await AnchorAsync(location, lines, cancellationToken);
         string key = draft.KeyFor(Target, pullRequestId, lines?.FilePath, lines?.Side, lines?.StartLine, lines?.EndLine);
-        IReadOnlyList<GitPullRequestCommentThread> threads = await AzureDevOpsCall.RunAsync(
-            () => client.GetThreadsAsync(location, cancellationToken),
-            cancellationToken);
-        if (FindMarked(threads, key) is { } earlier)
+        Person author = await _composer.GetAuthorAsync(cancellationToken);
+        if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.ThreadId, earlier.CommentId, anchor?.Document, [], key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), [], key);
         }
 
-        ComposedComment comment = await _composer.ComposeAsync(draft, key, cancellationToken);
+        LineAnchor? anchor = lines is null ? null : await AnchorAsync(location, lines, cancellationToken);
+        ComposedComment comment = await _composer.ComposeAsync(draft, key, author, cancellationToken);
         if (draft.DryRun)
         {
             return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, comment.Mentions, key, text: comment.Text);
@@ -67,20 +67,19 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         CancellationToken cancellationToken)
     {
         PullRequestLocation location = await LocateAsync(pullRequestId, cancellationToken);
-        IReadOnlyList<GitPullRequestCommentThread> threads = await AzureDevOpsCall.RunAsync(
-            () => client.GetThreadsAsync(location, cancellationToken),
-            cancellationToken);
+        IReadOnlyList<GitPullRequestCommentThread> threads = await GetThreadsAsync(location, cancellationToken);
         GitPullRequestCommentThread thread = threads.FirstOrDefault(candidate => candidate.Id == threadId)
             ?? throw WriteException.NotFound(
                 "threadNotFound",
                 $"Pull request {pullRequestId} has no thread {threadId}. Read the pull request to find its thread IDs.");
         string key = draft.KeyFor("pullRequestReply", pullRequestId, threadId);
-        if (FindMarked([thread], key) is { } earlier)
+        Person author = await _composer.GetAuthorAsync(cancellationToken);
+        if (FindMarked(threads, key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, threadId, earlier.CommentId, null, [], key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), [], key);
         }
 
-        ComposedComment comment = await _composer.ComposeAsync(draft, key, cancellationToken);
+        ComposedComment comment = await _composer.ComposeAsync(draft, key, author, cancellationToken);
         if (draft.DryRun)
         {
             return Result(CommentOutcomes.Preview, location, threadId, null, null, comment.Mentions, key, text: comment.Text);
@@ -105,6 +104,9 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             key,
             markerKept: CommentMarker.Marks(created.Content, key));
     }
+
+    private Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
+        AzureDevOpsCall.RunAsync(() => client.GetThreadsAsync(location, cancellationToken), cancellationToken);
 
     private async Task<PullRequestLocation> LocateAsync(int pullRequestId, CancellationToken cancellationToken)
     {
@@ -186,25 +188,58 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         }
     }
 
-    /// <summary>A final line break ends the last line; it does not start another one.</summary>
+    /// <summary>
+    /// Lines as Azure DevOps numbers them: split at line feeds only, so a form feed or Unicode line
+    /// separator inside a line does not shift the numbers. A final line feed ends the last line.
+    /// </summary>
     private static string[] SplitLines(string text)
     {
-        string[] lines = text.ReplaceLineEndings("\n").Split('\n');
+        if (text.Length == 0)
+        {
+            return [];
+        }
+
+        string[] lines = text.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
         return lines.Length > 1 && lines[^1].Length == 0 ? lines[..^1] : lines;
     }
 
-    private static (int ThreadId, int CommentId)? FindMarked(IEnumerable<GitPullRequestCommentThread> threads, string key)
+    /// <summary>Only the signed-in user's own comments count, so a person quoting the marker cannot stand in for a post.</summary>
+    private static (GitPullRequestCommentThread Thread, int CommentId)? FindMarked(
+        IEnumerable<GitPullRequestCommentThread> threads,
+        string key,
+        Person author)
     {
-        foreach (GitPullRequestCommentThread thread in threads)
+        foreach (GitPullRequestCommentThread thread in threads.Where(thread => thread.IsDeleted != true))
         {
-            Comment? marked = thread.Comments?.FirstOrDefault(comment => comment.IsDeleted != true && CommentMarker.Marks(comment.Content, key));
+            Comment? marked = thread.Comments?.FirstOrDefault(comment =>
+                comment.IsDeleted != true
+                && Guid.TryParse(comment.Author?.Id, out Guid authorId)
+                && authorId == author.Id
+                && CommentMarker.Marks(comment.Content, key));
             if (marked is not null)
             {
-                return (thread.Id, marked.Id);
+                return (thread, marked.Id);
             }
         }
 
         return null;
+    }
+
+    /// <summary>The lines an earlier thread is attached to, as Azure DevOps stored them.</summary>
+    private static CommentAnchorDocument? AnchorOf(GitPullRequestCommentThread thread)
+    {
+        CommentThreadContext? context = thread.ThreadContext;
+        bool right = context?.RightFileStart is not null;
+        CommentPosition? start = right ? context!.RightFileStart : context?.LeftFileStart;
+        CommentPosition? end = right ? context!.RightFileEnd : context?.LeftFileEnd;
+        return context?.FilePath is null || start is null || end is null
+            ? null
+            : new CommentAnchorDocument(
+                context.FilePath,
+                right ? LineSelection.Right : LineSelection.Left,
+                start.Line,
+                end.Line,
+                thread.PullRequestThreadContext?.IterationContext?.SecondComparingIteration ?? 0);
     }
 
     private static GitPullRequestCommentThread NewThread(string text, LineAnchor? anchor)
@@ -228,9 +263,11 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         thread.PullRequestThreadContext = new GitPullRequestCommentThreadContext
         {
             ChangeTrackingId = anchor.ChangeTrackingId,
+            // Equal iterations compare the latest iteration with the common commit, which is the
+            // version the left-side lines were checked against.
             IterationContext = new CommentIterationContext
             {
-                FirstComparingIteration = 1,
+                FirstComparingIteration = (short)lines.IterationId,
                 SecondComparingIteration = (short)lines.IterationId
             }
         };

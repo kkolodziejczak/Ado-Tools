@@ -24,6 +24,16 @@ internal static class Fabricated
     public const string BaseCommit = "base-commit";
 
     public static VssServiceResponseException NotFound() => new(HttpStatusCode.NotFound, "Not found.", null);
+
+    /// <summary>A pull-request comment written by <paramref name="person"/>, the signed-in author by default.</summary>
+    public static Comment CommentBy(int id, string content, Person? person = null, short parentId = 0) =>
+        new()
+        {
+            Id = (short)id,
+            ParentCommentId = parentId,
+            Content = content,
+            Author = new IdentityRef { Id = (person ?? Author).Id.ToString() }
+        };
 }
 
 internal sealed class FakePeopleDirectory : IPeopleDirectory
@@ -60,7 +70,9 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
     [
         new() { ChangeTrackingId = 11, ChangeType = VersionControlChangeType.Edit, Item = new GitItem { Path = "/src/App.cs" } },
         new() { ChangeTrackingId = 12, ChangeType = VersionControlChangeType.Add, Item = new GitItem { Path = "/src/New.cs" } },
-        new() { ChangeTrackingId = 13, ChangeType = VersionControlChangeType.Rename | VersionControlChangeType.Edit, Item = new GitItem { Path = "/src/Renamed.cs" }, OriginalPath = "/src/Original.cs" }
+        new() { ChangeTrackingId = 13, ChangeType = VersionControlChangeType.Rename | VersionControlChangeType.Edit, Item = new GitItem { Path = "/src/Renamed.cs" }, OriginalPath = "/src/Original.cs" },
+        new() { ChangeTrackingId = 14, ChangeType = VersionControlChangeType.Add, Item = new GitItem { Path = "/src/Empty.cs" } },
+        new() { ChangeTrackingId = 15, ChangeType = VersionControlChangeType.Add, Item = new GitItem { Path = "/src/FormFeed.cs" } }
     ];
 
     /// <summary>File text by (commit, path).</summary>
@@ -69,7 +81,9 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         [(Fabricated.SourceCommit, "/src/App.cs")] = "line one\nline two is longer\nline three\n",
         [(Fabricated.BaseCommit, "/src/App.cs")] = "old one\nold two\n",
         [(Fabricated.SourceCommit, "/src/New.cs")] = "new\n",
-        [(Fabricated.BaseCommit, "/src/Original.cs")] = "original one\noriginal two\n"
+        [(Fabricated.BaseCommit, "/src/Original.cs")] = "original one\noriginal two\n",
+        [(Fabricated.SourceCommit, "/src/Empty.cs")] = "",
+        [(Fabricated.SourceCommit, "/src/FormFeed.cs")] = "one\fstill one\u2028still one\r\ntwo\r\n"
     };
 
     public List<int> ChangeRequests { get; } = [];
@@ -122,7 +136,7 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         var created = new GitPullRequestCommentThread
         {
             Id = 900,
-            Comments = thread.Comments.Select(comment => new Comment { Id = 1, Content = comment.Content }).ToList()
+            Comments = thread.Comments.Select(comment => Fabricated.CommentBy(1, comment.Content)).ToList()
         };
         return Task.FromResult(created);
     }
@@ -130,7 +144,7 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
     public Task<Comment> CreateCommentAsync(PullRequestLocation location, int threadId, Comment comment, CancellationToken cancellationToken)
     {
         CreatedComments.Add((threadId, comment));
-        return Task.FromResult(new Comment { Id = 5, Content = comment.Content, ParentCommentId = comment.ParentCommentId });
+        return Task.FromResult(Fabricated.CommentBy(5, comment.Content, parentId: comment.ParentCommentId));
     }
 }
 
@@ -153,7 +167,7 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
     public Task<WorkItemComment> AddCommentAsync(string project, int workItemId, string markdown, CancellationToken cancellationToken)
     {
         Added.Add((project, workItemId, markdown));
-        return Task.FromResult(new WorkItemComment(31, Store(markdown), false));
+        return Task.FromResult(new WorkItemComment(31, Store(markdown), false, Fabricated.Author.Id));
     }
 }
 

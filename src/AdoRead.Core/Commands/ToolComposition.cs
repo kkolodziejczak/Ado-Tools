@@ -13,7 +13,7 @@ namespace AdoRead.Commands;
 /// Composes shared commands and feature modules into one command tree. The umbrella mounts each
 /// module under its group name; a slice mounts its single module directly on the executable.
 /// A write tool uses the write token and shares only <c>config</c> and <c>auth</c>: it returns no
-/// Azure DevOps content, so it has no privacy policy or discovery commands.
+/// comment, work-item or other Azure DevOps text, so it has no privacy policy or discovery commands.
 /// </summary>
 public sealed class ToolComposition(
     IConfigurationStore configurationStore,

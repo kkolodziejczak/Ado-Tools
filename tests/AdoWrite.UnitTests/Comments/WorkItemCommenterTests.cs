@@ -39,7 +39,8 @@ public sealed class WorkItemCommenterTests
     [Fact]
     public async Task CommentAsync_ReturnsTheEarlierCommentWhenItsKeyIsAlreadyPosted()
     {
-        _client.Comments.Add(new WorkItemComment(20, "Old question <!-- ado-write:q1 -->", false));
+        _client.Comments.Add(new WorkItemComment(19, "Quoted <!-- ado-write:q1 -->", false, Fabricated.Reviewer.Id));
+        _client.Comments.Add(new WorkItemComment(20, "Old question <!-- ado-write:q1 -->", false, Fabricated.Author.Id));
 
         PostedCommentDocument posted = await Commenter().CommentAsync(Fabricated.WorkItemId, Draft("Q", key: "q1"), CancellationToken.None);
 

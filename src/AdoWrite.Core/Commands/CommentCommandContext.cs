@@ -97,6 +97,11 @@ internal sealed class CommentCommandContext(CommandServices services, IAdoWriteS
         CancellationToken cancellationToken)
     {
         SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(kind, [error], services.TimeProvider.GetUtcNow());
+        if (exitCode == ExitCodes.NotFound)
+        {
+            envelope = envelope with { Status = "notFound" };
+        }
+
         await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
         return exitCode;
     }

@@ -170,6 +170,30 @@ public sealed class WriteToolTests
     }
 
     [Fact]
+    public async Task MissingTarget_ReturnsNotFound()
+    {
+        _session.FakePullRequests.PullRequestFailure = Fabricated.NotFound();
+
+        int exitCode = await Umbrella().InvokeAsync(["pr", "comment", "42", "--body", "Q", "--agent", Agent, "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.NotFound, exitCode);
+        JsonElement envelope = Envelope();
+        Assert.Equal("notFound", envelope.GetProperty("status").GetString());
+        Assert.Equal("pullRequestNotFound", envelope.GetProperty("errors")[0].GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task PullRequestComment_NormalizesTheFilePath()
+    {
+        int exitCode = await Umbrella().InvokeAsync(
+            ["pr", "comment", "42", "--file", @".\src//./App.cs", "--line", "1", "--body", "Q", "--agent", Agent, "--compact"],
+            CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal("/src/App.cs", Assert.Single(_session.FakePullRequests.CreatedThreads).ThreadContext.FilePath);
+    }
+
+    [Fact]
     public async Task TimedOutPost_TellsTheAgentThatARetryIsSafe()
     {
         _session.FakePullRequests.PullRequestFailure = new TaskCanceledException("Timed out.");

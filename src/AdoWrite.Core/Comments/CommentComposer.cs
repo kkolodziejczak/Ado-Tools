@@ -11,10 +11,13 @@ namespace AdoWrite.Comments;
 /// </summary>
 internal sealed class CommentComposer(IPeopleDirectory people)
 {
-    public async Task<ComposedComment> ComposeAsync(CommentDraft draft, string key, CancellationToken cancellationToken)
+    /// <summary>The token owner: the comments are posted as them, and earlier posts are theirs.</summary>
+    public Task<Person> GetAuthorAsync(CancellationToken cancellationToken) =>
+        AzureDevOpsCall.RunAsync(() => people.GetSignedInUserAsync(cancellationToken), cancellationToken);
+
+    public async Task<ComposedComment> ComposeAsync(CommentDraft draft, string key, Person author, CancellationToken cancellationToken)
     {
         IReadOnlyList<MentionDocument> mentions = await ResolveMentionsAsync(draft.Mentions, cancellationToken);
-        Person author = await AzureDevOpsCall.RunAsync(() => people.GetSignedInUserAsync(cancellationToken), cancellationToken);
         return new ComposedComment(Render(draft, mentions, author.DisplayName, key), mentions);
     }
 

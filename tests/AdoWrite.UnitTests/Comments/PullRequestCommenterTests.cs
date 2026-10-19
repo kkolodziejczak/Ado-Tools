@@ -54,7 +54,7 @@ public sealed class PullRequestCommenterTests
         Assert.Equal((2, "line two is longer".Length + 1), (thread.ThreadContext.RightFileEnd.Line, thread.ThreadContext.RightFileEnd.Offset));
         Assert.Null(thread.ThreadContext.LeftFileStart);
         Assert.Equal(11, thread.PullRequestThreadContext.ChangeTrackingId);
-        Assert.Equal(1, thread.PullRequestThreadContext.IterationContext.FirstComparingIteration);
+        Assert.Equal(3, thread.PullRequestThreadContext.IterationContext.FirstComparingIteration);
         Assert.Equal(3, thread.PullRequestThreadContext.IterationContext.SecondComparingIteration);
         Assert.Equal([3], _client.ChangeRequests);
         Assert.Equal(new CommentAnchorDocument("/src/App.cs", "right", 1, 2, 3), posted.Anchor);
@@ -80,6 +80,7 @@ public sealed class PullRequestCommenterTests
     [InlineData("/src/App.cs", 4, LineSelection.Right, "lineOutOfRange")]
     [InlineData("/src/App.cs", 3, LineSelection.Left, "lineOutOfRange")]
     [InlineData("/src/New.cs", 1, LineSelection.Left, "lineSideUnavailable")]
+    [InlineData("/src/Empty.cs", 1, LineSelection.Right, "lineOutOfRange")]
     public async Task CommentAsync_RejectsLinesThatThePullRequestDoesNotShow(string path, int line, string side, string expectedCode)
     {
         var lines = new LineSelection(path, line, line, side);
@@ -100,7 +101,7 @@ public sealed class PullRequestCommenterTests
         _client.Threads.Add(new GitPullRequestCommentThread
         {
             Id = 900,
-            Comments = [new Comment { Id = 1, Content = _client.CreatedThreads[0].Comments[0].Content }]
+            Comments = [Fabricated.CommentBy(1, _client.CreatedThreads[0].Comments[0].Content)]
         });
 
         PostedCommentDocument retry = await Commenter().CommentAsync(Fabricated.PullRequestId, null, draft, CancellationToken.None);
@@ -111,18 +112,70 @@ public sealed class PullRequestCommenterTests
     }
 
     [Fact]
-    public async Task CommentAsync_IgnoresADeletedEarlierComment()
+    public async Task CommentAsync_IgnoresDeletedAndOtherPeoplesMarkedComments()
     {
         CommentDraft draft = Draft("Q", key: "q1");
         _client.Threads.Add(new GitPullRequestCommentThread
         {
             Id = 800,
-            Comments = [new Comment { Id = 1, Content = "old <!-- ado-write:q1 -->", IsDeleted = true }]
+            Comments = [Fabricated.CommentBy(1, "old <!-- ado-write:q1 -->")]
+        });
+        _client.Threads[0].Comments[0].IsDeleted = true;
+        _client.Threads.Add(new GitPullRequestCommentThread
+        {
+            Id = 801,
+            IsDeleted = true,
+            Comments = [Fabricated.CommentBy(1, "old <!-- ado-write:q1 -->")]
+        });
+        _client.Threads.Add(new GitPullRequestCommentThread
+        {
+            Id = 802,
+            Comments = [Fabricated.CommentBy(1, "Quoted: <!-- ado-write:q1 -->", Fabricated.Reviewer)]
         });
 
         PostedCommentDocument posted = await Commenter().CommentAsync(Fabricated.PullRequestId, null, draft, CancellationToken.None);
 
         Assert.Equal(CommentOutcomes.Created, posted.Outcome);
+    }
+
+    [Fact]
+    public async Task CommentAsync_FindsAnEarlierLineCommentEvenAfterItsLinesLeftThePullRequest()
+    {
+        var lines = new LineSelection("/src/App.cs", 2, 2, LineSelection.Right);
+        CommentDraft draft = Draft("Why twice?");
+        PostedCommentDocument first = await Commenter().CommentAsync(Fabricated.PullRequestId, lines, draft, CancellationToken.None);
+        GitPullRequestCommentThread posted = _client.CreatedThreads[0];
+        _client.Threads.Add(new GitPullRequestCommentThread
+        {
+            Id = 900,
+            ThreadContext = posted.ThreadContext,
+            PullRequestThreadContext = posted.PullRequestThreadContext,
+            Comments = [Fabricated.CommentBy(1, posted.Comments[0].Content)]
+        });
+        _client.Changes.RemoveAll(change => change.Item.Path == "/src/App.cs");
+
+        PostedCommentDocument retry = await Commenter().CommentAsync(Fabricated.PullRequestId, lines, draft, CancellationToken.None);
+
+        Assert.Equal(CommentOutcomes.Duplicate, retry.Outcome);
+        Assert.Equal(first.Anchor, retry.Anchor);
+        Assert.Single(_client.CreatedThreads);
+    }
+
+    [Fact]
+    public async Task CommentAsync_CountsLinesAtLineFeedsOnly()
+    {
+        var lines = new LineSelection("/src/FormFeed.cs", 2, 2, LineSelection.Right);
+
+        PostedCommentDocument posted = await Commenter().CommentAsync(Fabricated.PullRequestId, lines, Draft("Q"), CancellationToken.None);
+
+        Assert.Equal(4, _client.CreatedThreads[0].ThreadContext.RightFileEnd.Offset);
+        Assert.Equal(CommentOutcomes.Created, posted.Outcome);
+        WriteException beyond = await Assert.ThrowsAsync<WriteException>(() => Commenter().CommentAsync(
+            Fabricated.PullRequestId,
+            new LineSelection("/src/FormFeed.cs", 3, 3, LineSelection.Right),
+            Draft("Q"),
+            CancellationToken.None));
+        Assert.Equal("lineOutOfRange", beyond.Code);
     }
 
     [Fact]
@@ -191,8 +244,8 @@ public sealed class PullRequestCommenterTests
             Id = 70,
             Comments =
             [
-                new Comment { Id = 2, ParentCommentId = 1, Content = "Answer" },
-                new Comment { Id = 1, ParentCommentId = 0, Content = "Question" }
+                Fabricated.CommentBy(2, "Answer", Fabricated.Reviewer, parentId: 1),
+                Fabricated.CommentBy(1, "Question")
             ]
         });
 
@@ -208,18 +261,20 @@ public sealed class PullRequestCommenterTests
     }
 
     [Fact]
-    public async Task ReplyAsync_FindsAnEarlierReplyOnlyInTheSameThread()
+    public async Task ReplyAsync_FindsAnEarlierReplyAndKeysNameOneCommentPerPullRequest()
     {
-        CommentDraft draft = Draft("Follow-up?", key: "q2");
-        _client.Threads.Add(new GitPullRequestCommentThread { Id = 70, Comments = [new Comment { Id = 1, Content = "Question" }] });
-        _client.Threads.Add(new GitPullRequestCommentThread { Id = 71, Comments = [new Comment { Id = 3, Content = "x <!-- ado-write:q2 -->" }] });
+        CommentDraft draft = Draft("Follow-up?");
+        _client.Threads.Add(new GitPullRequestCommentThread { Id = 70, Comments = [Fabricated.CommentBy(1, "Question")] });
+        _client.Threads.Add(new GitPullRequestCommentThread { Id = 71, Comments = [Fabricated.CommentBy(3, "x <!-- ado-write:q2 -->")] });
 
         PostedCommentDocument posted = await Commenter().ReplyAsync(Fabricated.PullRequestId, 70, draft, CancellationToken.None);
-        _client.Threads[0].Comments.Add(new Comment { Id = 4, Content = "y <!-- ado-write:q2 -->" });
+        _client.Threads[0].Comments.Add(Fabricated.CommentBy(4, _client.CreatedComments[0].Comment.Content, parentId: 1));
         PostedCommentDocument retry = await Commenter().ReplyAsync(Fabricated.PullRequestId, 70, draft, CancellationToken.None);
+        PostedCommentDocument keyed = await Commenter().ReplyAsync(Fabricated.PullRequestId, 70, Draft("Other", key: "q2"), CancellationToken.None);
 
         Assert.Equal(CommentOutcomes.Created, posted.Outcome);
-        Assert.Equal((CommentOutcomes.Duplicate, 4), (retry.Outcome, retry.CommentId));
+        Assert.Equal((CommentOutcomes.Duplicate, 70, 4), (retry.Outcome, retry.ThreadId, retry.CommentId));
+        Assert.Equal((CommentOutcomes.Duplicate, 71, 3), (keyed.Outcome, keyed.ThreadId, keyed.CommentId));
         Assert.Single(_client.CreatedComments);
     }
 

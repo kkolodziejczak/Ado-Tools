@@ -137,8 +137,12 @@ public static class PullRequestCommentModule
                 : throw WriteException.Rejected("fileRequired", "--line, --end-line and --side need --file.");
         }
 
-        string path = "/" + file.Trim().Replace('\\', '/').TrimStart('/');
-        if (path.Length == 1)
+        string[] segments = file.Trim().Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Where(segment => segment != ".")
+            .ToArray();
+        string path = "/" + string.Join('/', segments);
+        if (segments.Length == 0)
         {
             throw WriteException.Rejected("fileRequired", "--file must name a file of the pull request.");
         }
