@@ -58,7 +58,7 @@ public sealed partial record CommentDraft(
         {
             throw WriteException.Rejected(
                 "invalidKey",
-                "--key must be 1 to 64 letters, digits, dots, dashes or underscores.");
+                "--key must be 1 to 64 letters, digits, dots, colons, dashes or underscores.");
         }
 
         return new CommentDraft(normalizedBody, normalizedAgent, normalizedMentions, normalizedKey, dryRun);

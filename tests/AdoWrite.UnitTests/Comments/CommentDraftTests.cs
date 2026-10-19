@@ -72,8 +72,8 @@ public sealed class CommentDraftTests
     [Fact]
     public void KeyFor_PrefersTheCallerKey()
     {
-        CommentDraft draft = CommentDraft.Create("Question?", "Agent", [], "refinement-q1", false);
+        CommentDraft draft = CommentDraft.Create("Question?", "Agent", [], "refine-it:123:r2", false);
 
-        Assert.Equal("refinement-q1", draft.KeyFor("workItem", 7));
+        Assert.Equal("refine-it:123:r2", draft.KeyFor("workItem", 7));
     }
 }

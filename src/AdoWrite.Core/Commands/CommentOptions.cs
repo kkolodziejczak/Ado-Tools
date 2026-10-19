@@ -29,7 +29,7 @@ internal sealed class CommentOptions
 
     public Option<string?> Key { get; } = new("--key")
     {
-        Description = "Duplicate key. A comment already carrying it is returned instead of posting again. Defaults to a hash of the target and content."
+        Description = "Duplicate key of letters, digits and . : - _, for example refine-it:123:r2. A comment of yours already carrying it is returned instead of posting again. Defaults to a hash of the target and content."
     };
 
     public Option<bool> DryRun { get; } = new("--dry-run")

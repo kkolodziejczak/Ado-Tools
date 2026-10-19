@@ -85,6 +85,7 @@ internal static partial class CommentMarker
 
     public static bool IsValidKey(string key) => KeyPattern().IsMatch(key);
 
-    [GeneratedRegex("^[A-Za-z0-9._-]{1,64}$")]
+    /// <summary>Colons let a caller namespace keys, such as <c>refine-it:123:r2</c>; nothing can close the HTML comment.</summary>
+    [GeneratedRegex("^[A-Za-z0-9._:-]{1,64}$")]
     private static partial Regex KeyPattern();
 }
