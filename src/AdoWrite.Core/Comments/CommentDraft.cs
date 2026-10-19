@@ -92,11 +92,15 @@ public sealed partial record CommentDraft(
             return Key;
         }
 
+        // Files join the key only when there are some, so a comment without files keeps the key it had
+        // before attachments existed.
+        IEnumerable<string> files = Attachments.Count == 0
+            ? []
+            : Attachments.Select(file => $"{file.Name}|{file.Sha256}").Prepend($"files:{Attachments.Count}");
         IEnumerable<string> parts = target.Select(part => part?.ToString() ?? string.Empty)
             .Append(Mentions.Count.ToString(CultureInfo.InvariantCulture))
             .Concat(Mentions.Select(mention => mention.ToLowerInvariant()))
-            .Append(Attachments.Count.ToString(CultureInfo.InvariantCulture))
-            .Concat(Attachments.Select(file => $"{file.Name}|{file.Sha256}"))
+            .Concat(files)
             .Append(Body);
         string identity = string.Concat(parts.Select(part => $"{part.Length}:{part}"));
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));

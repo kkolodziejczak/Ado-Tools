@@ -6,7 +6,7 @@ namespace AdoWrite.Comments;
 /// Posts a Markdown comment to a work item's discussion. Work-item comments are not threaded, so a
 /// conversation continues with further comments; each first looks for an earlier one of the signed-in
 /// user with the same key. Attached files are uploaded, added to the work item's Attachments with
-/// the key as their attachment comment, and linked from the comment.
+/// the key and content hash as their attachment comment, and linked from the comment.
 /// </summary>
 internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDirectory people, Uri organizationUrl)
 {
@@ -68,9 +68,10 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
     }
 
     /// <summary>
-    /// Uploads the files and adds them to the work item in one update before the comment is posted.
-    /// A file an earlier, interrupted run already attached under the same key is reused, so a retry
-    /// neither uploads nor attaches it twice.
+    /// Uploads each file and adds it to the work item straight away, before the comment is posted. A
+    /// file already attached under the same key with the same content is reused, so a retry neither
+    /// uploads nor attaches it twice. Attaching each file on its own means an interrupted run leaves
+    /// at most one uploaded file that is not yet attached.
     /// </summary>
     private async Task<IReadOnlyList<AttachmentLink>> AttachAsync(
         int workItemId,
@@ -80,11 +81,10 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
         string key,
         CancellationToken cancellationToken)
     {
-        string tag = CommentMarker.AttachmentTag(key);
         var links = new List<AttachmentLink>(files.Count);
-        var added = new List<WorkItemAttachment>();
         foreach (CommentAttachment file in files)
         {
+            string tag = CommentMarker.AttachmentTag(key, file);
             WorkItemAttachment? earlier = attached.FirstOrDefault(attachment =>
                 attachment.Comment == tag && string.Equals(attachment.Name, file.Name, StringComparison.Ordinal));
             if (earlier is not null)
@@ -96,17 +96,13 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             Uri url = await AzureDevOpsCall.RunAsync(
                 async () =>
                 {
-                    await using Stream content = file.Open();
+                    await using Stream content = await file.OpenVerifiedAsync(cancellationToken);
                     return await client.UploadAttachmentAsync(project, file.Name, content, cancellationToken);
                 },
                 cancellationToken);
-            added.Add(new WorkItemAttachment(url, file.Name, tag));
+            var attachment = new WorkItemAttachment(url, file.Name, tag);
+            await AzureDevOpsCall.RunAsync(() => client.AddAttachmentAsync(workItemId, attachment, cancellationToken), cancellationToken);
             links.Add(new AttachmentLink(file, url, Reused: false));
-        }
-
-        if (added.Count > 0)
-        {
-            await AzureDevOpsCall.RunAsync(() => client.AddAttachmentsAsync(workItemId, added, cancellationToken), cancellationToken);
         }
 
         return links;

@@ -141,7 +141,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             Attachment uploaded = await AzureDevOpsCall.RunAsync(
                 async () =>
                 {
-                    await using Stream content = file.Open();
+                    await using Stream content = await file.OpenVerifiedAsync(cancellationToken);
                     return await client.UploadAttachmentAsync(location, file.StoredName, content, cancellationToken);
                 },
                 cancellationToken);

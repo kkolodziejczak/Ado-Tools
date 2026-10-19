@@ -7,7 +7,7 @@ namespace AdoWrite.AzureDevOps;
 
 /// <summary>
 /// The work-item calls a comment needs: the owning project and attached files, earlier comments,
-/// file uploads, the links that add uploaded files to the work item, then the post.
+/// file uploads, the link that adds an uploaded file to the work item, then the post.
 /// </summary>
 public interface IWorkItemCommentClient
 {
@@ -26,10 +26,10 @@ public interface IWorkItemCommentClient
         Stream content,
         CancellationToken cancellationToken);
 
-    /// <summary>Adds uploaded files to the work item's Attachments, in one update.</summary>
-    Task AddAttachmentsAsync(
+    /// <summary>Adds one uploaded file to the work item's Attachments.</summary>
+    Task AddAttachmentAsync(
         int workItemId,
-        IReadOnlyList<WorkItemAttachment> attachments,
+        WorkItemAttachment attachment,
         CancellationToken cancellationToken);
 
     /// <summary>Adds a Markdown comment, so mentions and the duplicate marker match pull-request comments.</summary>
@@ -118,27 +118,29 @@ public sealed class SdkWorkItemCommentClient(WorkItemTrackingHttpClient client) 
         return new Uri(reference.Url);
     }
 
-    public Task AddAttachmentsAsync(
+    public Task AddAttachmentAsync(
         int workItemId,
-        IReadOnlyList<WorkItemAttachment> attachments,
+        WorkItemAttachment attachment,
         CancellationToken cancellationToken)
     {
-        var patch = new JsonPatchDocument();
-        patch.AddRange(attachments.Select(attachment => new JsonPatchOperation
+        var patch = new JsonPatchDocument
         {
-            Operation = Operation.Add,
-            Path = "/relations/-",
-            Value = new WorkItemRelation
+            new JsonPatchOperation
             {
-                Rel = AttachedFile,
-                Url = attachment.Url.AbsoluteUri,
-                Attributes = new Dictionary<string, object>
+                Operation = Operation.Add,
+                Path = "/relations/-",
+                Value = new WorkItemRelation
                 {
-                    ["name"] = attachment.Name,
-                    ["comment"] = attachment.Comment ?? string.Empty
+                    Rel = AttachedFile,
+                    Url = attachment.Url.AbsoluteUri,
+                    Attributes = new Dictionary<string, object>
+                    {
+                        ["name"] = attachment.Name,
+                        ["comment"] = attachment.Comment ?? string.Empty
+                    }
                 }
             }
-        }));
+        };
         return client.UpdateWorkItemAsync(
             patch,
             workItemId,

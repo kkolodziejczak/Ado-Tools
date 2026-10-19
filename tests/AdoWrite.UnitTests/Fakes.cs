@@ -183,8 +183,11 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
 
     public List<string> Uploads { get; } = [];
 
-    /// <summary>Each call to add attachments, so a test can see that they arrive in one update.</summary>
-    public List<IReadOnlyList<WorkItemAttachment>> AttachmentUpdates { get; } = [];
+    /// <summary>Each file added to the work item, in order.</summary>
+    public List<WorkItemAttachment> AttachmentUpdates { get; } = [];
+
+    /// <summary>Fails the upload of this file name, to simulate an interrupted run.</summary>
+    public string? FailUploadOf { get; set; }
 
     public Exception? AddCommentFailure { get; set; }
 
@@ -193,14 +196,19 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
 
     public Task<Uri> UploadAttachmentAsync(string project, string fileName, Stream content, CancellationToken cancellationToken)
     {
+        if (fileName == FailUploadOf)
+        {
+            throw new VssServiceResponseException(HttpStatusCode.ServiceUnavailable, "Down.", null);
+        }
+
         Uploads.Add(fileName);
         return Task.FromResult(new Uri($"https://dev.azure.com/fabricated/_apis/wit/attachments/{Uploads.Count}?fileName={Uri.EscapeDataString(fileName)}"));
     }
 
-    public Task AddAttachmentsAsync(int workItemId, IReadOnlyList<WorkItemAttachment> attachments, CancellationToken cancellationToken)
+    public Task AddAttachmentAsync(int workItemId, WorkItemAttachment attachment, CancellationToken cancellationToken)
     {
-        AttachmentUpdates.Add(attachments);
-        Attached.AddRange(attachments);
+        AttachmentUpdates.Add(attachment);
+        Attached.Add(attachment);
         return Task.CompletedTask;
     }
 

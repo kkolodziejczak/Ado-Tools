@@ -62,7 +62,7 @@ public sealed class AttachmentTests : IDisposable
     public async Task PullRequest_UploadsUnderHashedNamesAndLinksFilesBeforeTheFooter()
     {
         CommentAttachment chart = await File("chart.png", "png bytes");
-        CommentAttachment notes = await File("notes [v2].pdf", "pdf bytes");
+        CommentAttachment notes = await File("notes [v2] (final).pdf", "pdf bytes");
 
         PostedCommentDocument posted = await PullRequestCommenter().CommentAsync(
             Fabricated.PullRequestId,
@@ -75,7 +75,9 @@ public sealed class AttachmentTests : IDisposable
         string text = _pullRequests.CreatedThreads[0].Comments[0].Content;
         Uri chartUrl = posted.Attachments[0].Url!;
         Uri notesUrl = posted.Attachments[1].Url!;
-        Assert.Contains($"Question?\n\n![chart.png]({chartUrl.AbsoluteUri})\n📎 [notes \\[v2\\].pdf]({notesUrl.AbsoluteUri})\n\n---\n", text, StringComparison.Ordinal);
+        string notesTarget = notesUrl.AbsoluteUri.Replace("(", "%28", StringComparison.Ordinal).Replace(")", "%29", StringComparison.Ordinal);
+        Assert.DoesNotContain("(final)", notesTarget, StringComparison.Ordinal);
+        Assert.Contains($"Question?\n\n![chart.png]({chartUrl.AbsoluteUri})\n📎 [notes \\[v2\\] (final).pdf]({notesTarget})\n\n---\n", text, StringComparison.Ordinal);
         Assert.All(posted.Attachments, attachment => Assert.False(attachment.Reused));
         Assert.Equal((chart.Name, chart.Length, chart.Sha256), (posted.Attachments[0].Name, posted.Attachments[0].Length, posted.Attachments[0].Sha256));
     }
@@ -120,7 +122,7 @@ public sealed class AttachmentTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkItem_UploadsAndAttachesFilesInOneUpdateBeforeTheComment()
+    public async Task WorkItem_UploadsAndAttachesEachFileBeforeTheComment()
     {
         CommentAttachment chart = await File("chart.png", "png bytes");
         CommentAttachment notes = await File("notes.pdf", "pdf bytes");
@@ -129,9 +131,11 @@ public sealed class AttachmentTests : IDisposable
         PostedCommentDocument posted = await WorkItemCommenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None);
 
         Assert.Equal(["chart.png", "notes.pdf"], _workItems.Uploads);
-        IReadOnlyList<WorkItemAttachment> update = Assert.Single(_workItems.AttachmentUpdates);
+        List<WorkItemAttachment> update = _workItems.AttachmentUpdates;
         Assert.Equal(["chart.png", "notes.pdf"], update.Select(attachment => attachment.Name));
-        Assert.All(update, attachment => Assert.Equal("ado-write:refine-it:7:r1", attachment.Comment));
+        Assert.Equal(
+            [$"ado-write:refine-it:7:r1 sha256:{chart.Sha256}", $"ado-write:refine-it:7:r1 sha256:{notes.Sha256}"],
+            update.Select(attachment => attachment.Comment));
         string markdown = Assert.Single(_workItems.Added).Markdown;
         Assert.Contains($"![chart.png]({update[0].Url.AbsoluteUri})", markdown, StringComparison.Ordinal);
         Assert.Contains($"📎 [notes.pdf]({update[1].Url.AbsoluteUri})", markdown, StringComparison.Ordinal);
@@ -154,6 +158,63 @@ public sealed class AttachmentTests : IDisposable
         Assert.Single(_workItems.AttachmentUpdates);
         Assert.True(Assert.Single(retry.Attachments).Reused);
         Assert.Equal(CommentOutcomes.Created, retry.Outcome);
+    }
+
+    [Fact]
+    public async Task WorkItem_RetryAfterAFailedUploadUploadsOnlyTheMissingFiles()
+    {
+        CommentAttachment chart = await File("chart.png", "png bytes");
+        CommentAttachment notes = await File("notes.pdf", "pdf bytes");
+        CommentDraft draft = Draft(attachments: [chart, notes], key: "refine-it:7:r1");
+        _workItems.FailUploadOf = "notes.pdf";
+
+        await Assert.ThrowsAsync<WriteException>(() => WorkItemCommenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None));
+        _workItems.FailUploadOf = null;
+        PostedCommentDocument retry = await WorkItemCommenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None);
+
+        Assert.Equal(["chart.png", "notes.pdf"], _workItems.Uploads);
+        Assert.Equal(2, _workItems.AttachmentUpdates.Count);
+        Assert.Equal([true, false], retry.Attachments.Select(attachment => attachment.Reused));
+    }
+
+    [Fact]
+    public async Task WorkItem_DoesNotReuseAnAttachedFileWhoseContentChanged()
+    {
+        CommentAttachment chart = await File("chart.png", "png bytes");
+        _workItems.Attached.Add(new WorkItemAttachment(
+            new Uri("https://dev.azure.com/fabricated/_apis/wit/attachments/old"),
+            "chart.png",
+            "ado-write:refine-it:7:r1 sha256:0000"));
+
+        PostedCommentDocument posted = await WorkItemCommenter().CommentAsync(
+            Fabricated.WorkItemId,
+            Draft(attachments: [chart], key: "refine-it:7:r1"),
+            CancellationToken.None);
+
+        Assert.Single(_workItems.Uploads);
+        Assert.False(Assert.Single(posted.Attachments).Reused);
+    }
+
+    [Fact]
+    public async Task Upload_RejectsAFileChangedAfterItWasChecked()
+    {
+        CommentAttachment chart = await File("chart.png", "png bytes");
+        await System.IO.File.WriteAllTextAsync(chart.Path, "other bytes");
+
+        WriteException exception = await Assert.ThrowsAsync<WriteException>(() => PullRequestCommenter().CommentAsync(
+            Fabricated.PullRequestId,
+            null,
+            Draft(attachments: [chart]),
+            CancellationToken.None));
+
+        Assert.Equal("attachmentChanged", exception.Code);
+        Assert.Empty(_pullRequests.Uploads);
+    }
+
+    [Fact]
+    public void Draft_KeepsTheKeyOfACommentWithoutFiles()
+    {
+        Assert.Equal("ec2f2f00435b1d9b", CommentDraft.Create("Q", "Agent", [], null, false).KeyFor("workItem", 7));
     }
 
     [Fact]

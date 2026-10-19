@@ -89,7 +89,10 @@ internal sealed class CommentComposer(IPeopleDirectory people)
         foreach (AttachmentLink link in links)
         {
             string label = link.File.Name.Replace("[", "\\[", StringComparison.Ordinal).Replace("]", "\\]", StringComparison.Ordinal);
-            string target = link.Url?.AbsoluteUri ?? $"attachment:{Uri.EscapeDataString(link.File.Name)}";
+            // Parentheses would end the Markdown link early, and an absolute URI keeps them unescaped.
+            string target = (link.Url?.AbsoluteUri ?? $"attachment:{Uri.EscapeDataString(link.File.Name)}")
+                .Replace("(", "%28", StringComparison.Ordinal)
+                .Replace(")", "%29", StringComparison.Ordinal);
             text.Append('\n');
             text.Append(link.File.IsImage ? $"![{label}]({target})" : $"📎 [{label}]({target})");
         }
@@ -114,8 +117,8 @@ internal static partial class CommentMarker
 
     public static string Render(string key) => $"{Prefix}{key} -->";
 
-    /// <summary>The attachment comment that ties a work-item attachment to the post with <paramref name="key"/>.</summary>
-    public static string AttachmentTag(string key) => $"ado-write:{key}";
+    /// <summary>The attachment comment that ties a work-item attachment to the post with <paramref name="key"/> and to the file's content.</summary>
+    public static string AttachmentTag(string key, CommentAttachment file) => $"ado-write:{key} sha256:{file.Sha256}";
 
     public static bool Marks(string? text, string key) =>
         text?.Contains(Render(key), StringComparison.Ordinal) == true;
