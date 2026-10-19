@@ -68,7 +68,10 @@
           "url": "https://dev.azure.com/fabricated/_apis/wit/workItems/123/comments/9"
         }
       ],
-      "customFields": { "Custom.Risk": "low" },
+      "customFields": {
+        "Custom.Notes": { "format": "html", "plainText": "Ship behind a flag.", "raw": "<div>Ship behind a <b>flag</b>.</div>" },
+        "Custom.Risk": "low"
+      },
       "links": {
         "rest": "https://dev.azure.com/fabricated/_apis/wit/workItems/123",
         "browser": "https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123"

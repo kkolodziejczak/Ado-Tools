@@ -197,7 +197,8 @@ internal sealed class FixtureWorkItemSource(bool includeImages) : IWorkItemSourc
                 null,
                 null),
             ["System.Tags"] = "agent-ready; sample",
-            ["Custom.Risk"] = "low"
+            ["Custom.Risk"] = "low",
+            ["Custom.Notes"] = "<div>Ship behind a <b>flag</b>.</div>"
         };
         if ((includeImages && id != 126) || id == 125)
         {
@@ -220,7 +221,10 @@ internal sealed class FixtureWorkItemSource(bool includeImages) : IWorkItemSourc
             6,
             new Uri($"https://dev.azure.com/fabricated/_apis/wit/workItems/{id}"),
             fields,
-            BuildRelations(id));
+            BuildRelations(id))
+        {
+            RichTextFields = new HashSet<string>(StringComparer.Ordinal) { "System.Description", "Custom.Notes" }
+        };
         return Task.FromResult<SourceWorkItem?>(item);
     }
 

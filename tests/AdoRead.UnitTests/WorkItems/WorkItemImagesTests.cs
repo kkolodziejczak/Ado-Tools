@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using AdoRead.AzureDevOps;
+using AdoRead.Output;
 using AdoRead.WorkItems;
 
 namespace AdoRead.UnitTests.WorkItems;
@@ -56,6 +57,44 @@ public sealed class WorkItemImagesTests
 
         Assert.Equal(attachmentId, candidate.AttachmentId);
         Assert.Equal(new WorkItemMediaSource("customField", null, "Custom.Notes"), Assert.Single(candidate.Sources));
+    }
+
+    [Fact]
+    public void CandidateCollector_KeepsDescriptionImagesUnderTheirOwnSourceWhenTheDescriptionIsRichText()
+    {
+        var attachmentId = Guid.Parse("0f4b7a52-8e8b-4a0e-9d55-3b1f0c2b6a12");
+        var workItem = new SourceWorkItem(
+            123,
+            1,
+            null,
+            new Dictionary<string, object?>
+            {
+                ["System.Description"] =
+                    $"<img src=\"https://dev.azure.com/example/Payments/_apis/wit/attachments/{attachmentId:D}?fileName=d.png\">"
+            },
+            [])
+        {
+            RichTextFields = new HashSet<string>(StringComparer.Ordinal) { "System.Description" }
+        };
+
+        WorkItemImageCandidate candidate = Assert.Single(WorkItemImageCandidateCollector.Collect(workItem, OrganizationUrl));
+
+        Assert.Equal(new WorkItemMediaSource("description", null), Assert.Single(candidate.Sources));
+    }
+
+    [Fact]
+    public async Task MediaSource_SerializesFieldOnlyForCustomFields()
+    {
+        using var writer = new StringWriter();
+
+        await new JsonOutput(writer).WriteAsync(
+            new[] { new WorkItemMediaSource("customField", null, "Custom.Notes"), new WorkItemMediaSource("comment", 7) },
+            compact: true,
+            CancellationToken.None);
+
+        Assert.Equal(
+            """[{"kind":"customField","commentId":null,"field":"Custom.Notes"},{"kind":"comment","commentId":7}]""",
+            writer.ToString().Trim());
     }
 
     [Fact]

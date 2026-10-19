@@ -37,7 +37,9 @@ public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSo
 
     /// <summary>
     /// Field values do not say whether a field holds HTML, so the project's field definitions are
-    /// read once per work item. Only fields present on this item are kept.
+    /// read once per work item. Only fields present on this item are kept. The item itself has already
+    /// been read, so when the definitions cannot be, its rich-text fields stay raw HTML rather than
+    /// failing the read.
     /// </summary>
     private async Task<IReadOnlySet<string>> GetRichTextFieldsAsync(
         IReadOnlyDictionary<string, object?> fields,
@@ -50,7 +52,17 @@ public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSo
             return SourceWorkItem.NoRichTextFields;
         }
 
-        IReadOnlyList<WorkItemField2> definitions = await client.GetFieldsAsync(project, cancellationToken);
+        IReadOnlyList<WorkItemField2> definitions;
+        try
+        {
+            definitions = await client.GetFieldsAsync(project, cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested
+            && AdoReadExceptionTranslator.IsServiceFailure(exception))
+        {
+            return SourceWorkItem.NoRichTextFields;
+        }
+
         return definitions
             .Where(field => field.Type is FieldType.Html or FieldType.History)
             .Select(field => field.ReferenceName)

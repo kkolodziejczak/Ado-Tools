@@ -22,12 +22,14 @@ public sealed class WorkItemSourceTests
                     ["System.TeamProject"] = "Payments",
                     ["System.Description"] = "<p>Pay</p>",
                     ["Custom.Notes"] = "<p>Notes</p>",
-                    ["Custom.Plain"] = "<not html>"
+                    ["Custom.Plain"] = "<not html>",
+                    ["System.History"] = "<p>Changed</p>"
                 }
             },
             Fields =
             [
                 new WorkItemField2 { ReferenceName = "System.Description", Type = FieldType.Html },
+                new WorkItemField2 { ReferenceName = "System.History", Type = FieldType.History },
                 new WorkItemField2 { ReferenceName = "Custom.Notes", Type = FieldType.Html },
                 new WorkItemField2 { ReferenceName = "Custom.Plain", Type = FieldType.PlainText },
                 new WorkItemField2 { ReferenceName = "Custom.Unused", Type = FieldType.Html }
@@ -37,8 +39,57 @@ public sealed class WorkItemSourceTests
         SourceWorkItem? workItem = await new WorkItemSource(client).GetAsync(42, CancellationToken.None);
 
         Assert.Equal(["Payments"], client.FieldProjects);
-        Assert.Equal(["Custom.Notes", "System.Description"], workItem!.RichTextFields.Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["Custom.Notes", "System.Description", "System.History"],
+            workItem!.RichTextFields.Order(StringComparer.Ordinal));
     }
+
+    [Fact]
+    public async Task GetAsync_KeepsTheWorkItemWhenFieldDefinitionsCannotBeRead()
+    {
+        var client = new FakeWorkItemTrackingClient
+        {
+            WorkItem = ProjectWorkItem(),
+            FieldsFailure = new VssServiceResponseException(HttpStatusCode.NotFound, "fields missing", null)
+        };
+
+        SourceWorkItem? workItem = await new WorkItemSource(client).GetAsync(42, CancellationToken.None);
+
+        Assert.Equal(42, workItem!.Id);
+        Assert.Empty(workItem.RichTextFields);
+    }
+
+    [Fact]
+    public async Task GetAsync_PropagatesCancellationDuringFieldDefinitions()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var client = new FakeWorkItemTrackingClient
+        {
+            WorkItem = ProjectWorkItem(),
+            FieldsFailure = new TaskCanceledException()
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new WorkItemSource(client).GetAsync(42, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task GetAsync_SkipsFieldDefinitionsWithoutAProject()
+    {
+        var client = new FakeWorkItemTrackingClient
+        {
+            WorkItem = new WorkItem { Id = 42, Rev = 1, Fields = new Dictionary<string, object> { ["Custom.Notes"] = "<p>x</p>" } }
+        };
+
+        SourceWorkItem? workItem = await new WorkItemSource(client).GetAsync(42, CancellationToken.None);
+
+        Assert.Empty(client.FieldProjects);
+        Assert.Empty(workItem!.RichTextFields);
+    }
+
+    private static WorkItem ProjectWorkItem() =>
+        new() { Id = 42, Rev = 1, Fields = new Dictionary<string, object> { ["System.TeamProject"] = "Payments" } };
 
     [Fact]
     public async Task GetAllCommentsAsync_FollowsContinuationTokensAndPreservesModernCommentData()
@@ -181,10 +232,14 @@ public sealed class WorkItemSourceTests
 
         public List<string> FieldProjects { get; } = [];
 
+        public Exception? FieldsFailure { get; init; }
+
         public Task<IReadOnlyList<WorkItemField2>> GetFieldsAsync(string project, CancellationToken cancellationToken)
         {
             FieldProjects.Add(project);
-            return Task.FromResult(Fields);
+            return FieldsFailure is null
+                ? Task.FromResult(Fields)
+                : Task.FromException<IReadOnlyList<WorkItemField2>>(FieldsFailure);
         }
 
         public Task<IReadOnlyList<WorkItem>> GetWorkItemsAsync(
