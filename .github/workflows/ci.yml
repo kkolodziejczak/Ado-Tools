@@ -30,9 +30,14 @@ jobs:
           dotnet restore src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --locked-mode
           dotnet restore src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --locked-mode
           dotnet restore src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --locked-mode
+          dotnet restore src/AdoWrite.Core/AdoWrite.Core.csproj --locked-mode
+          dotnet restore src/AdoWrite.Cli/AdoWrite.Cli.csproj --locked-mode
+          dotnet restore src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj --locked-mode
+          dotnet restore src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj --locked-mode
           dotnet restore tests/AdoRead.UnitTests/AdoRead.UnitTests.csproj --locked-mode
           dotnet restore tests/AdoRead.IntegrationTests/AdoRead.IntegrationTests.csproj --locked-mode
           dotnet restore tests/AdoRead.FakeHost/AdoRead.FakeHost.csproj --locked-mode
+          dotnet restore tests/AdoWrite.UnitTests/AdoWrite.UnitTests.csproj --locked-mode
 
       - name: Verify formatting
         run: dotnet format AdoRead.slnx --verify-no-changes --no-restore
@@ -51,6 +56,9 @@ jobs:
           dotnet pack src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --no-build --configuration Release
           dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --configuration Release
           dotnet pack src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoWrite.Cli/AdoWrite.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj --no-build --configuration Release
 
       - name: Validate package contents
         run: |
@@ -61,7 +69,10 @@ jobs:
             @{ PackageId = 'AdoRead.WorkItems.Tool'; CommandName = 'ado-read-work-item' },
             @{ PackageId = 'AdoRead.Wiki.Tool'; CommandName = 'ado-read-wiki' },
             @{ PackageId = 'AdoRead.Sprints.Tool'; CommandName = 'ado-read-sprints' },
-            @{ PackageId = 'AdoRead.Pipelines.Tool'; CommandName = 'ado-read-pipelines' }
+            @{ PackageId = 'AdoRead.Pipelines.Tool'; CommandName = 'ado-read-pipelines' },
+            @{ PackageId = 'AdoWrite.Tool'; CommandName = 'ado-write' },
+            @{ PackageId = 'AdoWrite.PullRequests.Tool'; CommandName = 'ado-write-pr' },
+            @{ PackageId = 'AdoWrite.WorkItems.Tool'; CommandName = 'ado-write-work-item' }
           )
           foreach ($tool in $tools) {
             $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1
@@ -79,7 +90,10 @@ jobs:
             @{ PackageId = 'AdoRead.WorkItems.Tool'; CommandName = 'ado-read-work-item' },
             @{ PackageId = 'AdoRead.Wiki.Tool'; CommandName = 'ado-read-wiki' },
             @{ PackageId = 'AdoRead.Sprints.Tool'; CommandName = 'ado-read-sprints' },
-            @{ PackageId = 'AdoRead.Pipelines.Tool'; CommandName = 'ado-read-pipelines' }
+            @{ PackageId = 'AdoRead.Pipelines.Tool'; CommandName = 'ado-read-pipelines' },
+            @{ PackageId = 'AdoWrite.Tool'; CommandName = 'ado-write' },
+            @{ PackageId = 'AdoWrite.PullRequests.Tool'; CommandName = 'ado-write-pr' },
+            @{ PackageId = 'AdoWrite.WorkItems.Tool'; CommandName = 'ado-write-work-item' }
           )
           foreach ($tool in $tools) {
             $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1

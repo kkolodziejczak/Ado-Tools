@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>AdoWrite.Core</AssemblyName>
+    <RootNamespace>AdoWrite</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdoRead.Core\AdoRead.Core.csproj" />
+  </ItemGroup>
+</Project>

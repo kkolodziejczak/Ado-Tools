@@ -5,11 +5,11 @@ param(
     [string]$PackagePath,
 
     [Parameter(Mandatory)]
-    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool', 'AdoRead.Pipelines.Tool')]
+    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool', 'AdoRead.Pipelines.Tool', 'AdoWrite.Tool', 'AdoWrite.PullRequests.Tool', 'AdoWrite.WorkItems.Tool')]
     [string]$PackageId,
 
     [Parameter(Mandatory)]
-    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprints', 'ado-read-pipelines')]
+    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprints', 'ado-read-pipelines', 'ado-write', 'ado-write-pr', 'ado-write-work-item')]
     [string]$CommandName,
 
     [string]$PackageVersion = '1.0.0'
@@ -18,7 +18,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Commands each package must list under its help, and the foreign command it must reject.
+# Commands each package must list under its help, and the foreign command it must reject. A write
+# package also rejects an invalid target before it reads a token, which a clean machine does not have.
 $toolContracts = @{
     'AdoRead.Tool' = @{
         Command = 'ado-read'
@@ -50,6 +51,27 @@ $toolContracts = @{
         Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'run', 'tests')
         Foreign = @('wiki', 'list')
     }
+    'AdoWrite.Tool' = @{
+        Command = 'ado-write'
+        Commands = @('config', 'auth', 'pr', 'work-item')
+        Foreign = @('privacy', 'show')
+        InvalidTarget = @('pr', 'comment', '0', '--body', 'Question', '--agent', 'Smoke Agent')
+        InvalidTargetCode = 'invalidPullRequestId'
+    }
+    'AdoWrite.PullRequests.Tool' = @{
+        Command = 'ado-write-pr'
+        Commands = @('config', 'auth', 'comment', 'reply')
+        Foreign = @('work-item', 'comment', '1')
+        InvalidTarget = @('reply', '42', '--body', 'Question', '--agent', 'Smoke Agent')
+        InvalidTargetCode = 'threadRequired'
+    }
+    'AdoWrite.WorkItems.Tool' = @{
+        Command = 'ado-write-work-item'
+        Commands = @('config', 'auth', 'comment')
+        Foreign = @('reply', '1')
+        InvalidTarget = @('comment', '0', '--body', 'Question', '--agent', 'Smoke Agent')
+        InvalidTargetCode = 'invalidWorkItemId'
+    }
 }
 
 $contract = $toolContracts[$PackageId]
@@ -59,6 +81,7 @@ if ($contract.Command -ne $CommandName)
 }
 
 $isUmbrella = $PackageId -eq 'AdoRead.Tool'
+$isWrite = $PackageId.StartsWith('AdoWrite.', [StringComparison]::Ordinal)
 $packageFullPath = (Resolve-Path -LiteralPath $PackagePath).Path
 $packageDirectory = Split-Path -Parent $packageFullPath
 $expectedPackageName = "$PackageId.$PackageVersion.nupkg"
@@ -244,6 +267,11 @@ function Test-InstalledConfiguration
         throw "Installed $CommandName returned an unexpected configuration document."
     }
 
+    if ($isWrite)
+    {
+        return
+    }
+
     # No privacy policy is stored for the fabricated organization on a clean machine, so a read must refuse
     # before it touches a token, and privacy show must report that nothing is configured.
     Assert-JsonValidationError -Arguments @('projects', '--config', $configPath, '--compact') -ExpectedCode 'privacyPolicyRequired'
@@ -267,6 +295,15 @@ function Test-SliceSmoke
     Test-InstalledHelp
     Test-InstalledConfiguration
     Assert-JsonValidationError -Arguments ([string[]]$contract.Foreign + @('--compact')) -ExpectedCode 'invalidArguments'
+}
+
+function Test-WriteSmoke
+{
+    Test-InstalledTool
+    Test-InstalledHelp
+    Test-InstalledConfiguration
+    Assert-JsonValidationError -Arguments ([string[]]$contract.Foreign + @('--compact')) -ExpectedCode 'invalidArguments'
+    Assert-JsonValidationError -Arguments ([string[]]$contract.InvalidTarget + @('--config', $configPath, '--compact')) -ExpectedCode $contract.InvalidTargetCode
 }
 
 function Test-UmbrellaSmoke
@@ -410,7 +447,11 @@ try
         throw "Expected package '$expectedPackageName', received '$([System.IO.Path]::GetFileName($packageFullPath))'."
     }
 
-    if ($isUmbrella)
+    if ($isWrite)
+    {
+        Test-WriteSmoke
+    }
+    elseif ($isUmbrella)
     {
         Test-UmbrellaSmoke
     }

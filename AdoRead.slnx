@@ -6,7 +6,12 @@
   <Project Path="src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj" />
   <Project Path="src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj" />
   <Project Path="src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj" />
+  <Project Path="src/AdoWrite.Core/AdoWrite.Core.csproj" />
+  <Project Path="src/AdoWrite.Cli/AdoWrite.Cli.csproj" />
+  <Project Path="src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj" />
+  <Project Path="src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj" />
   <Project Path="tests/AdoRead.FakeHost/AdoRead.FakeHost.csproj" />
   <Project Path="tests/AdoRead.UnitTests/AdoRead.UnitTests.csproj" />
   <Project Path="tests/AdoRead.IntegrationTests/AdoRead.IntegrationTests.csproj" />
+  <Project Path="tests/AdoWrite.UnitTests/AdoWrite.UnitTests.csproj" />
 </Solution>

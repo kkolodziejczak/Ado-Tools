@@ -388,6 +388,30 @@
           "AdoRead.Core": "[1.0.0, )"
         }
       },
+      "adowrite.core": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "AdoWrite.PullRequests.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoWrite.Core": "[1.0.0, )"
+        }
+      },
+      "AdoWrite.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoWrite.Core": "[1.0.0, )"
+        }
+      },
+      "AdoWrite.WorkItems.Tool": {
+        "type": "Project",
+        "dependencies": {
+          "AdoWrite.Core": "[1.0.0, )"
+        }
+      },
       "HtmlAgilityPack": {
         "type": "CentralTransitive",
         "requested": "[1.12.4, )",

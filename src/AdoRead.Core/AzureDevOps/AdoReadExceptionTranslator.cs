@@ -14,32 +14,32 @@ internal static class AdoReadExceptionTranslator
 
     public static ProjectCatalogException ProjectFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Values(exception);
+        (string code, string message, bool transient) = Describe(exception);
         return new ProjectCatalogException(code, message, transient, exception);
     }
 
     public static PullRequestSourceException PullRequestFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Values(exception);
+        (string code, string message, bool transient) = Describe(exception);
         return new PullRequestSourceException(code, message, transient, exception);
     }
 
     public static WorkItemSourceException WorkItemFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Values(exception);
+        (string code, string message, bool transient) = Describe(exception);
         return new WorkItemSourceException(code, message, transient, exception);
     }
 
     public static WikiSourceException WikiFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Values(exception);
+        (string code, string message, bool transient) = Describe(exception);
         return new WikiSourceException(code, message, transient, exception);
     }
 
     /// <summary>Pipeline reads need two scopes beyond code reading, so authorization failures name them.</summary>
     public static PipelineSourceException PipelineFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Values(exception);
+        (string code, string message, bool transient) = Describe(exception);
         if (code is "unauthorized" or "forbidden")
         {
             message += " Pipeline diagnosis needs Build (Read) and Test Management (Read) scopes on the PAT.";
@@ -48,7 +48,8 @@ internal static class AdoReadExceptionTranslator
         return new PipelineSourceException(code, message, transient, exception);
     }
 
-    private static (string Code, string Message, bool Transient) Values(Exception exception)
+    /// <summary>The stable code, safe message and transient flag of an SDK failure.</summary>
+    internal static (string Code, string Message, bool Transient) Describe(Exception exception)
     {
         if (exception is VssServiceResponseException response)
         {

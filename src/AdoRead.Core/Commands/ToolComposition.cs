@@ -12,6 +12,8 @@ namespace AdoRead.Commands;
 /// <summary>
 /// Composes shared commands and feature modules into one command tree. The umbrella mounts each
 /// module under its group name; a slice mounts its single module directly on the executable.
+/// A write tool uses the write token and shares only <c>config</c> and <c>auth</c>: it returns no
+/// Azure DevOps content, so it has no privacy policy or discovery commands.
 /// </summary>
 public sealed class ToolComposition(
     IConfigurationStore configurationStore,
@@ -20,7 +22,8 @@ public sealed class ToolComposition(
     IPatProvider? patProvider = null,
     IAdoSessionFactory? sessionFactory = null,
     ICredentialVault? credentialVault = null,
-    ITerminalInput? terminalInput = null)
+    ITerminalInput? terminalInput = null,
+    TokenScope tokenScope = TokenScope.Read)
 {
     private readonly IAdoSessionFactory _sessionFactory = sessionFactory ?? new AdoSessionFactory();
     private readonly ICredentialVault _credentialVault = credentialVault ?? CredentialVault.ForCurrentPlatform();
@@ -28,7 +31,9 @@ public sealed class ToolComposition(
 
     public CommandApplication CreateUmbrella(string executable, IReadOnlyList<CommandModule> modules)
     {
-        var rootCommand = new RootCommand("Read Azure DevOps context as structured JSON.");
+        var rootCommand = new RootCommand(tokenScope == TokenScope.Write
+            ? "Post comments to Azure DevOps on your behalf and report them as structured JSON."
+            : "Read Azure DevOps context as structured JSON.");
         Option<bool> compactOption = AddCompactOption(rootCommand);
         CommandServices services = CreateServices(compactOption, executable);
         var sharedNames = new ToolCommandNames(executable, null);
@@ -72,7 +77,7 @@ public sealed class ToolComposition(
         var names = new ToolCommandNames(executable, null);
         return new(
             configurationStore,
-            patProvider ?? new VaultPatProvider(_credentialVault, names.Invocation("auth login")),
+            patProvider ?? new VaultPatProvider(_credentialVault, names.Invocation("auth login"), tokenScope),
             _sessionFactory,
             jsonOutput,
             timeProvider,
@@ -80,7 +85,10 @@ public sealed class ToolComposition(
             _credentialVault,
             _terminalInput,
             new PrivacyGate(privacyPolicies, names),
-            privacyPolicies);
+            privacyPolicies)
+        {
+            TokenScope = tokenScope
+        };
     }
 
     private static Dictionary<Command, string> ConfigureShared(
@@ -91,6 +99,11 @@ public sealed class ToolComposition(
         var kinds = new Dictionary<Command, string>();
         Include(kinds, ConfigCommands.Configure(rootCommand, names, services));
         Include(kinds, AuthCommands.Configure(rootCommand, names, services));
+        if (services.TokenScope == TokenScope.Write)
+        {
+            return kinds;
+        }
+
         Include(kinds, PrivacyCommands.Configure(rootCommand, services));
         Include(kinds, DiscoveryCommands.Configure(rootCommand, names, services));
         return kinds;

@@ -31,4 +31,10 @@ public sealed record CommandServices(
     ICredentialVault CredentialVault,
     ITerminalInput TerminalInput,
     PrivacyGate Privacy,
-    PrivacyPolicyStore PrivacyPolicies);
+    PrivacyPolicyStore PrivacyPolicies)
+{
+    /// <summary>Selects the vault token: read tools and write tools keep separate tokens.</summary>
+    public TokenScope TokenScope { get; init; } = TokenScope.Read;
+
+    public string TokenAccount(Uri organizationUrl) => CredentialAccount.ForToken(organizationUrl, TokenScope);
+}
