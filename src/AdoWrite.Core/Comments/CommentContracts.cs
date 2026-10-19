@@ -5,7 +5,9 @@ namespace AdoWrite.Comments;
 /// <summary>
 /// The result of one comment command. <see cref="Outcome"/> is <c>created</c>, <c>duplicate</c> (an
 /// earlier comment carries the same key, so nothing was posted) or <c>preview</c> (a dry run). Only a
-/// preview carries <see cref="Text"/>. <see cref="MarkerKept"/> is false when Azure DevOps dropped the
+/// preview carries <see cref="Text"/>. <see cref="Attachments"/> lists the uploaded files; a reused one
+/// was already uploaded with the same name and content, for example by a run that did not finish.
+/// <see cref="MarkerKept"/> is false when Azure DevOps dropped the
 /// hidden marker, so a retry could not detect this comment.
 /// </summary>
 public sealed record PostedCommentDocument(
@@ -17,6 +19,7 @@ public sealed record PostedCommentDocument(
     Uri? Url,
     CommentAnchorDocument? Anchor,
     IReadOnlyList<MentionDocument> Mentions,
+    IReadOnlyList<AttachmentDocument> Attachments,
     string Key,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? MarkerKept = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null);

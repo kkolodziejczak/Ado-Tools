@@ -27,6 +27,11 @@ internal sealed class CommentOptions
         Description = "Mention and notify a person by mail address or identity ID. Repeat for several people."
     };
 
+    public Option<string[]> Attach { get; } = new("--attach")
+    {
+        Description = "Upload this file and link it in the comment; images are shown inline. On a work item it is also added to its Attachments. Repeat for up to 10 files of up to 25 MB."
+    };
+
     public Option<string?> Key { get; } = new("--key")
     {
         Description = "Duplicate key of letters, digits and . : - _, for example refine-it:123:r2. A comment of yours already carrying it is returned instead of posting again. Defaults to a hash of the target and content."
@@ -45,6 +50,7 @@ internal sealed class CommentOptions
         command.Options.Add(BodyFile);
         command.Options.Add(Agent);
         command.Options.Add(Mention);
+        command.Options.Add(Attach);
         command.Options.Add(Key);
         command.Options.Add(DryRun);
         command.Options.Add(Config);
@@ -60,12 +66,25 @@ internal sealed class CommentOptions
             throw WriteException.Rejected("bodyRequired", "Give the comment text with exactly one of --body and --body-file.");
         }
 
+        string[] paths = parseResult.GetValue(Attach) ?? [];
+        if (paths.Length > CommentAttachment.MaxFiles)
+        {
+            throw WriteException.Rejected("invalidAttachments", $"Attach up to {CommentAttachment.MaxFiles} files.");
+        }
+
+        var attachments = new List<CommentAttachment>(paths.Length);
+        foreach (string path in paths)
+        {
+            attachments.Add(await CommentAttachment.ReadAsync(path, cancellationToken));
+        }
+
         return CommentDraft.Create(
             body ?? await ReadBodyFileAsync(bodyFile!, cancellationToken),
             parseResult.GetValue(Agent),
             parseResult.GetValue(Mention) ?? [],
             parseResult.GetValue(Key),
-            parseResult.GetValue(DryRun));
+            parseResult.GetValue(DryRun),
+            attachments);
     }
 
     private static async Task<string> ReadBodyFileAsync(string path, CancellationToken cancellationToken)

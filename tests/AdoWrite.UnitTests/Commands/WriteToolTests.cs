@@ -131,6 +131,8 @@ public sealed class WriteToolTests
     [InlineData("invalidLine", "pr", "comment", "42", "--file", "/src/App.cs", "--line", "3", "--end-line", "2", "--body", "Q", "--agent", Agent)]
     [InlineData("invalidSide", "pr", "comment", "42", "--file", "/src/App.cs", "--line", "3", "--side", "middle", "--body", "Q", "--agent", Agent)]
     [InlineData("threadRequired", "pr", "reply", "42", "--body", "Q", "--agent", Agent)]
+    [InlineData("attachmentUnreadable", "work-item", "comment", "7", "--body", "Q", "--agent", Agent, "--attach", "no-such-file.png")]
+    [InlineData("invalidAttachments", "work-item", "comment", "7", "--body", "Q", "--agent", Agent, "--attach", "1", "--attach", "2", "--attach", "3", "--attach", "4", "--attach", "5", "--attach", "6", "--attach", "7", "--attach", "8", "--attach", "9", "--attach", "10", "--attach", "11")]
     [InlineData("invalidWorkItemId", "work-item", "comment", "https://dev.azure.com/fabricated/App/_git/Repo/pullrequest/4", "--body", "Q", "--agent", Agent)]
     [InlineData("organizationMismatch", "work-item", "comment", "https://dev.azure.com/other/App/_workitems/edit/7", "--body", "Q", "--agent", Agent)]
     public async Task InvalidRequests_AreRejectedWithoutOpeningASession(string expectedCode, params string[] args)
@@ -167,6 +169,31 @@ public sealed class WriteToolTests
         JsonElement error = Envelope().GetProperty("errors")[0];
         Assert.Equal(("azureDevOps", "forbidden"), (error.GetProperty("scope").GetString(), error.GetProperty("code").GetString()));
         Assert.Contains("Code (Read & write)", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WorkItemComment_UploadsAttachedFilesAndReportsThem()
+    {
+        string file = Path.Combine(Path.GetTempPath(), $"ado-write-{Guid.NewGuid():N}.png");
+        try
+        {
+            await File.WriteAllTextAsync(file, "png bytes");
+
+            int exitCode = await Umbrella().InvokeAsync(
+                ["work-item", "comment", "7", "--body", "See the chart.", "--agent", Agent, "--attach", file, "--compact"],
+                CancellationToken.None);
+
+            Assert.Equal(ExitCodes.Success, exitCode);
+            Assert.Single(_session.FakeWorkItems.AttachmentUpdates);
+            JsonElement attachment = Envelope().GetProperty("results")[0].GetProperty("attachments")[0];
+            Assert.Equal(Path.GetFileName(file), attachment.GetProperty("name").GetString());
+            Assert.Equal(9, attachment.GetProperty("length").GetInt64());
+            Assert.StartsWith("https://dev.azure.com/fabricated/_apis/wit/attachments/", attachment.GetProperty("url").GetString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
     }
 
     [Fact]

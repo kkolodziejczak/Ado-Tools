@@ -76,4 +76,13 @@ internal static class AzureDevOpsCall
             throw failure.Code == "notFound" && notFound is not null ? notFound : failure;
         }
     }
+
+    public static Task RunAsync(Func<Task> call, CancellationToken cancellationToken) =>
+        RunAsync(
+            async () =>
+            {
+                await call();
+                return true;
+            },
+            cancellationToken);
 }

@@ -130,6 +130,26 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
     public Task<string> GetFileTextAsync(PullRequestLocation location, string path, string commitId, CancellationToken cancellationToken) =>
         Task.FromResult(Files[(commitId, path)]);
 
+    public List<Attachment> Attachments { get; } = [];
+
+    /// <summary>Uploaded files by stored name, with their bytes.</summary>
+    public List<(string Name, byte[] Content)> Uploads { get; } = [];
+
+    public Task<IReadOnlyList<Attachment>> GetAttachmentsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Attachment>>(Attachments);
+
+    public async Task<Attachment> UploadAttachmentAsync(PullRequestLocation location, string fileName, Stream content, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, cancellationToken);
+        Uploads.Add((fileName, buffer.ToArray()));
+        return new Attachment
+        {
+            DisplayName = fileName,
+            Url = $"https://dev.azure.com/fabricated/_apis/git/repositories/{Fabricated.RepositoryId}/pullRequests/42/attachments/{Uri.EscapeDataString(fileName)}"
+        };
+    }
+
     public Task<GitPullRequestCommentThread> CreateThreadAsync(PullRequestLocation location, GitPullRequestCommentThread thread, CancellationToken cancellationToken)
     {
         CreatedThreads.Add(thread);
@@ -159,13 +179,41 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
     /// <summary>Simulates a service that rewrites the stored text, for example by dropping HTML comments.</summary>
     public Func<string, string> Store { get; set; } = text => text;
 
-    public Task<string?> GetProjectAsync(int workItemId, CancellationToken cancellationToken) => Task.FromResult(Project);
+    public List<WorkItemAttachment> Attached { get; } = [];
+
+    public List<string> Uploads { get; } = [];
+
+    /// <summary>Each call to add attachments, so a test can see that they arrive in one update.</summary>
+    public List<IReadOnlyList<WorkItemAttachment>> AttachmentUpdates { get; } = [];
+
+    public Exception? AddCommentFailure { get; set; }
+
+    public Task<WorkItemTarget> GetWorkItemAsync(int workItemId, CancellationToken cancellationToken) =>
+        Task.FromResult(new WorkItemTarget(Project, [.. Attached]));
+
+    public Task<Uri> UploadAttachmentAsync(string project, string fileName, Stream content, CancellationToken cancellationToken)
+    {
+        Uploads.Add(fileName);
+        return Task.FromResult(new Uri($"https://dev.azure.com/fabricated/_apis/wit/attachments/{Uploads.Count}?fileName={Uri.EscapeDataString(fileName)}"));
+    }
+
+    public Task AddAttachmentsAsync(int workItemId, IReadOnlyList<WorkItemAttachment> attachments, CancellationToken cancellationToken)
+    {
+        AttachmentUpdates.Add(attachments);
+        Attached.AddRange(attachments);
+        return Task.CompletedTask;
+    }
 
     public Task<IReadOnlyList<WorkItemComment>> GetCommentsAsync(string project, int workItemId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<WorkItemComment>>(Comments);
 
     public Task<WorkItemComment> AddCommentAsync(string project, int workItemId, string markdown, CancellationToken cancellationToken)
     {
+        if (AddCommentFailure is not null)
+        {
+            throw AddCommentFailure;
+        }
+
         Added.Add((project, workItemId, markdown));
         return Task.FromResult(new WorkItemComment(31, Store(markdown), false, Fabricated.Author.Id));
     }

@@ -28,6 +28,16 @@ public interface IPullRequestCommentClient
         string commitId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Attachment>> GetAttachmentsAsync(
+        PullRequestLocation location,
+        CancellationToken cancellationToken);
+
+    Task<Attachment> UploadAttachmentAsync(
+        PullRequestLocation location,
+        string fileName,
+        Stream content,
+        CancellationToken cancellationToken);
+
     Task<GitPullRequestCommentThread> CreateThreadAsync(
         PullRequestLocation location,
         GitPullRequestCommentThread thread,
@@ -132,6 +142,30 @@ public sealed class SdkPullRequestCommentClient(GitHttpClient client) : IPullReq
         using var reader = new StreamReader(content);
         return await reader.ReadToEndAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Attachment>> GetAttachmentsAsync(
+        PullRequestLocation location,
+        CancellationToken cancellationToken) =>
+        await client.GetAttachmentsAsync(
+            location.ProjectId,
+            location.RepositoryId,
+            location.PullRequestId,
+            userState: null,
+            cancellationToken);
+
+    public Task<Attachment> UploadAttachmentAsync(
+        PullRequestLocation location,
+        string fileName,
+        Stream content,
+        CancellationToken cancellationToken) =>
+        client.CreateAttachmentAsync(
+            content,
+            location.ProjectId,
+            fileName,
+            location.RepositoryId,
+            location.PullRequestId,
+            userState: null,
+            cancellationToken);
 
     public Task<GitPullRequestCommentThread> CreateThreadAsync(
         PullRequestLocation location,

@@ -5,9 +5,10 @@ using AdoWrite.AzureDevOps;
 namespace AdoWrite.Comments;
 
 /// <summary>
-/// Turns a draft into the Markdown that is posted: mentions, the body, a visible footer naming the
-/// agent and the person it posts for, and a hidden marker that lets a retry find the comment instead
-/// of posting it twice.
+/// Turns a draft into the Markdown that is posted: mentions, the body, the attached files, a visible
+/// footer naming the agent and the person it posts for, and a hidden marker that lets a retry find the
+/// comment instead of posting it twice. Mentions are resolved before anything is uploaded, so a bad
+/// mention leaves no orphaned files.
 /// </summary>
 internal sealed class CommentComposer(IPeopleDirectory people)
 {
@@ -15,10 +16,22 @@ internal sealed class CommentComposer(IPeopleDirectory people)
     public Task<Person> GetAuthorAsync(CancellationToken cancellationToken) =>
         AzureDevOpsCall.RunAsync(() => people.GetSignedInUserAsync(cancellationToken), cancellationToken);
 
-    public async Task<ComposedComment> ComposeAsync(CommentDraft draft, string key, Person author, CancellationToken cancellationToken)
+    /// <summary>A dry run uploads nothing; its links name the files instead of pointing at them.</summary>
+    public async Task<ComposedComment> ComposeAsync(
+        CommentDraft draft,
+        string key,
+        Person author,
+        Func<Task<IReadOnlyList<AttachmentLink>>> uploadAsync,
+        CancellationToken cancellationToken)
     {
         IReadOnlyList<MentionDocument> mentions = await ResolveMentionsAsync(draft.Mentions, cancellationToken);
-        return new ComposedComment(Render(draft, mentions, author.DisplayName, key), mentions);
+        IReadOnlyList<AttachmentLink> links = draft.DryRun || draft.Attachments.Count == 0
+            ? draft.Attachments.Select(file => new AttachmentLink(file, null, Reused: false)).ToArray()
+            : await uploadAsync();
+        return new ComposedComment(
+            Render(draft, mentions, links, author.DisplayName, key),
+            mentions,
+            links.Select(link => link.ToDocument()).ToArray());
     }
 
     /// <summary>An identity ID is used as given; anything else must match exactly one active person.</summary>
@@ -53,7 +66,12 @@ internal sealed class CommentComposer(IPeopleDirectory people)
         return mentions;
     }
 
-    private static string Render(CommentDraft draft, IReadOnlyList<MentionDocument> mentions, string onBehalfOf, string key)
+    private static string Render(
+        CommentDraft draft,
+        IReadOnlyList<MentionDocument> mentions,
+        IReadOnlyList<AttachmentLink> links,
+        string onBehalfOf,
+        string key)
     {
         var text = new StringBuilder();
         if (mentions.Count > 0)
@@ -63,6 +81,19 @@ internal sealed class CommentComposer(IPeopleDirectory people)
         }
 
         text.Append(draft.Body);
+        if (links.Count > 0)
+        {
+            text.Append('\n');
+        }
+
+        foreach (AttachmentLink link in links)
+        {
+            string label = link.File.Name.Replace("[", "\\[", StringComparison.Ordinal).Replace("]", "\\]", StringComparison.Ordinal);
+            string target = link.Url?.AbsoluteUri ?? $"attachment:{Uri.EscapeDataString(link.File.Name)}";
+            text.Append('\n');
+            text.Append(link.File.IsImage ? $"![{label}]({target})" : $"📎 [{label}]({target})");
+        }
+
         text.Append("\n\n---\n");
         text.Append($"🤖 *Posted by AI agent {draft.Agent} on behalf of {onBehalfOf}*");
         text.Append("\n\n");
@@ -71,7 +102,10 @@ internal sealed class CommentComposer(IPeopleDirectory people)
     }
 }
 
-internal sealed record ComposedComment(string Text, IReadOnlyList<MentionDocument> Mentions);
+internal sealed record ComposedComment(
+    string Text,
+    IReadOnlyList<MentionDocument> Mentions,
+    IReadOnlyList<AttachmentDocument> Attachments);
 
 /// <summary>The hidden <c>&lt;!-- ado-write:KEY --&gt;</c> line at the end of every posted comment.</summary>
 internal static partial class CommentMarker
@@ -79,6 +113,9 @@ internal static partial class CommentMarker
     public const string Prefix = "<!-- ado-write:";
 
     public static string Render(string key) => $"{Prefix}{key} -->";
+
+    /// <summary>The attachment comment that ties a work-item attachment to the post with <paramref name="key"/>.</summary>
+    public static string AttachmentTag(string key) => $"ado-write:{key}";
 
     public static bool Marks(string? text, string key) =>
         text?.Contains(Render(key), StringComparison.Ordinal) == true;

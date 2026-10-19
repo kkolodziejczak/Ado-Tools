@@ -15,12 +15,19 @@ public sealed partial record CommentDraft(
     string Agent,
     IReadOnlyList<string> Mentions,
     string? Key,
-    bool DryRun)
+    bool DryRun,
+    IReadOnlyList<CommentAttachment> Attachments)
 {
     private const int MaxAgentLength = 64;
     private const int MaxMentions = 20;
 
-    public static CommentDraft Create(string? body, string? agent, IReadOnlyList<string> mentions, string? key, bool dryRun)
+    public static CommentDraft Create(
+        string? body,
+        string? agent,
+        IReadOnlyList<string> mentions,
+        string? key,
+        bool dryRun,
+        IReadOnlyList<CommentAttachment>? attachments = null)
     {
         string normalizedBody = TrimBlankLines((body ?? string.Empty).ReplaceLineEndings("\n"));
         if (normalizedBody.Length == 0)
@@ -61,11 +68,20 @@ public sealed partial record CommentDraft(
                 "--key must be 1 to 64 letters, digits, dots, colons, dashes or underscores.");
         }
 
-        return new CommentDraft(normalizedBody, normalizedAgent, normalizedMentions, normalizedKey, dryRun);
+        IReadOnlyList<CommentAttachment> files = attachments ?? [];
+        if (files.Count > CommentAttachment.MaxFiles
+            || files.Select(file => file.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != files.Count)
+        {
+            throw WriteException.Rejected(
+                "invalidAttachments",
+                $"Attach up to {CommentAttachment.MaxFiles} files with distinct file names.");
+        }
+
+        return new CommentDraft(normalizedBody, normalizedAgent, normalizedMentions, normalizedKey, dryRun, files);
     }
 
     /// <summary>
-    /// The duplicate key: the caller's, or a hash of the target, the mentions and the body. A key names
+    /// The duplicate key: the caller's, or a hash of the target, the mentions, the attached files and the body. A key names
     /// one comment per pull request or work item. Each hashed part is length-prefixed, so text moving
     /// between the mentions and the body cannot produce the same key.
     /// </summary>
@@ -79,6 +95,8 @@ public sealed partial record CommentDraft(
         IEnumerable<string> parts = target.Select(part => part?.ToString() ?? string.Empty)
             .Append(Mentions.Count.ToString(CultureInfo.InvariantCulture))
             .Concat(Mentions.Select(mention => mention.ToLowerInvariant()))
+            .Append(Attachments.Count.ToString(CultureInfo.InvariantCulture))
+            .Concat(Attachments.Select(file => $"{file.Name}|{file.Sha256}"))
             .Append(Body);
         string identity = string.Concat(parts.Select(part => $"{part.Length}:{part}"));
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));

@@ -34,14 +34,19 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), [], key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key);
         }
 
         LineAnchor? anchor = lines is null ? null : await AnchorAsync(location, lines, cancellationToken);
-        ComposedComment comment = await _composer.ComposeAsync(draft, key, author, cancellationToken);
+        ComposedComment comment = await _composer.ComposeAsync(
+            draft,
+            key,
+            author,
+            () => UploadAsync(location, draft.Attachments, cancellationToken),
+            cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, comment.Mentions, key, text: comment.Text);
+            return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, key, comment);
         }
 
         GitPullRequestCommentThread created = await AzureDevOpsCall.RunAsync(
@@ -54,8 +59,8 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             created.Id,
             first?.Id,
             anchor?.Document,
-            comment.Mentions,
             key,
+            comment,
             markerKept: CommentMarker.Marks(first?.Content, key));
     }
 
@@ -76,13 +81,18 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(threads, key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), [], key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key);
         }
 
-        ComposedComment comment = await _composer.ComposeAsync(draft, key, author, cancellationToken);
+        ComposedComment comment = await _composer.ComposeAsync(
+            draft,
+            key,
+            author,
+            () => UploadAsync(location, draft.Attachments, cancellationToken),
+            cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, location, threadId, null, null, comment.Mentions, key, text: comment.Text);
+            return Result(CommentOutcomes.Preview, location, threadId, null, null, key, comment);
         }
 
         var reply = new Comment
@@ -100,9 +110,45 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             threadId,
             created.Id,
             null,
-            comment.Mentions,
             key,
+            comment,
             markerKept: CommentMarker.Marks(created.Content, key));
+    }
+
+    /// <summary>
+    /// Uploads the files to the pull request under their hash-prefixed names. A file an earlier,
+    /// interrupted run already uploaded is reused, so a retry never uploads it twice.
+    /// </summary>
+    private async Task<IReadOnlyList<AttachmentLink>> UploadAsync(
+        PullRequestLocation location,
+        IReadOnlyList<CommentAttachment> files,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Attachment> existing = await AzureDevOpsCall.RunAsync(
+            () => client.GetAttachmentsAsync(location, cancellationToken),
+            cancellationToken);
+        var links = new List<AttachmentLink>(files.Count);
+        foreach (CommentAttachment file in files)
+        {
+            Attachment? earlier = existing.FirstOrDefault(attachment =>
+                string.Equals(attachment.DisplayName, file.StoredName, StringComparison.Ordinal) && attachment.Url is not null);
+            if (earlier is not null)
+            {
+                links.Add(new AttachmentLink(file, new Uri(earlier.Url), Reused: true));
+                continue;
+            }
+
+            Attachment uploaded = await AzureDevOpsCall.RunAsync(
+                async () =>
+                {
+                    await using Stream content = file.Open();
+                    return await client.UploadAttachmentAsync(location, file.StoredName, content, cancellationToken);
+                },
+                cancellationToken);
+            links.Add(new AttachmentLink(file, new Uri(uploaded.Url), Reused: false));
+        }
+
+        return links;
     }
 
     private Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
@@ -283,10 +329,9 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         int? threadId,
         int? commentId,
         CommentAnchorDocument? anchor,
-        IReadOnlyList<MentionDocument> mentions,
         string key,
-        bool? markerKept = null,
-        string? text = null) =>
+        ComposedComment? comment = null,
+        bool? markerKept = null) =>
         new(
             outcome,
             Target,
@@ -295,10 +340,11 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             commentId,
             BrowserUrl(location, threadId),
             anchor,
-            mentions,
+            comment?.Mentions ?? [],
+            comment?.Attachments ?? [],
             key,
             markerKept,
-            text);
+            outcome == CommentOutcomes.Preview ? comment?.Text : null);
 
     private Uri BrowserUrl(PullRequestLocation location, int? threadId) =>
         new(
