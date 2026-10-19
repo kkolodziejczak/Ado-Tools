@@ -12,12 +12,18 @@ public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSo
     {
         try
         {
-            WorkItem item = await client.GetWorkItemAsync(id, cancellationToken);
-            return MapWorkItem(item);
-        }
-        catch (VssServiceResponseException exception) when (exception.HttpStatusCode == HttpStatusCode.NotFound)
-        {
-            return null;
+            WorkItem item;
+            try
+            {
+                item = await client.GetWorkItemAsync(id, cancellationToken);
+            }
+            catch (VssServiceResponseException exception) when (exception.HttpStatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            SourceWorkItem workItem = MapWorkItem(item);
+            return workItem with { RichTextFields = await GetRichTextFieldsAsync(workItem.Fields, cancellationToken) };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -27,6 +33,30 @@ public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSo
         {
             throw AdoReadExceptionTranslator.WorkItemFailure(exception);
         }
+    }
+
+    /// <summary>
+    /// Field values do not say whether a field holds HTML, so the project's field definitions are
+    /// read once per work item. Only fields present on this item are kept.
+    /// </summary>
+    private async Task<IReadOnlySet<string>> GetRichTextFieldsAsync(
+        IReadOnlyDictionary<string, object?> fields,
+        CancellationToken cancellationToken)
+    {
+        if (!fields.TryGetValue("System.TeamProject", out object? value)
+            || value is not string project
+            || string.IsNullOrWhiteSpace(project))
+        {
+            return SourceWorkItem.NoRichTextFields;
+        }
+
+        IReadOnlyList<WorkItemField2> definitions = await client.GetFieldsAsync(project, cancellationToken);
+        return definitions
+            .Where(field => field.Type is FieldType.Html or FieldType.History)
+            .Select(field => field.ReferenceName)
+            .OfType<string>()
+            .Where(fields.ContainsKey)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     public async Task<IReadOnlyList<WorkItemCommentDocument>> GetAllCommentsAsync(

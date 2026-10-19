@@ -48,7 +48,7 @@ public sealed class WorkItemMapper(RichTextNormalizer richTextNormalizer)
             MapTags(GetString(source.Fields, "System.Tags")),
             source.Relations.Select(MapRelation).ToArray(),
             comments.Select(MapComment).ToArray(),
-            MapCustomFields(source.Fields),
+            MapCustomFields(source),
             new WorkItemLinksDocument(source.RestUrl, CreateBrowserUrl(organizationUrl, project, source.Id)));
     }
 
@@ -104,15 +104,28 @@ public sealed class WorkItemMapper(RichTextNormalizer richTextNormalizer)
         return int.TryParse(segment, NumberStyles.None, CultureInfo.InvariantCulture, out int id) ? id : null;
     }
 
-    private static IReadOnlyDictionary<string, JsonElement> MapCustomFields(
-        IReadOnlyDictionary<string, object?> fields) =>
-        fields
+    /// <summary>
+    /// Rich-text custom fields get the same raw/format/plain-text shape as the description; every
+    /// other value is passed through as Azure DevOps returned it.
+    /// </summary>
+    private IReadOnlyDictionary<string, JsonElement> MapCustomFields(SourceWorkItem source) =>
+        source.Fields
             .Where(pair => !CoreFields.Contains(pair.Key))
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .ToDictionary(
                 pair => pair.Key,
-                pair => AdoValueConverter.ToJsonElement(pair.Value),
+                pair => pair.Value is string html && source.RichTextFields.Contains(pair.Key)
+                    ? RichTextValue(richTextNormalizer.Normalize(html, "html"))
+                    : AdoValueConverter.ToJsonElement(pair.Value),
                 StringComparer.Ordinal);
+
+    private static JsonElement RichTextValue(RichTextDocument text) =>
+        AdoValueConverter.ToJsonElement(new SortedDictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["format"] = text.Format,
+            ["plainText"] = text.PlainText,
+            ["raw"] = text.Raw
+        });
 
     private static string? GetUniqueName(
         IReadOnlyDictionary<string, object?> fields,

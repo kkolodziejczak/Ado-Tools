@@ -33,6 +33,32 @@ public sealed class WorkItemImagesTests
     }
 
     [Fact]
+    public void CandidateCollector_DiscoversImagesInRichTextCustomFields()
+    {
+        var attachmentId = Guid.Parse("0f4b7a52-8e8b-4a0e-9d55-3b1f0c2b6a11");
+        var workItem = new SourceWorkItem(
+            123,
+            1,
+            null,
+            new Dictionary<string, object?>
+            {
+                ["Custom.Notes"] =
+                    $"<div><img src=\"https://dev.azure.com/example/Payments/_apis/wit/attachments/{attachmentId:D}?fileName=notes.png\"></div>",
+                ["Custom.Plain"] =
+                    $"<img src=\"https://dev.azure.com/example/Payments/_apis/wit/attachments/{Guid.NewGuid():D}?fileName=x.png\">"
+            },
+            [])
+        {
+            RichTextFields = new HashSet<string>(StringComparer.Ordinal) { "Custom.Notes" }
+        };
+
+        WorkItemImageCandidate candidate = Assert.Single(WorkItemImageCandidateCollector.Collect(workItem, OrganizationUrl));
+
+        Assert.Equal(attachmentId, candidate.AttachmentId);
+        Assert.Equal(new WorkItemMediaSource("customField", null, "Custom.Notes"), Assert.Single(candidate.Sources));
+    }
+
+    [Fact]
     public void CandidateCollector_DeduplicatesAcrossDescriptionAcceptanceCommentsAndRelations()
     {
         var attachmentId = Guid.Parse("6d8e1ce4-1172-4d07-a83f-35f8d7f5889a");

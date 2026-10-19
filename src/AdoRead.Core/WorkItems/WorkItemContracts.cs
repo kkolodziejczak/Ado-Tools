@@ -101,7 +101,8 @@ public sealed record WorkItemMediaItem(
 
 public sealed record WorkItemMediaSource(
     string Kind,
-    int? CommentId);
+    int? CommentId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Field = null);
 
 public sealed record WorkItemMediaError(
     string Code,

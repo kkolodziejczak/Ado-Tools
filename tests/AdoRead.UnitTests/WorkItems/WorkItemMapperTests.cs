@@ -116,6 +116,33 @@ public sealed class WorkItemMapperTests
     }
 
     [Fact]
+    public void Map_NormalizesRichTextCustomFieldsLikeTheDescription()
+    {
+        var source = new SourceWorkItem(
+            9,
+            1,
+            null,
+            new Dictionary<string, object?>
+            {
+                ["System.TeamProject"] = "Project",
+                ["Custom.Notes"] = "<div>First&nbsp;line<br>Second <b>line</b></div>",
+                ["Custom.Plain"] = "<kept as typed>"
+            },
+            [])
+        {
+            RichTextFields = new HashSet<string>(StringComparer.Ordinal) { "Custom.Notes" }
+        };
+
+        WorkItemDocument result = _mapper.Map(source, [], _organizationUrl);
+
+        JsonElement notes = result.CustomFields["Custom.Notes"];
+        Assert.Equal("html", notes.GetProperty("format").GetString());
+        Assert.Equal("First line\nSecond line", notes.GetProperty("plainText").GetString());
+        Assert.Equal("<div>First&nbsp;line<br>Second <b>line</b></div>", notes.GetProperty("raw").GetString());
+        Assert.Equal("<kept as typed>", result.CustomFields["Custom.Plain"].GetString());
+    }
+
+    [Fact]
     public void Map_UnsupportedCustomValueFallsBackToStableStringInsteadOfSdkShape()
     {
         var source = new SourceWorkItem(

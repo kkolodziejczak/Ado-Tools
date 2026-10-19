@@ -27,7 +27,13 @@ public sealed record SourceWorkItem(
     int Revision,
     Uri? RestUrl,
     IReadOnlyDictionary<string, object?> Fields,
-    IReadOnlyList<SourceWorkItemRelation> Relations);
+    IReadOnlyList<SourceWorkItemRelation> Relations)
+{
+    public static IReadOnlySet<string> NoRichTextFields { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>Reference names of the fields whose values are HTML, such as Repro Steps or a custom rich-text field.</summary>
+    public IReadOnlySet<string> RichTextFields { get; init; } = NoRichTextFields;
+}
 
 public sealed record SourceWorkItemRelation(
     string? RelationType,

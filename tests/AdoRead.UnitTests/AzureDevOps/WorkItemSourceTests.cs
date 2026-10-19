@@ -9,6 +9,38 @@ namespace AdoRead.UnitTests.AzureDevOps;
 public sealed class WorkItemSourceTests
 {
     [Fact]
+    public async Task GetAsync_MarksHtmlFieldsPresentOnTheWorkItemAsRichText()
+    {
+        var client = new FakeWorkItemTrackingClient
+        {
+            WorkItem = new WorkItem
+            {
+                Id = 42,
+                Rev = 1,
+                Fields = new Dictionary<string, object>
+                {
+                    ["System.TeamProject"] = "Payments",
+                    ["System.Description"] = "<p>Pay</p>",
+                    ["Custom.Notes"] = "<p>Notes</p>",
+                    ["Custom.Plain"] = "<not html>"
+                }
+            },
+            Fields =
+            [
+                new WorkItemField2 { ReferenceName = "System.Description", Type = FieldType.Html },
+                new WorkItemField2 { ReferenceName = "Custom.Notes", Type = FieldType.Html },
+                new WorkItemField2 { ReferenceName = "Custom.Plain", Type = FieldType.PlainText },
+                new WorkItemField2 { ReferenceName = "Custom.Unused", Type = FieldType.Html }
+            ]
+        };
+
+        SourceWorkItem? workItem = await new WorkItemSource(client).GetAsync(42, CancellationToken.None);
+
+        Assert.Equal(["Payments"], client.FieldProjects);
+        Assert.Equal(["Custom.Notes", "System.Description"], workItem!.RichTextFields.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task GetAllCommentsAsync_FollowsContinuationTokensAndPreservesModernCommentData()
     {
         var first = new Comment
@@ -143,13 +175,25 @@ public sealed class WorkItemSourceTests
 
         public List<string?> ContinuationTokens { get; } = [];
 
+        public WorkItem? WorkItem { get; init; }
+
+        public IReadOnlyList<WorkItemField2> Fields { get; init; } = [];
+
+        public List<string> FieldProjects { get; } = [];
+
+        public Task<IReadOnlyList<WorkItemField2>> GetFieldsAsync(string project, CancellationToken cancellationToken)
+        {
+            FieldProjects.Add(project);
+            return Task.FromResult(Fields);
+        }
+
         public Task<IReadOnlyList<WorkItem>> GetWorkItemsAsync(
             IReadOnlyList<int> ids,
             IReadOnlyList<string> fields,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<WorkItem> GetWorkItemAsync(int id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult(WorkItem ?? throw new NotSupportedException());
 
         public Task<CommentList> GetCommentsAsync(
             string project,
@@ -178,6 +222,9 @@ public sealed class WorkItemSourceTests
         public Task<WorkItem> GetWorkItemAsync(int id, CancellationToken cancellationToken) =>
             Task.FromCanceled<WorkItem>(cancellationToken);
 
+        public Task<IReadOnlyList<WorkItemField2>> GetFieldsAsync(string project, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<CommentList> GetCommentsAsync(
             string project,
             int id,
@@ -200,6 +247,9 @@ public sealed class WorkItemSourceTests
 
         public Task<WorkItem> GetWorkItemAsync(int id, CancellationToken cancellationToken) =>
             Task.FromException<WorkItem>(exception);
+
+        public Task<IReadOnlyList<WorkItemField2>> GetFieldsAsync(string project, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<CommentList> GetCommentsAsync(
             string project,

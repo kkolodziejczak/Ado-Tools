@@ -48,6 +48,20 @@ internal static class WorkItemImageCandidateCollector
             skipped,
             inlineAttachmentIds);
 
+        foreach (string field in workItem.RichTextFields.Where(IsCustomRichTextField).Order(StringComparer.Ordinal))
+        {
+            CollectHtmlField(
+                workItem.Fields,
+                field,
+                "customField",
+                commentId: null,
+                organizationUrl,
+                candidates,
+                skipped,
+                inlineAttachmentIds,
+                sourceField: field);
+        }
+
         foreach (WorkItemCommentDocument comment in comments)
         {
             string? html = !string.IsNullOrWhiteSpace(comment.RenderedHtml)
@@ -117,6 +131,7 @@ internal static class WorkItemImageCandidateCollector
             .OrderBy(candidate => candidate.IsDownloadable ? 0 : 1)
             .ThenBy(candidate => candidate.AttachmentId?.ToString("D"), StringComparer.Ordinal)
             .ThenBy(candidate => SourceOrder(candidate.Sources[0].Kind))
+            .ThenBy(candidate => candidate.Sources[0].Field, StringComparer.Ordinal)
             .ThenBy(candidate => candidate.Sources[0].CommentId)
             .ToArray();
     }
@@ -129,7 +144,8 @@ internal static class WorkItemImageCandidateCollector
         Uri organizationUrl,
         Dictionary<Guid, MutableCandidate> candidates,
         List<WorkItemImageCandidate> skipped,
-        HashSet<Guid> inlineAttachmentIds)
+        HashSet<Guid> inlineAttachmentIds,
+        string? sourceField = null)
     {
         if (fields.TryGetValue(fieldName, out object? value)
             && value is string html)
@@ -141,9 +157,14 @@ internal static class WorkItemImageCandidateCollector
                 organizationUrl,
                 candidates,
                 skipped,
-                inlineAttachmentIds);
+                inlineAttachmentIds,
+                sourceField);
         }
     }
+
+    /// <summary>Description and acceptance criteria are collected under their own source kinds.</summary>
+    private static bool IsCustomRichTextField(string field) =>
+        field is not "System.Description" and not "Microsoft.VSTS.Common.AcceptanceCriteria";
 
     private static void CollectHtml(
         string html,
@@ -152,7 +173,8 @@ internal static class WorkItemImageCandidateCollector
         Uri organizationUrl,
         Dictionary<Guid, MutableCandidate> candidates,
         List<WorkItemImageCandidate> skipped,
-        HashSet<Guid> inlineAttachmentIds)
+        HashSet<Guid> inlineAttachmentIds,
+        string? sourceField = null)
     {
         var document = new HtmlDocument();
         document.LoadHtml(html);
@@ -165,7 +187,7 @@ internal static class WorkItemImageCandidateCollector
         foreach (HtmlNode image in images)
         {
             string source = HtmlEntity.DeEntitize(image.GetAttributeValue("src", string.Empty));
-            var mediaSource = new WorkItemMediaSource(sourceKind, commentId);
+            var mediaSource = new WorkItemMediaSource(sourceKind, commentId, sourceField);
             if (!Uri.TryCreate(source, UriKind.Absolute, out Uri? sourceUri)
                 || !AttachmentReferenceParser.TryParse(
                     sourceUri,
@@ -242,9 +264,10 @@ internal static class WorkItemImageCandidateCollector
     {
         "description" => 0,
         "acceptanceCriteria" => 1,
-        "comment" => 2,
-        "attachmentRelation" => 3,
-        _ => 4
+        "customField" => 2,
+        "comment" => 3,
+        "attachmentRelation" => 4,
+        _ => 5
     };
 
     private sealed class MutableCandidate(
@@ -266,6 +289,7 @@ internal static class WorkItemImageCandidateCollector
                 OriginalFileName,
                 Sources
                     .OrderBy(source => SourceOrder(source.Kind))
+                    .ThenBy(source => source.Field, StringComparer.Ordinal)
                     .ThenBy(source => source.CommentId)
                     .ToArray());
     }
@@ -714,6 +738,7 @@ internal sealed class WorkItemImageDownloader(IWorkItemSource source)
         public IReadOnlyList<WorkItemMediaSource> ToArray() =>
             _retained
                 .OrderBy(source => source.Kind, StringComparer.Ordinal)
+                .ThenBy(source => source.Field, StringComparer.Ordinal)
                 .ThenBy(source => source.CommentId)
                 .ToArray();
     }

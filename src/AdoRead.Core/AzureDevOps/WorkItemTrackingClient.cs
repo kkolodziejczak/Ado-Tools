@@ -16,6 +16,9 @@ public interface IWorkItemTrackingClient
         IReadOnlyList<string> fields,
         CancellationToken cancellationToken);
 
+    /// <summary>The project's field definitions; used to tell rich-text fields from plain ones.</summary>
+    Task<IReadOnlyList<WorkItemField2>> GetFieldsAsync(string project, CancellationToken cancellationToken);
+
     Task<CommentList> GetCommentsAsync(
         string project,
         int workItemId,
@@ -66,6 +69,9 @@ public sealed class SdkWorkItemTrackingClient(WorkItemTrackingHttpClient client)
             expand: WorkItemExpand.All,
             userState: null,
             cancellationToken);
+
+    public async Task<IReadOnlyList<WorkItemField2>> GetFieldsAsync(string project, CancellationToken cancellationToken) =>
+        await client.GetWorkItemFieldsAsync(project, expand: null, userState: null, cancellationToken);
 
     public Task<CommentList> GetCommentsAsync(
         string project,
