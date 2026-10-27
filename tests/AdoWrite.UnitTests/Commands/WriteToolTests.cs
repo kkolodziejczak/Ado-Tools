@@ -135,7 +135,7 @@ public sealed class WriteToolTests
     [InlineData("attachmentUnreadable", "work-item", "comment", "7", "--body", "Q", "--agent", Agent, "--attach", "")]
     [InlineData("invalidAttachments", "work-item", "comment", "7", "--body", "Q", "--agent", Agent, "--attach", "1", "--attach", "2", "--attach", "3", "--attach", "4", "--attach", "5", "--attach", "6", "--attach", "7", "--attach", "8", "--attach", "9", "--attach", "10", "--attach", "11")]
     [InlineData("invalidWorkItemId", "work-item", "comment", "https://dev.azure.com/fabricated/App/_git/Repo/pullrequest/4", "--body", "Q", "--agent", Agent)]
-    [InlineData("organizationMismatch", "work-item", "comment", "https://dev.azure.com/other/App/_workitems/edit/7", "--body", "Q", "--agent", Agent)]
+    [InlineData("organizationMismatch", "work-item", "comment", "https://dev.azure.com/second/App/_workitems/edit/7", "--body", "Q", "--agent", Agent)]
     public async Task InvalidRequests_AreRejectedWithoutOpeningASession(string expectedCode, params string[] args)
     {
         int exitCode = await Umbrella().InvokeAsync([.. args, "--compact"], CancellationToken.None);
