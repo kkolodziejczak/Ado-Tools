@@ -119,6 +119,11 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("environment: release", releaseContract, StringComparison.Ordinal);
         Assert.Contains("id-token: write", releaseContract, StringComparison.Ordinal);
         Assert.Contains("uses: NuGet/login@v1", releaseContract, StringComparison.Ordinal);
+        string prereleaseContract = await File.ReadAllTextAsync(Path.Combine(toolRoot, ".github", "workflows", "prerelease.yml"));
+        Assert.Contains("workflow_dispatch:", prereleaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/ci.yml", prereleaseContract, StringComparison.Ordinal);
+        Assert.Contains("environment: prerelease", prereleaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: NuGet/login@v1", prereleaseContract, StringComparison.Ordinal);
         foreach ((string _, string packageId, string command) in Tools)
         {
             Assert.Contains($"PackageId = '{packageId}'", workflowContract, StringComparison.Ordinal);

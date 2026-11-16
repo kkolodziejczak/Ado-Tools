@@ -1,0 +1,88 @@
+name: Prerelease
+
+# Run by hand on any branch (gh workflow run prerelease.yml --ref <branch>). It builds, tests and
+# checks every tool package at a calculated prerelease version with the CI workflow and pushes
+# them to nuget.org, with no approval. nuget.org trusts this file through its own Trusted
+# Publishing policy. Stable versions come only from release.yml.
+#
+# Version: <next>-<label>.<run>, where <next> is the Version in Directory.Build.props or, once a
+# stable tag at or above it exists, the patch after the latest stable tag; <label> is "preview" on
+# master, else the branch name cut to 12 letters and digits; <run> is this workflow's run number.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate the prerelease version
+        id: version
+        run: |
+          next=$(sed -n 's:.*<Version>\([0-9]*\.[0-9]*\.[0-9]*\)</Version>.*:\1:p' Directory.Build.props | head -n 1)
+          latest=$(git tag --list 'v*.*.*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [ -n "$latest" ]; then
+            IFS=. read -r major minor patch <<< "$latest"
+            after="$major.$minor.$((patch + 1))"
+            next=$(printf '%s\n%s\n' "$next" "$after" | sort -V | tail -n 1)
+          fi
+          if [ "$GITHUB_REF_NAME" = "master" ]; then
+            label=preview
+          else
+            label=$(printf '%s' "${GITHUB_REF_NAME##*/}" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]' | cut -c1-12)
+          fi
+          version="$next-${label:-branch}.$GITHUB_RUN_NUMBER"
+          echo "Prerelease version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    # No reviewers: the environment only holds NUGET_USER and names this job in the nuget.org policy.
+    environment: prerelease
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: packages
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Exchange the GitHub token for a short-lived nuget.org key
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: >
+          dotnet nuget push "packages/*.nupkg"
+          --api-key "$NUGET_API_KEY"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Summary
+        run: |
+          echo "Pushed ${{ needs.version.outputs.version }}. Install with:" >> "$GITHUB_STEP_SUMMARY"
+          echo '`dotnet tool update -g <PackageId> --version ${{ needs.version.outputs.version }}`' >> "$GITHUB_STEP_SUMMARY"
