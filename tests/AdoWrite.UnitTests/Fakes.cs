@@ -3,7 +3,9 @@ using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Terminal;
 using AdoWrite.AzureDevOps;
+using Microsoft.TeamFoundation.Policy.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
+using Newtonsoft.Json.Linq;
 using Microsoft.VisualStudio.Services.WebApi;
 
 namespace AdoWrite.UnitTests;
@@ -58,6 +60,10 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
 {
     public Exception? PullRequestFailure { get; set; }
 
+    public PullRequestStatus Status { get; set; } = PullRequestStatus.Active;
+
+    public List<IdentityRefWithVote> Reviewers { get; } = [];
+
     public List<GitPullRequestCommentThread> Threads { get; } = [];
 
     public List<GitPullRequestIteration> Iterations { get; } =
@@ -102,6 +108,8 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         return Task.FromResult(new GitPullRequest
         {
             PullRequestId = pullRequestId,
+            Status = Status,
+            Reviewers = [.. Reviewers],
             Repository = new GitRepository
             {
                 Id = Fabricated.RepositoryId,
@@ -227,6 +235,55 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
     }
 }
 
+internal sealed class FakePullRequestReviewClient : IPullRequestReviewClient
+{
+    public static readonly Guid BuildPolicyType = Guid.Parse("0609b952-1397-4640-95ec-e00a01b2c241");
+
+    public List<PolicyEvaluationRecord> Evaluations { get; } = [];
+
+    public List<(Guid ProjectId, Guid EvaluationId)> Requeued { get; } = [];
+
+    public List<(PullRequestLocation Location, Guid ReviewerId, short Vote)> Votes { get; } = [];
+
+    /// <summary>A build-policy evaluation as Azure DevOps reports it; <paramref name="context"/> is its internal context JSON.</summary>
+    public static PolicyEvaluationRecord Build(
+        Guid evaluationId,
+        PolicyEvaluationStatus status,
+        string? context = null,
+        string? displayName = "PR build",
+        Guid? policyType = null) =>
+        new()
+        {
+            EvaluationId = evaluationId,
+            Status = status,
+            Context = context is null ? null : JObject.Parse(context),
+            Configuration = new PolicyConfiguration
+            {
+                IsBlocking = true,
+                Type = new PolicyTypeRef { Id = policyType ?? BuildPolicyType, DisplayName = "Build" },
+                Settings = displayName is null ? new JObject() : new JObject { ["displayName"] = displayName }
+            }
+        };
+
+    public Task<IReadOnlyList<PolicyEvaluationRecord>> GetPolicyEvaluationsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<PolicyEvaluationRecord>>(Evaluations);
+
+    public Task<PolicyEvaluationRecord> RequeuePolicyEvaluationAsync(PullRequestLocation location, Guid evaluationId, CancellationToken cancellationToken)
+    {
+        Requeued.Add((location.ProjectId, evaluationId));
+        PolicyEvaluationRecord record = Evaluations.Single(evaluation => evaluation.EvaluationId == evaluationId);
+        record.Status = PolicyEvaluationStatus.Queued;
+        record.Context = JObject.Parse("{\"isExpired\":false}");
+        return Task.FromResult(record);
+    }
+
+    public Task<IdentityRefWithVote> SetVoteAsync(PullRequestLocation location, Guid reviewerId, short vote, CancellationToken cancellationToken)
+    {
+        Votes.Add((location, reviewerId, vote));
+        return Task.FromResult(new IdentityRefWithVote { Id = reviewerId.ToString(), Vote = vote });
+    }
+}
+
 internal sealed class FakeWriteSession : IAdoWriteSession
 {
     public FakePullRequestCommentClient FakePullRequests { get; } = new();
@@ -234,6 +291,10 @@ internal sealed class FakeWriteSession : IAdoWriteSession
     public FakeWorkItemCommentClient FakeWorkItems { get; } = new();
 
     public FakePeopleDirectory FakePeople { get; } = new();
+
+    public FakePullRequestReviewClient FakeReviews { get; } = new();
+
+    public IPullRequestReviewClient Reviews => FakeReviews;
 
     public IPullRequestCommentClient PullRequests => FakePullRequests;
 

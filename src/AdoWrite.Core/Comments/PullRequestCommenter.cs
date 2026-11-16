@@ -29,7 +29,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         CommentDraft draft,
         CancellationToken cancellationToken)
     {
-        PullRequestLocation location = await LocateAsync(pullRequestId, cancellationToken);
+        (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
         string key = draft.KeyFor(Target, pullRequestId, lines?.FilePath, lines?.Side, lines?.StartLine, lines?.EndLine);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
@@ -71,7 +71,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         CommentDraft draft,
         CancellationToken cancellationToken)
     {
-        PullRequestLocation location = await LocateAsync(pullRequestId, cancellationToken);
+        (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
         IReadOnlyList<GitPullRequestCommentThread> threads = await GetThreadsAsync(location, cancellationToken);
         GitPullRequestCommentThread thread = threads.FirstOrDefault(candidate => candidate.Id == threadId)
             ?? throw WriteException.NotFound(
@@ -153,26 +153,6 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
 
     private Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
         AzureDevOpsCall.RunAsync(() => client.GetThreadsAsync(location, cancellationToken), cancellationToken);
-
-    private async Task<PullRequestLocation> LocateAsync(int pullRequestId, CancellationToken cancellationToken)
-    {
-        GitPullRequest pullRequest = await AzureDevOpsCall.RunAsync(
-            () => client.GetPullRequestAsync(pullRequestId, cancellationToken),
-            cancellationToken,
-            WriteException.NotFound("pullRequestNotFound", $"Pull request {pullRequestId} was not found or the token cannot read it."));
-        GitRepository? repository = pullRequest.Repository;
-        if (repository?.ProjectReference is null)
-        {
-            throw WriteException.NotFound("pullRequestNotFound", $"Azure DevOps did not say which repository pull request {pullRequestId} belongs to.");
-        }
-
-        return new PullRequestLocation(
-            pullRequestId,
-            repository.ProjectReference.Id,
-            repository.ProjectReference.Name,
-            repository.Id,
-            repository.Name);
-    }
 
     /// <summary>
     /// Attaches the selection to the latest iteration, compared with the common commit as the pull
@@ -338,19 +318,13 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             location.PullRequestId,
             threadId,
             commentId,
-            BrowserUrl(location, threadId),
+            PullRequestLookup.BrowserUrl(organizationUrl, location, threadId),
             anchor,
             comment?.Mentions ?? [],
             comment?.Attachments ?? [],
             key,
             markerKept,
             outcome == CommentOutcomes.Preview ? comment?.Text : null);
-
-    private Uri BrowserUrl(PullRequestLocation location, int? threadId) =>
-        new(
-            organizationUrl,
-            $"{Uri.EscapeDataString(location.ProjectName)}/_git/{Uri.EscapeDataString(location.RepositoryName)}/pullrequest/{location.PullRequestId}"
-            + (threadId is null ? string.Empty : $"?discussionId={threadId}"));
 
     private sealed record LineAnchor(CommentAnchorDocument Document, int ChangeTrackingId, int EndOffset);
 }

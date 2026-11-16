@@ -13,9 +13,9 @@ public static class WorkItemCommentModule
     public static CommandModule Create(IAdoWriteSessionFactory sessionFactory) => new(
         "work-item",
         "Comment in a work item's discussion.",
-        (target, _, services) => Configure(target, new CommentCommandContext(services, sessionFactory)));
+        (target, _, services) => Configure(target, new WriteCommandContext(services, sessionFactory)));
 
-    private static IReadOnlyDictionary<Command, string> Configure(Command target, CommentCommandContext context)
+    private static IReadOnlyDictionary<Command, string> Configure(Command target, WriteCommandContext context)
     {
         var reference = new Argument<string>("id-or-url")
         {

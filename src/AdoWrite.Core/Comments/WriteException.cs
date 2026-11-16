@@ -3,7 +3,7 @@ using AdoRead.Output;
 
 namespace AdoWrite.Comments;
 
-/// <summary>An expected reason a comment was not posted, already shaped as one envelope error and exit code.</summary>
+/// <summary>An expected reason a write was not made, already shaped as one envelope error and exit code.</summary>
 internal sealed class WriteException(
     string scope,
     string code,
@@ -12,12 +12,12 @@ internal sealed class WriteException(
     bool transient = false,
     Exception? innerException = null) : Exception(message, innerException)
 {
-    /// <summary>A timed-out post may still have reached Azure DevOps; the duplicate key makes a retry safe.</summary>
+    /// <summary>A timed-out write may still have reached Azure DevOps; every write command is safe to retry.</summary>
     public const string TimeoutMessage =
-        "The Azure DevOps request timed out. The comment may still have been posted: run the same command again, and its key finds the earlier comment instead of posting twice.";
+        "The Azure DevOps request timed out. The change may still have been made: run the same command again. A comment's key finds the earlier comment instead of posting twice, and a vote or requeue that is already done is skipped.";
 
     private const string ScopesHint =
-        " Comments need a write token with Work Items (Read & write) or Code (Read & write); mentions also need Identity (Read).";
+        " The write token needs Work Items (Read & write) for work-item comments, Code (Read & write) for pull-request comments, requeues and votes, and Identity (Read) for mentions.";
 
     public string Scope { get; } = scope;
 

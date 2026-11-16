@@ -60,7 +60,7 @@ $toolContracts = @{
     }
     'AdoWrite.PullRequests.Tool' = @{
         Command = 'ado-write-pr'
-        Commands = @('config', 'auth', 'comment', 'reply')
+        Commands = @('config', 'auth', 'comment', 'reply', 'requeue', 'vote')
         Foreign = @('work-item', 'comment', '1')
         InvalidTarget = @('reply', '42', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'threadRequired'

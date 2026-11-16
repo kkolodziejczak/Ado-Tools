@@ -10,27 +10,50 @@ using AdoWrite.Comments;
 namespace AdoWrite.Commands;
 
 /// <summary>
-/// Shared plumbing for the comment commands: resolve the target and the draft, load configuration,
+/// Shared plumbing for the write commands: resolve the target and its input, load configuration,
 /// check the organization, read the write token, apply the whole-command timeout, open one session,
 /// and map every expected failure onto a single JSON envelope and exit code. Nothing reaches Azure
-/// DevOps until the target, the draft and the configuration are valid.
+/// DevOps until the target, the input and the configuration are valid.
 /// </summary>
-internal sealed class CommentCommandContext(CommandServices services, IAdoWriteSessionFactory sessionFactory)
+internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSessionFactory sessionFactory)
 {
-    public async Task<int> RunAsync(
+    /// <summary>A comment command: the target is resolved first, then the draft is read and checked.</summary>
+    public Task<int> RunAsync(
         string kind,
         ParseResult parseResult,
         CommentOptions options,
         Func<CommentTarget> resolveTarget,
+        CancellationToken cancellationToken) =>
+        RunAsync(
+            kind,
+            parseResult,
+            options.Config,
+            async token =>
+            {
+                CommentTarget target = resolveTarget();
+                CommentDraft draft = await options.ReadDraftAsync(parseResult, token);
+                return new WriteTarget<PostedCommentDocument>(
+                    target.Reference,
+                    target.Query,
+                    async (session, organizationUrl, requestToken) =>
+                        [await target.PostAsync(session, organizationUrl, draft, requestToken)]);
+            },
+            cancellationToken);
+
+    /// <param name="prepare">Validates the command input without Azure DevOps and returns what to write.</param>
+    public async Task<int> RunAsync<TDocument>(
+        string kind,
+        ParseResult parseResult,
+        Option<string?> config,
+        Func<CancellationToken, Task<WriteTarget<TDocument>>> prepare,
         CancellationToken cancellationToken)
     {
         bool compact = parseResult.GetValue(services.CompactOption);
         try
         {
-            CommentTarget target = resolveTarget();
-            CommentDraft draft = await options.ReadDraftAsync(parseResult, cancellationToken);
+            WriteTarget<TDocument> target = await prepare(cancellationToken);
             AdoReadConfiguration configuration = await services.ConfigurationStore.LoadAsync(
-                parseResult.GetValue(options.Config),
+                parseResult.GetValue(config),
                 cancellationToken);
             if (!target.Reference.IsFor(configuration.OrganizationUrl))
             {
@@ -43,15 +66,15 @@ internal sealed class CommentCommandContext(CommandServices services, IAdoWriteS
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoWriteSession session = sessionFactory.Create(configuration.OrganizationUrl, pat);
-            PostedCommentDocument posted = await target.PostAsync(session, configuration.OrganizationUrl, draft, requestTimeout.Token);
+            IReadOnlyList<TDocument> results = await target.WriteAsync(session, configuration.OrganizationUrl, requestTimeout.Token);
             cancellationToken.ThrowIfCancellationRequested();
-            var envelope = new SearchEnvelope<PostedCommentDocument>(
+            var envelope = new SearchEnvelope<TDocument>(
                 "1.0",
                 kind,
                 "success",
                 target.Query,
                 services.TimeProvider.GetUtcNow(),
-                [posted],
+                results,
                 []);
             await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
             return ExitCodes.Success;
@@ -106,6 +129,12 @@ internal sealed class CommentCommandContext(CommandServices services, IAdoWriteS
         return exitCode;
     }
 }
+
+/// <summary>What a write command acts on: the parsed reference, the query echoed in the envelope, and the write itself.</summary>
+internal sealed record WriteTarget<TDocument>(
+    AdoReference Reference,
+    object Query,
+    Func<IAdoWriteSession, Uri, CancellationToken, Task<IReadOnlyList<TDocument>>> WriteAsync);
 
 /// <summary>What a comment command posts to: the parsed reference, the query echoed in the envelope, and the post itself.</summary>
 internal sealed record CommentTarget(

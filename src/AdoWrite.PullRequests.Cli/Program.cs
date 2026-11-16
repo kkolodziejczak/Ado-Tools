@@ -12,6 +12,6 @@ var application = new ToolComposition(
     TimeProvider.System,
     tokenScope: TokenScope.Write).CreateSlice(
     "ado-write-pr",
-    PullRequestCommentModule.Definition);
+    PullRequestWriteModule.Definition);
 
 return await application.InvokeAsync(args, CancellationToken.None);

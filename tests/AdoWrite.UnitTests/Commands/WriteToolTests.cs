@@ -29,7 +29,7 @@ public sealed class WriteToolTests
 
     public static TheoryData<string, string[]> SliceCommands => new()
     {
-        { "pr", ["auth", "comment", "config", "reply"] },
+        { "pr", ["auth", "comment", "config", "reply", "requeue", "vote"] },
         { "work-item", ["auth", "comment", "config"] },
     };
 
@@ -45,7 +45,7 @@ public sealed class WriteToolTests
     [MemberData(nameof(SliceCommands))]
     public void Slice_MountsItsCommandsOnTheExecutable(string feature, string[] expected)
     {
-        CommandModule module = feature == "pr" ? PullRequestCommentModule.Create(_factory) : WorkItemCommentModule.Create(_factory);
+        CommandModule module = feature == "pr" ? PullRequestWriteModule.Create(_factory) : WorkItemCommentModule.Create(_factory);
 
         RootCommand root = Composition().CreateSlice($"ado-write-{feature}", module).RootCommand;
 
@@ -264,7 +264,7 @@ public sealed class WriteToolTests
     private CommandApplication Umbrella(ScriptedTerminalInput? terminal = null) =>
         Composition(terminal).CreateUmbrella(
             "ado-write",
-            [PullRequestCommentModule.Create(_factory), WorkItemCommentModule.Create(_factory)]);
+            [PullRequestWriteModule.Create(_factory), WorkItemCommentModule.Create(_factory)]);
 
     private ToolComposition Composition(ScriptedTerminalInput? terminal = null) =>
         new(
