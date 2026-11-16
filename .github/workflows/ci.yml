@@ -90,6 +90,18 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Package validation failed for $($tool.PackageId)." }
           }
 
+      # NuGet Package Explorer's checks: Source Link, deterministic binaries, compiler flags.
+      # The tool exits 0 even when a check fails, so the report is read instead.
+      - name: Check package health
+        run: |
+          $failed = @()
+          foreach ($package in Get-ChildItem "artifacts/packages/*.$env:PACKAGE_VERSION.nupkg") {
+            $report = dnx dotnet-validate --version 0.0.1-preview.582 --yes -- package local $package.FullName | Out-String
+            Write-Host $report
+            if ($LASTEXITCODE -ne 0 -or $report -match '❌|Non deterministic|Invalid|Missing') { $failed += $package.Name }
+          }
+          if ($failed.Count -gt 0) { throw "Package health checks failed: $($failed -join ', ')" }
+
       - name: Smoke test installed packages
         run: |
           $version = $env:PACKAGE_VERSION

@@ -8,7 +8,7 @@
     <ToolCommandName>ado-read-sprints</ToolCommandName>
     <PackageId>AdoRead.Sprints.Tool</PackageId>
     <Description>Read-only Azure DevOps sprints and their work items as agent-friendly JSON.</Description>
-    <PackageTags>azure-devops;sprints;agile;cli;json</PackageTags>
+    <PackageTags>$(PackageTags);read-only;sprints;iterations;boards;agile</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
   </PropertyGroup>

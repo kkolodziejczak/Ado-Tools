@@ -8,12 +8,18 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <PropertyGroup Label="Package">
-    <!-- A release overrides it from its tag: .github/workflows/release.yml. -->
+    <!-- release.yml and prerelease.yml override it with the version they publish. -->
     <Version>1.0.0</Version>
     <Authors>Krzysztof Kołodziejczak</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/kkolodziejczak/Ado-Tools</PackageProjectUrl>
     <RepositoryUrl>https://github.com/kkolodziejczak/Ado-Tools</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <!-- Every package adds its own tags after these. -->
+    <PackageTags>azure-devops;azuredevops;ado;ai-agents;llm;dotnet-tool;cli;json</PackageTags>
+  </PropertyGroup>
+  <!-- CI builds map source paths to /_/, so the binaries are reproducible from the commit. -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 </Project>

@@ -8,7 +8,7 @@
     <ToolCommandName>ado-read-pr</ToolCommandName>
     <PackageId>AdoRead.PullRequests.Tool</PackageId>
     <Description>Read-only Azure DevOps pull-request context as agent-friendly JSON.</Description>
-    <PackageTags>azure-devops;pull-requests;cli;json</PackageTags>
+    <PackageTags>$(PackageTags);read-only;pull-requests;code-review</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
   </PropertyGroup>

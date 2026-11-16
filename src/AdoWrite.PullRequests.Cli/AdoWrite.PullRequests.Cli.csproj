@@ -8,7 +8,7 @@
     <ToolCommandName>ado-write-pr</ToolCommandName>
     <PackageId>AdoWrite.PullRequests.Tool</PackageId>
     <Description>Post Azure DevOps pull-request comments, line comments and replies, requeue builds and vote on your behalf, for AI agents.</Description>
-    <PackageTags>azure-devops;comments;cli;json</PackageTags>
+    <PackageTags>$(PackageTags);pull-requests;comments;code-review;requeue-build;vote</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
   </PropertyGroup>
