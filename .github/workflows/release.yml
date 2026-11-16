@@ -1,7 +1,7 @@
 name: Release
 
 # Pushing a tag such as v1.2.0 builds, tests and checks every tool package at that version with
-# the CI workflow, then publishes them to nuget.org once the "release" environment is approved.
+# the CI workflow, then stages them on nuget.org once the "release" environment is approved.
 # nuget.org trusts this file through a Trusted Publishing policy, so no API key is stored here.
 
 on:
@@ -53,19 +53,29 @@ jobs:
           name: packages
           path: packages
 
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
       - name: Exchange the GitHub token for a short-lived nuget.org key
         id: login
         uses: NuGet/login@v1
         with:
           user: ${{ secrets.NUGET_USER }}
 
-      - name: Push to nuget.org
-        run: >
-          dotnet nuget push "packages/*.nupkg"
-          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
-          --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
+      # Staged packages stay private until they are published on nuget.org by hand. The upload
+      # follows the PackageStaging/1.0.0 contract, which the .NET 10 SDK has no command for yet.
+      - name: Stage on nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          endpoint=$(curl --fail --silent --show-error https://api.nuget.org/v3/index.json \
+            | jq -r '[.resources[] | select(."@type" == "PackageStaging/1.0.0")][0]."@id" // empty')
+          if [ -z "$endpoint" ]; then
+            echo "::error::nuget.org does not advertise PackageStaging/1.0.0."
+            exit 1
+          fi
+          for package in packages/*.nupkg; do
+            echo "Staging $(basename "$package")"
+            curl --fail-with-body --silent --show-error --max-time 300 -X PUT \
+              -H "X-NuGet-ApiKey: $NUGET_API_KEY" \
+              -F "package=@$package;type=application/octet-stream" \
+              "${endpoint%/}/package"
+            echo
+          done
