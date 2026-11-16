@@ -7,7 +7,6 @@
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-read</ToolCommandName>
     <PackageId>AdoRead.Tool</PackageId>
-    <Version>1.0.0</Version>
     <Description>Read-only Azure DevOps context as agent-friendly JSON: pull requests, work items, Wikis and sprints in one tool.</Description>
     <PackageTags>azure-devops;work-items;pull-requests;wiki;sprints;cli;json</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -7,4 +7,13 @@
     <LangVersion>latest</LangVersion>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
+  <PropertyGroup Label="Package">
+    <!-- A release overrides it from its tag: .github/workflows/release.yml. -->
+    <Version>1.0.0</Version>
+    <Authors>Krzysztof Kołodziejczak</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/kkolodziejczak/Ado-Tools</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/kkolodziejczak/Ado-Tools</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
 </Project>

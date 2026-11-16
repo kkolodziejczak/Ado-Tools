@@ -51,6 +51,8 @@ public sealed class ReleasePackageValidationTests
         string smokeScript = Path.Combine(toolRoot, "scripts", "Test-ToolPackage.ps1");
         string readme = Path.Combine(toolRoot, "README.md");
         string workflow = Path.Combine(toolRoot, ".github", "workflows", "ci.yml");
+        string releaseWorkflow = Path.Combine(toolRoot, ".github", "workflows", "release.yml");
+        string buildProps = Path.Combine(toolRoot, "Directory.Build.props");
         string liveWikiSmoke = Path.Combine(toolRoot, "tests", "AdoRead.IntegrationTests", "Wikis", "LiveWikiSmokeTests.cs");
         string liveWorkItemSmoke = Path.Combine(toolRoot, "tests", "AdoRead.IntegrationTests", "WorkItems", "LiveWorkItemSmokeTests.cs");
 
@@ -58,10 +60,14 @@ public sealed class ReleasePackageValidationTests
         {
             string projectFile = Path.Combine(toolRoot, "src", project, $"{project}.csproj");
             string projectContract = await File.ReadAllTextAsync(projectFile);
-            Assert.Contains("<Version>1.0.0</Version>", projectContract, StringComparison.Ordinal);
+            Assert.DoesNotContain("<Version>", projectContract, StringComparison.Ordinal);
             Assert.Contains($"<PackageId>{packageId}</PackageId>", projectContract, StringComparison.Ordinal);
             Assert.Contains($"<ToolCommandName>{command}</ToolCommandName>", projectContract, StringComparison.Ordinal);
         }
+
+        string buildPropsContract = await File.ReadAllTextAsync(buildProps);
+        Assert.Contains("<Version>1.0.0</Version>", buildPropsContract, StringComparison.Ordinal);
+        Assert.Contains("<PackageLicenseExpression>MIT</PackageLicenseExpression>", buildPropsContract, StringComparison.Ordinal);
 
         string smokeContract = await File.ReadAllTextAsync(smokeScript);
         Assert.Contains("[string]$PackageVersion = '1.0.0'", smokeContract, StringComparison.Ordinal);
@@ -105,7 +111,14 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("ADO_READ_WIKI_PAGE_PATH", liveSmokeContract, StringComparison.Ordinal);
         Assert.Contains("ADO_READ_WIKI_SEARCH_TEXT", liveSmokeContract, StringComparison.Ordinal);
         string workflowContract = await File.ReadAllTextAsync(workflow);
-        Assert.Contains("$version = '1.0.0'", workflowContract, StringComparison.Ordinal);
+        Assert.Contains("PACKAGE_VERSION: ${{ inputs.version || '1.0.0' }}", workflowContract, StringComparison.Ordinal);
+        Assert.Contains("$version = $env:PACKAGE_VERSION", workflowContract, StringComparison.Ordinal);
+        Assert.Equal(10, workflowContract.Split("\"-p:Version=$env:PACKAGE_VERSION\"").Length - 1);
+        string releaseContract = await File.ReadAllTextAsync(releaseWorkflow);
+        Assert.Contains("uses: ./.github/workflows/ci.yml", releaseContract, StringComparison.Ordinal);
+        Assert.Contains("environment: release", releaseContract, StringComparison.Ordinal);
+        Assert.Contains("id-token: write", releaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: NuGet/login@v1", releaseContract, StringComparison.Ordinal);
         foreach ((string _, string packageId, string command) in Tools)
         {
             Assert.Contains($"PackageId = '{packageId}'", workflowContract, StringComparison.Ordinal);

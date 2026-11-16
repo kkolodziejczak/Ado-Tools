@@ -3,6 +3,13 @@ name: CI
 on:
   pull_request:
   push:
+    branches: ['**']
+  workflow_call:
+    inputs:
+      version:
+        description: Package version to build, test, pack and upload as the "packages" artifact.
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -13,6 +20,8 @@ jobs:
     defaults:
       run:
         shell: pwsh
+    env:
+      PACKAGE_VERSION: ${{ inputs.version || '1.0.0' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -43,26 +52,26 @@ jobs:
         run: dotnet format AdoRead.slnx --verify-no-changes --no-restore
 
       - name: Build release artifacts
-        run: dotnet build AdoRead.slnx --no-restore --configuration Release
+        run: dotnet build AdoRead.slnx --no-restore --configuration Release "-p:Version=$env:PACKAGE_VERSION"
 
       - name: Run tests
         run: dotnet test AdoRead.slnx --no-build --configuration Release
 
       - name: Pack tools
         run: |
-          dotnet pack src/AdoRead.Cli/AdoRead.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoWrite.Cli/AdoWrite.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj --no-build --configuration Release
-          dotnet pack src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj --no-build --configuration Release
+          dotnet pack src/AdoRead.Cli/AdoRead.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoRead.PullRequests.Cli/AdoRead.PullRequests.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoRead.WorkItems.Cli/AdoRead.WorkItems.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoRead.Wiki.Cli/AdoRead.Wiki.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoRead.Sprints.Cli/AdoRead.Sprints.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoRead.Pipelines.Cli/AdoRead.Pipelines.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoWrite.Cli/AdoWrite.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
+          dotnet pack src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj --no-build --configuration Release "-p:Version=$env:PACKAGE_VERSION"
 
       - name: Validate package contents
         run: |
-          $version = '1.0.0'
+          $version = $env:PACKAGE_VERSION
           $tools = @(
             @{ PackageId = 'AdoRead.Tool'; CommandName = 'ado-read' },
             @{ PackageId = 'AdoRead.PullRequests.Tool'; CommandName = 'ado-read-pr' },
@@ -83,7 +92,7 @@ jobs:
 
       - name: Smoke test installed packages
         run: |
-          $version = '1.0.0'
+          $version = $env:PACKAGE_VERSION
           $tools = @(
             @{ PackageId = 'AdoRead.Tool'; CommandName = 'ado-read' },
             @{ PackageId = 'AdoRead.PullRequests.Tool'; CommandName = 'ado-read-pr' },
@@ -101,3 +110,11 @@ jobs:
             ./scripts/Test-ToolPackage.ps1 -PackagePath $package.FullName -PackageId $tool.PackageId -CommandName $tool.CommandName -PackageVersion $version
             if ($LASTEXITCODE -ne 0) { throw "Smoke test failed for $($tool.PackageId)." }
           }
+
+      - name: Upload packages for the release
+        if: inputs.version != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/packages/*.${{ inputs.version }}.nupkg
+          if-no-files-found: error
