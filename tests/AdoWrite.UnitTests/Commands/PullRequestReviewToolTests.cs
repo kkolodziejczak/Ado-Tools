@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using AdoRead.Commands;
 using AdoRead.Credentials;
@@ -6,6 +7,7 @@ using AdoWrite.AzureDevOps;
 using AdoWrite.Commands;
 using Microsoft.TeamFoundation.Policy.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
+using Microsoft.VisualStudio.Services.WebApi;
 
 namespace AdoWrite.UnitTests.Commands;
 
@@ -104,6 +106,144 @@ public sealed class PullRequestReviewToolTests
         Assert.Equal(ExitCodes.NotFound, exitCode);
         Assert.Empty(_session.FakeReviews.Requeued);
         Assert.Equal("evaluationNotFound", Envelope().GetProperty("errors")[0].GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task Requeue_LaterFailure_StillReportsTheBuildsAlreadyRequeued()
+    {
+        _session.FakeReviews.RequeueFailures[Passed] = new VssServiceResponseException(HttpStatusCode.Forbidden, "Denied.", null);
+
+        int exitCode = await Run("pr", "requeue", "42", "--evaluation", Expired.ToString(), "--evaluation", Failed.ToString(), "--evaluation", Passed.ToString());
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        Assert.Equal([(Fabricated.ProjectId, Expired)], _session.FakeReviews.Requeued);
+        JsonElement envelope = Envelope();
+        Assert.Equal("partial", envelope.GetProperty("status").GetString());
+        Assert.Equal("forbidden", envelope.GetProperty("errors")[0].GetProperty("code").GetString());
+        Assert.Equal("requeued", Result(Expired).GetProperty("outcome").GetString());
+        Assert.Equal("failed", Result(Passed).GetProperty("outcome").GetString());
+        Assert.Equal("notAttempted", Result(Failed).GetProperty("outcome").GetString());
+        Assert.Equal("notSelected", Result(Running).GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task Requeue_TimeoutDuringARequeue_ReportsThatBuildAsUncertain()
+    {
+        Guid late = Guid.NewGuid();
+        _session.FakeReviews.Evaluations.Add(FakePullRequestReviewClient.Build(late, PolicyEvaluationStatus.Approved, """{"isExpired":true}"""));
+        _session.FakeReviews.RequeueFailures[late] = new TaskCanceledException("Timed out.");
+
+        int exitCode = await Run("pr", "requeue", "42");
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        JsonElement error = Envelope().GetProperty("errors")[0];
+        Assert.Equal(("timeout", true), (error.GetProperty("code").GetString(), error.GetProperty("transient").GetBoolean()));
+        Assert.Equal("requeued", Result(Expired).GetProperty("outcome").GetString());
+        Assert.Equal("uncertain", Result(late).GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task Requeue_BuildStartedSinceTheList_IsLeftAlone()
+    {
+        _session.FakeReviews.Changed[Expired] = FakePullRequestReviewClient.Build(Expired, PolicyEvaluationStatus.Running, """{"isExpired":false,"buildId":601}""", "CI");
+
+        int exitCode = await Run("pr", "requeue", "42");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Empty(_session.FakeReviews.Requeued);
+        JsonElement result = Result(Expired);
+        Assert.Equal(("inProgress", "running", 601), (result.GetProperty("outcome").GetString(), result.GetProperty("status").GetString(), result.GetProperty("buildId").GetInt32()));
+    }
+
+    [Fact]
+    public async Task Requeue_QueuedBuild_IsRequeuedOnlyWhenExpired()
+    {
+        Guid queuedExpired = Guid.NewGuid();
+        Guid queuedWaiting = Guid.NewGuid();
+        _session.FakeReviews.Evaluations.Add(FakePullRequestReviewClient.Build(queuedExpired, PolicyEvaluationStatus.Queued, """{"isExpired":true}"""));
+        _session.FakeReviews.Evaluations.Add(FakePullRequestReviewClient.Build(queuedWaiting, PolicyEvaluationStatus.Queued, """{"isExpired":false}"""));
+
+        int exitCode = await Run("pr", "requeue", "42", "--evaluation", queuedExpired.ToString(), "--evaluation", queuedWaiting.ToString());
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal([(Fabricated.ProjectId, queuedExpired)], _session.FakeReviews.Requeued);
+        Assert.Equal("inProgress", Result(queuedWaiting).GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task Requeue_EvaluationListedTwice_IsRequeuedOnce()
+    {
+        _session.FakeReviews.Evaluations.Add(FakePullRequestReviewClient.Build(Expired, PolicyEvaluationStatus.Approved, """{"isExpired":true}""", "CI"));
+
+        int exitCode = await Run("pr", "requeue", "42");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Single(_session.FakeReviews.Requeued);
+        Assert.Single(Envelope().GetProperty("results").EnumerateArray(), build => build.GetProperty("evaluationId").GetGuid() == Expired);
+    }
+
+    [Fact]
+    public async Task Requeue_OnACompletedPullRequest_IsRejected()
+    {
+        _session.FakePullRequests.Status = PullRequestStatus.Completed;
+
+        int exitCode = await Run("pr", "requeue", "42");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Empty(_session.FakeReviews.Requeued);
+        Assert.Equal("pullRequestNotActive", Envelope().GetProperty("errors")[0].GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData("approve", 10)]
+    [InlineData("approve-with-suggestions", 5)]
+    [InlineData("wait-for-author", -5)]
+    [InlineData("reject", -10)]
+    [InlineData("none", 0)]
+    public async Task Vote_SendsTheValueAzureDevOpsUsesForEachVote(string name, short value)
+    {
+        _session.FakePullRequests.Reviewers.Add(new IdentityRefWithVote { Id = Fabricated.Author.Id.ToString(), Vote = value == 10 ? (short)-10 : (short)10 });
+
+        int exitCode = await Run("pr", "vote", "42", "--vote", name, "--confirm");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(value, Assert.Single(_session.FakeReviews.Votes).Vote);
+    }
+
+    [Fact]
+    public async Task Vote_IgnoresOtherReviewersVotes()
+    {
+        _session.FakePullRequests.Reviewers.Add(new IdentityRefWithVote { Id = Fabricated.Reviewer.Id.ToString(), Vote = 10 });
+
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Single(_session.FakeReviews.Votes);
+        JsonElement result = Envelope().GetProperty("results")[0];
+        Assert.Equal(("voted", "none"), (result.GetProperty("outcome").GetString(), result.GetProperty("previousVote").GetString()));
+    }
+
+    [Fact]
+    public async Task Vote_ReportsTheVoteAzureDevOpsStored()
+    {
+        _session.FakeReviews.StoredVote = 5;
+
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal("approve-with-suggestions", Envelope().GetProperty("results")[0].GetProperty("vote").GetString());
+    }
+
+    [Fact]
+    public async Task Vote_OnADraftPullRequest_IsRejected()
+    {
+        _session.FakePullRequests.IsDraft = true;
+
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Empty(_session.FakeReviews.Votes);
+        Assert.Equal("pullRequestIsDraft", Envelope().GetProperty("errors")[0].GetProperty("code").GetString());
     }
 
     [Fact]

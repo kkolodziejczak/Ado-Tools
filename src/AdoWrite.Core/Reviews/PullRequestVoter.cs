@@ -5,8 +5,9 @@ using Microsoft.TeamFoundation.SourceControl.WebApi;
 namespace AdoWrite.Reviews;
 
 /// <summary>
-/// Sets the token owner's vote on an active pull request. A vote equal to the current one sends
-/// nothing, so running the command twice is safe.
+/// Sets the token owner's vote on an active pull request that is not a draft. A vote equal to the
+/// current one sends nothing, so running the command twice is safe. Like the portal, a vote adds the
+/// token owner as a reviewer when they are not one yet.
 /// </summary>
 internal sealed class PullRequestVoter(
     IPullRequestCommentClient pullRequests,
@@ -21,12 +22,12 @@ internal sealed class PullRequestVoter(
         CancellationToken cancellationToken)
     {
         (GitPullRequest pullRequest, PullRequestLocation location) =
-            await PullRequestLookup.FindAsync(pullRequests, pullRequestId, cancellationToken);
-        if (pullRequest.Status != PullRequestStatus.Active)
+            await PullRequestLookup.FindActiveAsync(pullRequests, pullRequestId, cancellationToken);
+        if (pullRequest.IsDraft == true)
         {
             throw WriteException.Rejected(
-                "pullRequestNotActive",
-                $"Pull request {pullRequestId} is {pullRequest.Status.ToString().ToLowerInvariant()}; only an active pull request takes votes.");
+                "pullRequestIsDraft",
+                $"Pull request {pullRequestId} is a draft; Azure DevOps takes no votes until it is published.");
         }
 
         Person voter = await AzureDevOpsCall.RunAsync(() => people.GetSignedInUserAsync(cancellationToken), cancellationToken);
@@ -35,17 +36,19 @@ internal sealed class PullRequestVoter(
         string outcome = previous == vote.Value ? VoteOutcomes.Unchanged
             : dryRun ? VoteOutcomes.Preview
             : VoteOutcomes.Voted;
+        short stored = vote.Value;
         if (outcome == VoteOutcomes.Voted)
         {
-            await AzureDevOpsCall.RunAsync(
+            IdentityRefWithVote reviewer = await AzureDevOpsCall.RunAsync(
                 () => reviews.SetVoteAsync(location, voter.Id, vote.Value, cancellationToken),
                 cancellationToken);
+            stored = reviewer.Vote;
         }
 
         return new CastVoteDocument(
             outcome,
             pullRequestId,
-            vote.Name,
+            PullRequestVote.NameOf(stored),
             PullRequestVote.NameOf(previous),
             PullRequestLookup.BrowserUrl(organizationUrl, location));
     }

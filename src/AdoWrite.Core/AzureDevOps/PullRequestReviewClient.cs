@@ -11,6 +11,12 @@ public interface IPullRequestReviewClient
         PullRequestLocation location,
         CancellationToken cancellationToken);
 
+    /// <summary>One evaluation as it is now.</summary>
+    Task<PolicyEvaluationRecord> GetPolicyEvaluationAsync(
+        PullRequestLocation location,
+        Guid evaluationId,
+        CancellationToken cancellationToken);
+
     /// <summary>Runs the policy again; for a build policy Azure DevOps queues a new build, cancelling a running one.</summary>
     Task<PolicyEvaluationRecord> RequeuePolicyEvaluationAsync(
         PullRequestLocation location,
@@ -51,6 +57,12 @@ public sealed class SdkPullRequestReviewClient(PolicyHttpClient policies, GitHtt
             }
         }
     }
+
+    public Task<PolicyEvaluationRecord> GetPolicyEvaluationAsync(
+        PullRequestLocation location,
+        Guid evaluationId,
+        CancellationToken cancellationToken) =>
+        policies.GetPolicyEvaluationAsync(location.ProjectId, evaluationId, userState: null, cancellationToken);
 
     public Task<PolicyEvaluationRecord> RequeuePolicyEvaluationAsync(
         PullRequestLocation location,

@@ -30,7 +30,19 @@ public static class RequeueOutcomes
 
     /// <summary>With <c>--evaluation</c> only the named builds are requeued.</summary>
     public const string NotSelected = "notSelected";
+
+    /// <summary>Azure DevOps refused the requeue; the envelope's error says why.</summary>
+    public const string Failed = "failed";
+
+    /// <summary>The requeue timed out and may still have reached Azure DevOps.</summary>
+    public const string Uncertain = "uncertain";
+
+    /// <summary>It would have been requeued, but an earlier requeue failed, so the command stopped.</summary>
+    public const string NotAttempted = "notAttempted";
 }
+
+/// <summary>Every build policy's outcome, and the failure that stopped the requeues, if any.</summary>
+public sealed record RequeueReport(IReadOnlyList<RequeuedBuildDocument> Builds, AdoRead.Output.SearchError? Failure);
 
 /// <summary>The result of <c>pr vote</c>. <see cref="Outcome"/> is <c>voted</c>, <c>unchanged</c> or <c>preview</c>.</summary>
 public sealed record CastVoteDocument(string Outcome, int PullRequestId, string Vote, string PreviousVote, Uri Url);

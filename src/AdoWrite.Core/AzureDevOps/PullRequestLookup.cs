@@ -29,6 +29,20 @@ internal static class PullRequestLookup
             repository.Name));
     }
 
+    /// <summary>Like <see cref="FindAsync"/>, for a write that only an active pull request takes.</summary>
+    public static async Task<(GitPullRequest PullRequest, PullRequestLocation Location)> FindActiveAsync(
+        IPullRequestCommentClient client,
+        int pullRequestId,
+        CancellationToken cancellationToken)
+    {
+        (GitPullRequest pullRequest, PullRequestLocation location) = await FindAsync(client, pullRequestId, cancellationToken);
+        return pullRequest.Status == PullRequestStatus.Active
+            ? (pullRequest, location)
+            : throw WriteException.Rejected(
+                "pullRequestNotActive",
+                $"Pull request {pullRequestId} is {pullRequest.Status.ToString().ToLowerInvariant()}; only an active pull request takes this change.");
+    }
+
     public static Uri BrowserUrl(Uri organizationUrl, PullRequestLocation location, int? threadId = null) =>
         new(
             organizationUrl,

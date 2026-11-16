@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AdoWrite.AzureDevOps;
+using AdoRead.Output;
 using AdoWrite.Comments;
 using Microsoft.TeamFoundation.Policy.WebApi;
 using Newtonsoft.Json.Linq;
@@ -7,27 +8,30 @@ using Newtonsoft.Json.Linq;
 namespace AdoWrite.Reviews;
 
 /// <summary>
-/// Requeues the build policies of a pull request, as the portal's "Re-queue" button does: by default
-/// every expired build, or exactly the evaluations the caller names. A build that runs or waits to run
-/// is never requeued, because Azure DevOps would cancel it, so running the command twice is safe.
+/// Requeues the build policies of an active pull request, as the portal's "Re-queue" button does: by
+/// default every expired build, or exactly the evaluations the caller names. A build that runs, or is
+/// queued and not expired, is never requeued, because Azure DevOps would cancel it; each evaluation is
+/// read again right before its requeue, to catch a build started since the list was read. A failure
+/// stops the remaining requeues, and the report still lists what was already requeued.
 /// </summary>
 internal sealed class BuildRequeuer(IPullRequestCommentClient pullRequests, IPullRequestReviewClient reviews)
 {
     /// <summary>The policy type ID of "Build" (build validation) policies.</summary>
     public static readonly Guid BuildPolicyType = Guid.Parse("0609b952-1397-4640-95ec-e00a01b2c241");
 
-    public async Task<IReadOnlyList<RequeuedBuildDocument>> RequeueAsync(
+    public async Task<RequeueReport> RequeueAsync(
         int pullRequestId,
         IReadOnlySet<Guid> selected,
         bool dryRun,
         CancellationToken cancellationToken)
     {
-        (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(pullRequests, pullRequestId, cancellationToken);
+        (_, PullRequestLocation location) = await PullRequestLookup.FindActiveAsync(pullRequests, pullRequestId, cancellationToken);
         IReadOnlyList<PolicyEvaluationRecord> evaluations = await AzureDevOpsCall.RunAsync(
             () => reviews.GetPolicyEvaluationsAsync(location, cancellationToken),
             cancellationToken);
         PolicyEvaluationRecord[] builds = evaluations
             .Where(evaluation => evaluation.Configuration?.Type?.Id == BuildPolicyType)
+            .DistinctBy(evaluation => evaluation.EvaluationId)
             .ToArray();
         Guid[] unknown = selected.Where(id => builds.All(build => build.EvaluationId != id)).ToArray();
         if (unknown.Length > 0)
@@ -38,13 +42,37 @@ internal sealed class BuildRequeuer(IPullRequestCommentClient pullRequests, IPul
         }
 
         var results = new List<RequeuedBuildDocument>(builds.Length);
+        SearchError? failure = null;
         foreach (PolicyEvaluationRecord build in builds)
         {
-            results.Add(await RequeueAsync(location, build, selected, dryRun, cancellationToken));
+            if (failure is not null)
+            {
+                string skipped = Decide(build, selected);
+                results.Add(Document(build, build, skipped == RequeueOutcomes.Requeued ? RequeueOutcomes.NotAttempted : skipped));
+                continue;
+            }
+
+            try
+            {
+                results.Add(await RequeueAsync(location, build, selected, dryRun, cancellationToken));
+            }
+            catch (WriteException exception) when (exception.Code != "timeout")
+            {
+                failure = exception.ToError();
+                results.Add(Document(build, build, RequeueOutcomes.Failed));
+            }
+            catch (Exception exception) when (exception is WriteException or OperationCanceledException)
+            {
+                failure = new SearchError("azureDevOps", null, "timeout", UncertainMessage(build.EvaluationId), true);
+                results.Add(Document(build, build, RequeueOutcomes.Uncertain));
+            }
         }
 
-        return results;
+        return new RequeueReport(results, failure);
     }
+
+    private static string UncertainMessage(Guid evaluationId) =>
+        $"The requeue of build policy evaluation {evaluationId} timed out and may have reached Azure DevOps. Run pr requeue --dry-run to see its status before naming it again; requeues after it were not attempted.";
 
     private async Task<RequeuedBuildDocument> RequeueAsync(
         PullRequestLocation location,
@@ -62,6 +90,15 @@ internal sealed class BuildRequeuer(IPullRequestCommentClient pullRequests, IPul
         if (dryRun)
         {
             return Document(build, build, RequeueOutcomes.Preview);
+        }
+
+        PolicyEvaluationRecord current = await AzureDevOpsCall.RunAsync(
+            () => reviews.GetPolicyEvaluationAsync(location, build.EvaluationId, cancellationToken),
+            cancellationToken);
+        outcome = Decide(current, selected);
+        if (outcome != RequeueOutcomes.Requeued)
+        {
+            return Document(build, current, outcome);
         }
 
         PolicyEvaluationRecord requeued = await AzureDevOpsCall.RunAsync(

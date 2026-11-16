@@ -62,6 +62,8 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
 
     public PullRequestStatus Status { get; set; } = PullRequestStatus.Active;
 
+    public bool IsDraft { get; set; }
+
     public List<IdentityRefWithVote> Reviewers { get; } = [];
 
     public List<GitPullRequestCommentThread> Threads { get; } = [];
@@ -109,6 +111,7 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         {
             PullRequestId = pullRequestId,
             Status = Status,
+            IsDraft = IsDraft,
             Reviewers = [.. Reviewers],
             Repository = new GitRepository
             {
@@ -245,6 +248,15 @@ internal sealed class FakePullRequestReviewClient : IPullRequestReviewClient
 
     public List<(PullRequestLocation Location, Guid ReviewerId, short Vote)> Votes { get; } = [];
 
+    /// <summary>What a single read returns instead of the listed record, for an evaluation that changed since the list.</summary>
+    public Dictionary<Guid, PolicyEvaluationRecord> Changed { get; } = [];
+
+    /// <summary>Fails the requeue of these evaluations, after recording nothing.</summary>
+    public Dictionary<Guid, Exception> RequeueFailures { get; } = [];
+
+    /// <summary>The vote Azure DevOps stores, when it differs from the one sent.</summary>
+    public short? StoredVote { get; set; }
+
     /// <summary>A build-policy evaluation as Azure DevOps reports it; <paramref name="context"/> is its internal context JSON.</summary>
     public static PolicyEvaluationRecord Build(
         Guid evaluationId,
@@ -268,10 +280,18 @@ internal sealed class FakePullRequestReviewClient : IPullRequestReviewClient
     public Task<IReadOnlyList<PolicyEvaluationRecord>> GetPolicyEvaluationsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<PolicyEvaluationRecord>>(Evaluations);
 
+    public Task<PolicyEvaluationRecord> GetPolicyEvaluationAsync(PullRequestLocation location, Guid evaluationId, CancellationToken cancellationToken) =>
+        Task.FromResult(Changed.GetValueOrDefault(evaluationId) ?? Evaluations.First(evaluation => evaluation.EvaluationId == evaluationId));
+
     public Task<PolicyEvaluationRecord> RequeuePolicyEvaluationAsync(PullRequestLocation location, Guid evaluationId, CancellationToken cancellationToken)
     {
+        if (RequeueFailures.TryGetValue(evaluationId, out Exception? failure))
+        {
+            throw failure;
+        }
+
         Requeued.Add((location.ProjectId, evaluationId));
-        PolicyEvaluationRecord record = Evaluations.Single(evaluation => evaluation.EvaluationId == evaluationId);
+        PolicyEvaluationRecord record = Evaluations.First(evaluation => evaluation.EvaluationId == evaluationId);
         record.Status = PolicyEvaluationStatus.Queued;
         record.Context = JObject.Parse("{\"isExpired\":false}");
         return Task.FromResult(record);
@@ -280,7 +300,7 @@ internal sealed class FakePullRequestReviewClient : IPullRequestReviewClient
     public Task<IdentityRefWithVote> SetVoteAsync(PullRequestLocation location, Guid reviewerId, short vote, CancellationToken cancellationToken)
     {
         Votes.Add((location, reviewerId, vote));
-        return Task.FromResult(new IdentityRefWithVote { Id = reviewerId.ToString(), Vote = vote });
+        return Task.FromResult(new IdentityRefWithVote { Id = reviewerId.ToString(), Vote = StoredVote ?? vote });
     }
 }
 

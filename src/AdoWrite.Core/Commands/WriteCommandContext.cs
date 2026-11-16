@@ -36,7 +36,7 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
                     target.Reference,
                     target.Query,
                     async (session, organizationUrl, requestToken) =>
-                        [await target.PostAsync(session, organizationUrl, draft, requestToken)]);
+                        new WriteOutcome<PostedCommentDocument>([await target.PostAsync(session, organizationUrl, draft, requestToken)]));
             },
             cancellationToken);
 
@@ -66,18 +66,18 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoWriteSession session = sessionFactory.Create(configuration.OrganizationUrl, pat);
-            IReadOnlyList<TDocument> results = await target.WriteAsync(session, configuration.OrganizationUrl, requestTimeout.Token);
+            WriteOutcome<TDocument> outcome = await target.WriteAsync(session, configuration.OrganizationUrl, requestTimeout.Token);
             cancellationToken.ThrowIfCancellationRequested();
             var envelope = new SearchEnvelope<TDocument>(
                 "1.0",
                 kind,
-                "success",
+                outcome.Failure is null ? "success" : "partial",
                 target.Query,
                 services.TimeProvider.GetUtcNow(),
-                results,
-                []);
+                outcome.Results,
+                outcome.Failure is null ? [] : [outcome.Failure]);
             await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
-            return ExitCodes.Success;
+            return outcome.Failure is null ? ExitCodes.Success : ExitCodes.Partial;
         }
         catch (WriteException exception)
         {
@@ -134,7 +134,10 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
 internal sealed record WriteTarget<TDocument>(
     AdoReference Reference,
     object Query,
-    Func<IAdoWriteSession, Uri, CancellationToken, Task<IReadOnlyList<TDocument>>> WriteAsync);
+    Func<IAdoWriteSession, Uri, CancellationToken, Task<WriteOutcome<TDocument>>> WriteAsync);
+
+/// <summary>What a write did. With a <see cref="Failure"/> the results are partial: the write stopped part-way.</summary>
+internal sealed record WriteOutcome<TDocument>(IReadOnlyList<TDocument> Results, SearchError? Failure = null);
 
 /// <summary>What a comment command posts to: the parsed reference, the query echoed in the envelope, and the post itself.</summary>
 internal sealed record CommentTarget(

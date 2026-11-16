@@ -156,9 +156,12 @@ public static class PullRequestWriteModule
                 return Task.FromResult(new WriteTarget<RequeuedBuildDocument>(
                     pullRequest,
                     new RequeueQuery(pullRequest.Id, [.. selected.Order()]),
-                    (session, _, token) =>
-                        new BuildRequeuer(session.PullRequests, session.Reviews)
-                            .RequeueAsync(pullRequest.Id, selected, preview, token)));
+                    async (session, _, token) =>
+                    {
+                        RequeueReport report = await new BuildRequeuer(session.PullRequests, session.Reviews)
+                            .RequeueAsync(pullRequest.Id, selected, preview, token);
+                        return new WriteOutcome<RequeuedBuildDocument>(report.Builds, report.Failure);
+                    }));
             },
             cancellationToken));
         return command;
@@ -214,8 +217,11 @@ public static class PullRequestWriteModule
                     pullRequest,
                     new VoteQuery(pullRequest.Id, chosen.Name),
                     async (session, organizationUrl, token) =>
-                        [await new PullRequestVoter(session.PullRequests, session.Reviews, session.People, organizationUrl)
-                            .VoteAsync(pullRequest.Id, chosen, preview, token)]));
+                        new WriteOutcome<CastVoteDocument>(
+                        [
+                            await new PullRequestVoter(session.PullRequests, session.Reviews, session.People, organizationUrl)
+                                .VoteAsync(pullRequest.Id, chosen, preview, token)
+                        ])));
             },
             cancellationToken));
         return command;
