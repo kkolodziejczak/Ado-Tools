@@ -65,6 +65,7 @@ dotnet tool install --global AdoRead.PullRequests.Tool
 dotnet tool install --global AdoRead.WorkItems.Tool
 dotnet tool install --global AdoRead.Wiki.Tool
 dotnet tool install --global AdoRead.Sprints.Tool
+dotnet tool install --global AdoRead.Pipelines.Tool
 dotnet tool install --global AdoWrite.Tool
 dotnet tool install --global AdoWrite.PullRequests.Tool
 dotnet tool install --global AdoWrite.WorkItems.Tool
@@ -525,7 +526,7 @@ dotnet pack src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj --no-
 dotnet pack src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj --no-build --configuration Release
 ```
 
-`src/AdoRead.Core` is the shared class library and is not packed; each `src/AdoRead.*.Cli` host is a tool package with its own command. `src/AdoWrite.Core` holds the comment commands on top of it and is referenced only by the `src/AdoWrite.*.Cli` hosts, so the read packages contain no write code.
+`src/AdoRead.Core` is the shared class library and is not packed; each `src/AdoRead.*.Cli` host is a tool package with its own command. `src/AdoWrite.Core` holds the comment commands on top of it and is referenced only by the `src/AdoWrite.*.Cli` hosts, so the read packages contain no write code. Each tool project has its own `README.md`, which its package shows on nuget.org; it links back here for the details.
 
 ### Releasing to nuget.org
 

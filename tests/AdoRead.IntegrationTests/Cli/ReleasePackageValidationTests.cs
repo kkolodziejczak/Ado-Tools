@@ -138,6 +138,24 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("Directory.Delete", liveImageContract, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task EveryToolPackage_ShipsItsOwnReadme()
+    {
+        string toolRoot = FindToolRoot();
+        foreach ((string project, string packageId, string command) in Tools)
+        {
+            string projectDirectory = Path.Combine(toolRoot, "src", project);
+            string projectContract = await File.ReadAllTextAsync(Path.Combine(projectDirectory, $"{project}.csproj"));
+            Assert.Contains("<None Update=\"README.md\" Pack=\"true\" PackagePath=\"\\\" />", projectContract, StringComparison.Ordinal);
+
+            string readme = await File.ReadAllTextAsync(Path.Combine(projectDirectory, "README.md"));
+            Assert.StartsWith($"# {command}", readme, StringComparison.Ordinal);
+            Assert.Contains($"dotnet tool install --global {packageId}", readme, StringComparison.Ordinal);
+            Assert.Contains($"{command} auth login", readme, StringComparison.Ordinal);
+            Assert.Contains("https://github.com/kkolodziejczak/Ado-Tools", readme, StringComparison.Ordinal);
+        }
+    }
+
     private static async Task CreatePackageAsync(string packagePath)
     {
         using ZipArchive archive = ZipFile.Open(packagePath, ZipArchiveMode.Create);
