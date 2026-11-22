@@ -36,9 +36,6 @@ public sealed class ToolHelpProcessTests
             RedirectStandardError = true,
             UseShellExecute = false
         };
-        // System.CommandLine translates its headings ("Commands:") into the machine's UI language;
-        // the invariant culture keeps them in English on every machine.
-        startInfo.Environment["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1";
         startInfo.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.dll"));
         startInfo.ArgumentList.Add("--help");
 

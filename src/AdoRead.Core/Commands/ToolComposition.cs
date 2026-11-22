@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Globalization;
 using AdoRead.AzureDevOps;
 using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
@@ -31,7 +32,7 @@ public sealed class ToolComposition(
 
     public CommandApplication CreateUmbrella(string executable, IReadOnlyList<CommandModule> modules)
     {
-        var rootCommand = new RootCommand(tokenScope == TokenScope.Write
+        RootCommand rootCommand = NewRootCommand(tokenScope == TokenScope.Write
             ? "Post comments to Azure DevOps on your behalf and report them as structured JSON."
             : "Read Azure DevOps context as structured JSON.");
         Option<bool> compactOption = AddCompactOption(rootCommand);
@@ -50,7 +51,7 @@ public sealed class ToolComposition(
 
     public CommandApplication CreateSlice(string executable, CommandModule module)
     {
-        var rootCommand = new RootCommand(module.Description);
+        RootCommand rootCommand = NewRootCommand(module.Description);
         Option<bool> compactOption = AddCompactOption(rootCommand);
         CommandServices services = CreateServices(compactOption, executable);
         var names = new ToolCommandNames(executable, null);
@@ -58,6 +59,15 @@ public sealed class ToolComposition(
         Include(kinds, module.Configure(rootCommand, names, services));
 
         return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider);
+    }
+
+    // Every description is English, so System.CommandLine's own texts must be too, whatever the
+    // machine's language. It translates option descriptions such as --version's when the root
+    // command is built, and help headings when help is shown, so the culture is set before both.
+    private static RootCommand NewRootCommand(string description)
+    {
+        CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
+        return new RootCommand(description);
     }
 
     private static Option<bool> AddCompactOption(RootCommand rootCommand)
