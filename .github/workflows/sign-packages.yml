@@ -1,0 +1,56 @@
+name: Sign packages
+
+# Called by release.yml and prerelease.yml after ci.yml uploaded the unsigned "packages" artifact.
+# gh-release-signing waits for the owner's approval of the code-signing environment and a SimplySign
+# phone code (gh release-signing approve, see AGENTS.md), Authenticode-signs the Ado-Tools assemblies
+# inside every package, then NuGet-signs each package. The verify job checks the result on its own
+# and leaves it as the "signed-packages" artifact. nuget.org rejects unsigned packages from this account.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version of the packages in the "packages" artifact.
+        type: string
+        required: true
+
+jobs:
+  sign:
+    uses: kkolodziejczak/gh-release-signing/.github/workflows/sign.yml@main
+    secrets: inherit # without it the signing job sees no secrets, not even its environment's
+    permissions:
+      contents: read
+      id-token: write # lets sign.yml find its own commit and check out its scripts
+    with:
+      artifact: packages
+      files: AdoRead.*.dll;AdoWrite.*.dll
+      packages: "*.nupkg"
+      signed-artifact: signed-packages
+      retention-days: 7
+
+  verify:
+    needs: sign
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # dotnet nuget verify checks the package signatures.
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: signed-packages
+          path: signed-packages
+
+      - name: Check the signatures
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          SIGNER_THUMBPRINT: ${{ needs.sign.outputs.thumbprint }}
+        run: ./scripts/Test-SignedPackages.ps1 -PackageDirectory signed-packages -PackageVersion $env:VERSION -ExpectedSignerThumbprint $env:SIGNER_THUMBPRINT

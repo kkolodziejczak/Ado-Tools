@@ -1,7 +1,8 @@
 name: Release
 
 # Pushing a tag such as v1.2.0 builds, tests and checks every tool package at that version with
-# the CI workflow, then stages them on nuget.org once the "release" environment is approved.
+# the CI workflow, signs them with sign-packages.yml (gh release-signing approve -Tag v1.2.0), then
+# stages them on nuget.org once the "release" environment is approved.
 # nuget.org trusts this file through a Trusted Publishing policy, so no API key is stored here.
 
 on:
@@ -41,8 +42,18 @@ jobs:
     with:
       version: ${{ needs.version.outputs.version }}
 
-  publish:
+  sign:
     needs: [version, build]
+    uses: ./.github/workflows/sign-packages.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: [version, sign]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -50,12 +61,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: packages
+          name: signed-packages
           path: packages
 
       - name: Exchange the GitHub token for a short-lived nuget.org key
         id: login
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           user: ${{ secrets.NUGET_USER }}
 

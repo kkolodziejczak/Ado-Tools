@@ -1,13 +1,14 @@
 name: Prerelease
 
-# Run by hand on any branch (gh workflow run prerelease.yml --ref <branch>). It builds, tests and
-# checks every tool package at a calculated prerelease version with the CI workflow and pushes
-# them to nuget.org, with no approval. nuget.org trusts this file through its own Trusted
-# Publishing policy. Stable versions come only from release.yml.
+# Run by hand on master (gh workflow run prerelease.yml --ref master). It builds, tests and checks
+# every tool package at a calculated prerelease version with the CI workflow, signs them with
+# sign-packages.yml (gh release-signing approve -Workflow prerelease.yml) and pushes them to
+# nuget.org. Only master: the code-signing environment accepts no other branch. nuget.org trusts
+# this file through its own Trusted Publishing policy. Stable versions come only from release.yml.
 #
-# Version: <next>-<label>.<run>, where <next> is the Version in Directory.Build.props or, once a
-# stable tag at or above it exists, the patch after the latest stable tag; <label> is "preview" on
-# master, else the branch name cut to 12 letters and digits; <run> is this workflow's run number.
+# Version: <next>-preview.<run>, where <next> is the Version in Directory.Build.props or, once a
+# stable tag at or above it exists, the patch after the latest stable tag; <run> is this
+# workflow's run number.
 
 on:
   workflow_dispatch:
@@ -28,6 +29,10 @@ jobs:
       - name: Calculate the prerelease version
         id: version
         run: |
+          if [ "$GITHUB_REF" != "refs/heads/master" ]; then
+            echo "::error::Prereleases run only from master; the code-signing environment refuses $GITHUB_REF."
+            exit 1
+          fi
           next=$(sed -n 's:.*<Version>\([0-9]*\.[0-9]*\.[0-9]*\)</Version>.*:\1:p' Directory.Build.props | head -n 1)
           latest=$(git tag --list 'v*.*.*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           if [ -n "$latest" ]; then
@@ -35,12 +40,7 @@ jobs:
             after="$major.$minor.$((patch + 1))"
             next=$(printf '%s\n%s\n' "$next" "$after" | sort -V | tail -n 1)
           fi
-          if [ "$GITHUB_REF_NAME" = "master" ]; then
-            label=preview
-          else
-            label=$(printf '%s' "${GITHUB_REF_NAME##*/}" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]' | cut -c1-12)
-          fi
-          version="$next-${label:-branch}.$GITHUB_RUN_NUMBER"
+          version="$next-preview.$GITHUB_RUN_NUMBER"
           echo "Prerelease version: $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -50,17 +50,28 @@ jobs:
     with:
       version: ${{ needs.version.outputs.version }}
 
-  publish:
+  sign:
     needs: [version, build]
+    uses: ./.github/workflows/sign-packages.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: [version, sign]
     runs-on: ubuntu-latest
-    # No reviewers: the environment only holds NUGET_USER and names this job in the nuget.org policy.
+    # No reviewers (signing already had the owner's approval): the environment only holds
+    # NUGET_USER and names this job in the nuget.org policy.
     environment: prerelease
     permissions:
       id-token: write
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: packages
+          name: signed-packages
           path: packages
 
       - uses: actions/setup-dotnet@v5
@@ -69,7 +80,7 @@ jobs:
 
       - name: Exchange the GitHub token for a short-lived nuget.org key
         id: login
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           user: ${{ secrets.NUGET_USER }}
 
