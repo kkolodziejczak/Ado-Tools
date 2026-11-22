@@ -118,12 +118,16 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("uses: ./.github/workflows/ci.yml", releaseContract, StringComparison.Ordinal);
         Assert.Contains("environment: release", releaseContract, StringComparison.Ordinal);
         Assert.Contains("id-token: write", releaseContract, StringComparison.Ordinal);
-        Assert.Contains("uses: NuGet/login@v1", releaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0", releaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/sign-packages.yml", releaseContract, StringComparison.Ordinal);
+        Assert.Contains("name: signed-packages", releaseContract, StringComparison.Ordinal);
         string prereleaseContract = await File.ReadAllTextAsync(Path.Combine(toolRoot, ".github", "workflows", "prerelease.yml"));
         Assert.Contains("workflow_dispatch:", prereleaseContract, StringComparison.Ordinal);
         Assert.Contains("uses: ./.github/workflows/ci.yml", prereleaseContract, StringComparison.Ordinal);
         Assert.Contains("environment: prerelease", prereleaseContract, StringComparison.Ordinal);
-        Assert.Contains("uses: NuGet/login@v1", prereleaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0", prereleaseContract, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/sign-packages.yml", prereleaseContract, StringComparison.Ordinal);
+        Assert.Contains("name: signed-packages", prereleaseContract, StringComparison.Ordinal);
         foreach ((string _, string packageId, string command) in Tools)
         {
             Assert.Contains($"PackageId = '{packageId}'", workflowContract, StringComparison.Ordinal);
