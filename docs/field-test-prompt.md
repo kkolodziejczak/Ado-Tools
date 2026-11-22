@@ -122,7 +122,7 @@ Run each command with `--compact`. For every scenario, record the exit code, the
 | R11 | Wiki by URL | `ado-read-wiki page "<page browser URL>"` | Same page |
 | R12 | Privacy restriction per call | `ado-read work-item <id> --privacy minimal`, and `ado-read pr <id> --withhold comments` | Text or comments are `null`/empty; `privacy.restrictedByCall` is `true` |
 | R13 | Not found | `ado-read pr 999999999` and `ado-read work-item 999999999` | Exit `3`, status `notFound` |
-| R14 | Wrong organization | `ado-read pr https://dev.azure.com/some-other-org/p/_git/r/pullrequest/1` | Exit `2`, `organizationMismatch`, rejected before any request |
+| R14 | Wrong organization | `ado-read pr https://dev.azure.com/second/p/_git/r/pullrequest/1` | Exit `2`, `organizationMismatch`, rejected before any request |
 | R15 | Slice boundaries | `ado-read-pr wiki list`, `ado-read-wiki sprints show` | Exit `2`, `invalidArguments` |
 
 ### Write tools: dry runs only
