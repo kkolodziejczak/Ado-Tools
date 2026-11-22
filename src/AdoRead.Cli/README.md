@@ -19,6 +19,18 @@ ado-read auth login
 
 `auth login` saves a personal access token and asks you to pick a privacy level (`minimal`, `standard` or `full`), which decides how much content the commands return. Give the token only the read scopes for the commands you use: **Code**, **Work Items**, **Wiki**, **Build**, **Test Management** and **Project and Team** (all Read).
 
+### Privacy levels
+
+The level decides how much content leaves Azure DevOps. Metadata is always returned: ids, titles, states, types, paths, dates, counts, links, and project, team, repository, Wiki page and sprint names.
+
+| Level | Returns on top of the metadata |
+| --- | --- |
+| `minimal` | Nothing more. |
+| `standard` | Descriptions and page text, comments, test error messages and stack traces. People are replaced with aliases. |
+| `full` | Everything: also the real people, work-item custom fields, work-item images and build log tails. |
+
+Withheld fields come back as `null` or empty. `privacy show` shows what is allowed now, and `privacy set <level>` changes it, with `--allow` or `--deny` for single categories. An agent can only make the policy stricter: loosening it needs a person at an interactive terminal.
+
 ## Commands
 
 | Command | Returns | Also available on its own |

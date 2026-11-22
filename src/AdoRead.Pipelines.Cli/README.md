@@ -21,6 +21,18 @@ ado-read-pipelines auth login
 
 `auth login` saves a personal access token in your operating system's credential vault and asks you to pick a privacy level. The token needs **Build (Read)**, **Test Management (Read)** and **Code (Read)**.
 
+### Privacy levels
+
+The level decides how much content leaves Azure DevOps. Metadata is always returned: ids, titles, states, types, paths, dates, counts, links, and project, team, repository, Wiki page and sprint names.
+
+| Level | Returns on top of the metadata |
+| --- | --- |
+| `minimal` | Nothing more. |
+| `standard` | Descriptions and page text, comments, test error messages and stack traces. People are replaced with aliases. |
+| `full` | Everything: also the real people, work-item custom fields, work-item images and build log tails. |
+
+Withheld fields come back as `null` or empty. `privacy show` shows what is allowed now, and `privacy set <level>` changes it, with `--allow` or `--deny` for single categories. An agent can only make the policy stricter: loosening it needs a person at an interactive terminal.
+
 ## Commands
 
 | Command | Returns |
