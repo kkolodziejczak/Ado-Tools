@@ -1,6 +1,6 @@
 # ado-write
 
-Lets an AI agent act in Azure DevOps on your behalf: it can comment on pull requests and work items, reply in pull-request threads, requeue pull-request builds, and set your vote. Every comment ends with a visible footer naming the agent, and retrying the same command never posts twice. It is the all-in-one write tool of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools). It never edits or deletes comments, resolves threads, completes pull requests, or changes work-item fields.
+Lets an AI agent act in Azure DevOps on your behalf: it can comment on pull requests and work items, reply in pull-request threads, requeue pull-request builds, and set your vote. With `--agent`, a comment ends with a visible footer naming the agent; without it, the text is posted as written. Retrying the same command never posts twice. It is the all-in-one write tool of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools). It never edits or deletes comments, resolves threads, completes pull requests, or changes work-item fields.
 
 ## Install
 

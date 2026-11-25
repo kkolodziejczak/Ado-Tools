@@ -6,7 +6,7 @@ namespace AdoWrite.Comments;
 
 /// <summary>
 /// Turns a draft into the Markdown that is posted: mentions, the body, the attached files, a visible
-/// footer naming the agent and the person it posts for, and a hidden marker that lets a retry find the
+/// footer naming the agent and the person it posts for when the draft names an agent, and a hidden marker that lets a retry find the
 /// comment instead of posting it twice. Mentions are resolved before anything is uploaded, so a bad
 /// mention leaves no orphaned files.
 /// </summary>
@@ -97,8 +97,12 @@ internal sealed class CommentComposer(IPeopleDirectory people)
             text.Append(link.File.IsImage ? $"![{label}]({target})" : $"📎 [{label}]({target})");
         }
 
-        text.Append("\n\n---\n");
-        text.Append($"🤖 *Posted by AI agent {draft.Agent} on behalf of {onBehalfOf}*");
+        if (draft.Agent is not null)
+        {
+            text.Append("\n\n---\n");
+            text.Append($"🤖 *Posted by AI agent {draft.Agent} on behalf of {onBehalfOf}*");
+        }
+
         text.Append("\n\n");
         text.Append(CommentMarker.Render(key));
         return text.ToString();

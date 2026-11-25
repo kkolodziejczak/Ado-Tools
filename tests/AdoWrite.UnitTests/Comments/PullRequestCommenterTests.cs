@@ -42,6 +42,20 @@ public sealed class PullRequestCommenterTests
     }
 
     [Fact]
+    public async Task CommentAsync_WithoutAnAgentPostsTheBodyWithoutAFooter()
+    {
+        CommentDraft draft = CommentDraft.Create("Should the retry be configurable?", null, [], null, false);
+
+        await Commenter().CommentAsync(Fabricated.PullRequestId, null, draft, CancellationToken.None);
+
+        string key = draft.KeyFor("pullRequest", Fabricated.PullRequestId, null, null, null, null);
+        Assert.Equal(
+            "Should the retry be configurable?\n\n"
+            + $"<!-- ado-write:{key} -->",
+            Assert.Single(Assert.Single(_client.CreatedThreads).Comments).Content);
+    }
+
+    [Fact]
     public async Task CommentAsync_AttachesToNewLinesOfTheLatestIteration()
     {
         var lines = new LineSelection("/src/App.cs", 1, 2, LineSelection.Right);

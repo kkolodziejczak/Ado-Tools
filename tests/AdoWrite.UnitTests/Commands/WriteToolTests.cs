@@ -106,14 +106,14 @@ public sealed class WriteToolTests
             await File.WriteAllTextAsync(bodyFile, "Which markets?\r\nAnd currencies?\r\n");
 
             int exitCode = await Umbrella().InvokeAsync(
-                ["work-item", "comment", "7", "--body-file", bodyFile, "--agent", Agent, "--dry-run", "--compact"],
+                ["work-item", "comment", "7", "--body-file", bodyFile, "--dry-run", "--compact"],
                 CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, exitCode);
             Assert.Empty(_session.FakeWorkItems.Added);
             JsonElement result = Envelope().GetProperty("results")[0];
             Assert.Equal("preview", result.GetProperty("outcome").GetString());
-            Assert.StartsWith("Which markets?\nAnd currencies?\n\n---\n", result.GetProperty("text").GetString(), StringComparison.Ordinal);
+            Assert.StartsWith("Which markets?\nAnd currencies?\n\n<!-- ado-write:", result.GetProperty("text").GetString(), StringComparison.Ordinal);
         }
         finally
         {
@@ -124,7 +124,7 @@ public sealed class WriteToolTests
     [Theory]
     [InlineData("bodyRequired", "pr", "comment", "42", "--agent", Agent)]
     [InlineData("bodyRequired", "pr", "comment", "42", "--body", "Q", "--body-file", "q.md", "--agent", Agent)]
-    [InlineData("invalidAgent", "pr", "comment", "42", "--body", "Q")]
+    [InlineData("invalidAgent", "pr", "comment", "42", "--body", "Q", "--agent", " ")]
     [InlineData("invalidPullRequestId", "pr", "comment", "0", "--body", "Q", "--agent", Agent)]
     [InlineData("fileRequired", "pr", "comment", "42", "--line", "3", "--body", "Q", "--agent", Agent)]
     [InlineData("invalidLine", "pr", "comment", "42", "--file", "/src/App.cs", "--body", "Q", "--agent", Agent)]

@@ -39,6 +39,15 @@ public sealed class CommentDraftTests
     }
 
     [Fact]
+    public void Create_WithoutAnAgentNamesNoAgent()
+    {
+        CommentDraft draft = CommentDraft.Create("Question?", null, [], null, false);
+
+        Assert.Null(draft.Agent);
+        Assert.Equal(draft.KeyFor("pullRequest", 42), CommentDraft.Create("Question?", "Agent", [], null, false).KeyFor("pullRequest", 42));
+    }
+
+    [Fact]
     public void KeyFor_IsStableForTheSameTargetAndContentAndChangesWithEither()
     {
         CommentDraft draft = CommentDraft.Create("Question?", "Agent", [], null, false);

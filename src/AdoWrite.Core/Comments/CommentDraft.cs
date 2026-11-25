@@ -8,11 +8,11 @@ namespace AdoWrite.Comments;
 /// <summary>
 /// What the agent asked to post, validated before any Azure DevOps call. <see cref="Key"/> is the
 /// caller's duplicate key; without one, the target and content derive it, so an identical retry is
-/// recognised as the same comment.
+/// recognised as the same comment. <see cref="Agent"/> is null when the comment names no AI agent.
 /// </summary>
 public sealed partial record CommentDraft(
     string Body,
-    string Agent,
+    string? Agent,
     IReadOnlyList<string> Mentions,
     string? Key,
     bool DryRun,
@@ -40,8 +40,9 @@ public sealed partial record CommentDraft(
             throw WriteException.Rejected("invalidBody", "The comment body must not contain an ado-write marker.");
         }
 
-        string normalizedAgent = (agent ?? string.Empty).Trim();
-        if (normalizedAgent.Length is 0 or > MaxAgentLength || !AgentPattern().IsMatch(normalizedAgent))
+        string? normalizedAgent = agent?.Trim();
+        if (normalizedAgent is not null
+            && (normalizedAgent.Length is 0 or > MaxAgentLength || !AgentPattern().IsMatch(normalizedAgent)))
         {
             throw WriteException.Rejected(
                 "invalidAgent",
