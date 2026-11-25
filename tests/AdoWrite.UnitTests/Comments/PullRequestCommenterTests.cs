@@ -25,7 +25,7 @@ public sealed class PullRequestCommenterTests
             "@<00000000-0000-0000-0000-00000000B002>\n\n"
             + "Should the retry be configurable?\n\n"
             + "---\n"
-            + "🤖 *Posted by AI agent Claude Opus 5.5 on behalf of Example Author*\n\n"
+            + "🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*\n\n"
             + $"<!-- ado-write:{key} -->",
             Assert.Single(thread.Comments).Content);
         Assert.Equal(CommentOutcomes.Created, posted.Outcome);
@@ -202,7 +202,7 @@ public sealed class PullRequestCommenterTests
         Assert.Empty(_client.CreatedThreads);
         Assert.Equal(CommentOutcomes.Preview, preview.Outcome);
         Assert.Null(preview.ThreadId);
-        Assert.Contains("🤖 *Posted by AI agent Claude Opus 5.5 on behalf of Example Author*", preview.Text, StringComparison.Ordinal);
+        Assert.Contains("🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*", preview.Text, StringComparison.Ordinal);
         Assert.EndsWith($"<!-- ado-write:{preview.Key} -->", preview.Text, StringComparison.Ordinal);
         Assert.Equal(new CommentAnchorDocument("/src/App.cs", "right", 3, 3, 3), preview.Anchor);
     }

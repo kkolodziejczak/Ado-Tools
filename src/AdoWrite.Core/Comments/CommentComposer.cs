@@ -100,7 +100,7 @@ internal sealed class CommentComposer(IPeopleDirectory people)
         if (draft.Agent is not null)
         {
             text.Append("\n\n---\n");
-            text.Append($"🤖 *Posted by AI agent {draft.Agent} on behalf of {onBehalfOf}*");
+            text.Append($"🤖 *Posted by {draft.Agent} on behalf of {onBehalfOf}*");
         }
 
         text.Append("\n\n");
