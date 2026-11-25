@@ -69,6 +69,20 @@ public sealed class PullRequestCommenterTests
     }
 
     [Fact]
+    public async Task CommentAsync_EscapesEmphasisMarksInTheFooterNames()
+    {
+        _people.SignedIn = Fabricated.Author with { DisplayName = "Example *Author*" };
+        CommentDraft draft = CommentDraft.Create("Q", "gpt_6_sol", [], null, false);
+
+        await Commenter().CommentAsync(Fabricated.PullRequestId, null, draft, CancellationToken.None);
+
+        Assert.Contains(
+            @"🤖 *Posted by gpt\_6\_sol on behalf of Example \*Author\**",
+            Assert.Single(Assert.Single(_client.CreatedThreads).Comments).Content,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CommentAsync_AttachesToNewLinesOfTheLatestIteration()
     {
         var lines = new LineSelection("/src/App.cs", 1, 2, LineSelection.Right);

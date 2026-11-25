@@ -274,6 +274,43 @@ public sealed class WriteToolTests
         Assert.Null(_vault.Read(CredentialAccount.For(Fabricated.Organization)));
     }
 
+    [Fact]
+    public async Task OneLoginInAReadToolSignsInTheWriteToolsAndOneLogoutSignsThemAllOut()
+    {
+        _vault.Remove(CredentialAccount.For(Fabricated.Organization));
+        var readOutput = new StringWriter();
+        CommandApplication read = new ToolComposition(
+                new FixedConfigurationStore(),
+                new JsonOutput(readOutput),
+                TimeProvider.System,
+                credentialVault: _vault,
+                terminalInput: new ScriptedTerminalInput("read-login-token", "2"))
+            .CreateUmbrella("ado-read", []);
+
+        Assert.Equal(ExitCodes.Success, await read.InvokeAsync(["auth", "login", "--compact"], CancellationToken.None));
+        Assert.True(await WriteToolSeesATokenAsync());
+        Assert.Equal(ExitCodes.Success, await Umbrella().InvokeAsync(["pr", "comment", "42", "--body", "Q", "--compact"], CancellationToken.None));
+        Assert.Equal("read-login-token", _factory.Pat);
+
+        _output.GetStringBuilder().Clear();
+        Assert.Equal(ExitCodes.Success, await Umbrella().InvokeAsync(["auth", "logout", "--compact"], CancellationToken.None));
+        readOutput.GetStringBuilder().Clear();
+        Assert.Equal(ExitCodes.Success, await read.InvokeAsync(["auth", "status", "--compact"], CancellationToken.None));
+
+        Assert.False(JsonDocument.Parse(readOutput.ToString()).RootElement.GetProperty("results")[0].GetProperty("tokenStored").GetBoolean());
+        Assert.False(await WriteToolSeesATokenAsync());
+        Assert.NotNull(_vault.Read(CredentialAccount.ForPrivacy(Fabricated.Organization)));
+    }
+
+    private async Task<bool> WriteToolSeesATokenAsync()
+    {
+        _output.GetStringBuilder().Clear();
+        await Umbrella().InvokeAsync(["auth", "status", "--compact"], CancellationToken.None);
+        bool stored = Envelope().GetProperty("results")[0].GetProperty("tokenStored").GetBoolean();
+        _output.GetStringBuilder().Clear();
+        return stored;
+    }
+
     private CommandApplication Umbrella(ScriptedTerminalInput? terminal = null) =>
         Composition(terminal).CreateUmbrella(
             "ado-write",

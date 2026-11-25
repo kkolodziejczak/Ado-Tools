@@ -109,7 +109,14 @@ internal sealed class CommentComposer(IPeopleDirectory people)
 
     private const string FooterStart = "\n\n---\n🤖 *Posted by ";
 
-    private static string Footer(string agent, string onBehalfOf) => $"{FooterStart}{agent} on behalf of {onBehalfOf}*";
+    /// <summary>The names sit inside <c>*…*</c>, so their own emphasis marks are escaped and shown as typed.</summary>
+    private static string Footer(string agent, string onBehalfOf) =>
+        $"{FooterStart}{EscapeEmphasis(agent)} on behalf of {EscapeEmphasis(onBehalfOf)}*";
+
+    private static string EscapeEmphasis(string name) =>
+        name.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("*", "\\*", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
 
     /// <summary>
     /// The notice for a duplicate whose earlier comment has another footer than <paramref name="draft"/>

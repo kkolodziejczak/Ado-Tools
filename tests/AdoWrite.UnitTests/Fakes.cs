@@ -47,7 +47,9 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
 
     public List<string> Searches { get; } = [];
 
-    public Task<Person> GetSignedInUserAsync(CancellationToken cancellationToken) => Task.FromResult(Fabricated.Author);
+    public Person SignedIn { get; set; } = Fabricated.Author;
+
+    public Task<Person> GetSignedInUserAsync(CancellationToken cancellationToken) => Task.FromResult(SignedIn);
 
     public Task<IReadOnlyList<Person>> FindAsync(string value, CancellationToken cancellationToken)
     {
@@ -369,8 +371,11 @@ internal sealed class MemoryCredentialVault : ICredentialVault
     public bool Remove(string account) => _secrets.Remove(account);
 }
 
-internal sealed class ScriptedTerminalInput(string answer) : ITerminalInput
+/// <summary>Answers the masked token prompt with <paramref name="answer"/> and each plain prompt with the next of <paramref name="lines"/>.</summary>
+internal sealed class ScriptedTerminalInput(string answer, params string[] lines) : ITerminalInput
 {
+    private readonly Queue<string> _lines = new(lines);
+
     public List<string> Prompts { get; } = [];
 
     public bool IsInputRedirected => false;
@@ -381,5 +386,6 @@ internal sealed class ScriptedTerminalInput(string answer) : ITerminalInput
         return answer;
     }
 
-    public string ReadLine(string prompt) => throw new InvalidOperationException($"Unexpected prompt: {prompt}");
+    public string ReadLine(string prompt) =>
+        _lines.TryDequeue(out string? line) ? line : throw new InvalidOperationException($"Unexpected prompt: {prompt}");
 }

@@ -232,6 +232,20 @@ public sealed class AttachmentTests : IDisposable
         Assert.False(Assert.Single(posted.Attachments).Reused);
     }
 
+    [Fact]
+    public async Task WithoutAnAgent_TheCommentKeepsItsMentionsAndFilesButHasNoFooter()
+    {
+        CommentAttachment chart = await File("chart.png", "png bytes");
+        CommentDraft draft = CommentDraft.Create("Question?", null, ["reviewer@example.com"], null, dryRun: false, [chart]);
+
+        PostedCommentDocument posted = await WorkItemCommenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None);
+
+        string markdown = Assert.Single(_workItems.Added).Markdown;
+        Assert.StartsWith("@<00000000-0000-0000-0000-00000000B002>\n\nQuestion?\n\n![chart.png](", markdown, StringComparison.Ordinal);
+        Assert.DoesNotContain("Posted by", markdown, StringComparison.Ordinal);
+        Assert.EndsWith($")\n\n<!-- ado-write:{posted.Key} -->", markdown, StringComparison.Ordinal);
+    }
+
     private async Task<CommentAttachment> File(string name, string content)
     {
         string path = Path.Combine(_directory, name);
