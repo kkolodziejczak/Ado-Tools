@@ -36,7 +36,7 @@ public sealed class SdkTokenOwnerLookup : ITokenOwnerLookup
         {
             throw new TokenOwnerException("timeout", "The Azure DevOps request timed out.", true, exception);
         }
-        catch (Exception exception) when (exception is VssUnauthorizedException || AdoReadExceptionTranslator.IsServiceFailure(exception))
+        catch (Exception exception) when (AdoReadExceptionTranslator.IsServiceFailure(exception))
         {
             (string code, string message, bool transient) = AdoReadExceptionTranslator.Describe(exception);
             throw new TokenOwnerException(code, message, transient, exception);

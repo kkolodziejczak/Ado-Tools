@@ -1,6 +1,8 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
+using AdoRead.AzureDevOps;
 using AdoRead.Output;
+using Microsoft.VisualStudio.Services.Common;
 
 namespace AdoRead.Commands;
 
@@ -9,7 +11,8 @@ public sealed class CommandApplication(
     Option<bool> compactOption,
     IReadOnlyDictionary<Command, string> commandKinds,
     IJsonOutput jsonOutput,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    string loginCommand)
 {
     public RootCommand RootCommand => rootCommand;
 
@@ -55,9 +58,13 @@ public sealed class CommandApplication(
         }
         catch (Exception exception)
         {
+            // The SDK connects, and so finds a refused token, when a command opens its session.
+            SearchError error = exception is VssUnauthorizedException
+                ? new SearchError("authentication", null, "unauthorized", TokenScopeHint.RejectedOnConnecting(loginCommand), false)
+                : SearchError.FromException(exception);
             SearchEnvelope<object> envelope = CreateErrorEnvelope(
                 kind,
-                [SearchError.FromException(exception)],
+                [error],
                 timeProvider.GetUtcNow(),
                 mediaRequested);
             await jsonOutput.WriteAsync(envelope, compact, CancellationToken.None);

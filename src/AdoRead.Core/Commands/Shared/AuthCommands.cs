@@ -308,7 +308,7 @@ public static class AuthCommands
         catch (TokenOwnerException exception)
         {
             string message = exception.Code == "unauthorized"
-                ? $"A token is stored, but {Explain(exception)} Store a new one with `{names.Invocation("auth login")}`."
+                ? $"A token is stored, but {TokenScopeHint.RejectedOnConnecting(names.Invocation("auth login"))}"
                 : $"A token is stored, but it could not be checked: {exception.Message}";
             throw new TokenOwnerException(exception.Code, message, exception.Transient, exception);
         }
@@ -316,7 +316,7 @@ public static class AuthCommands
 
     private static string Explain(TokenOwnerException exception) =>
         exception.Code == "unauthorized"
-            ? "Azure DevOps rejected the token: it may be mistyped, expired or revoked, or made for another organization."
+            ? TokenScopeHint.Rejected
             : exception.Message;
 
     private static TokenRemovalView RemoveToken(Uri organizationUrl, CommandServices services) =>

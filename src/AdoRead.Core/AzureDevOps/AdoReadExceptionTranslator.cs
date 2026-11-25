@@ -9,8 +9,9 @@ namespace AdoRead.AzureDevOps;
 /// </summary>
 internal static class AdoReadExceptionTranslator
 {
+    /// <summary>A refused token arrives as <see cref="VssUnauthorizedException"/>, which is no <see cref="VssServiceException"/>.</summary>
     public static bool IsServiceFailure(Exception exception) =>
-        exception is VssServiceException or HttpRequestException or TaskCanceledException;
+        exception is VssServiceException or VssUnauthorizedException or HttpRequestException or TaskCanceledException;
 
     public static ProjectCatalogException ProjectFailure(Exception exception)
     {

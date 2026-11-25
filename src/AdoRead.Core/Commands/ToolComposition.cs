@@ -48,7 +48,7 @@ public sealed class ToolComposition(
             Include(kinds, module.Configure(group, new ToolCommandNames(executable, module.Name), services));
         }
 
-        return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider);
+        return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider, sharedNames.Invocation("auth login"));
     }
 
     public CommandApplication CreateSlice(string executable, CommandModule module)
@@ -60,7 +60,7 @@ public sealed class ToolComposition(
         Dictionary<Command, string> kinds = ConfigureShared(rootCommand, names, services);
         Include(kinds, module.Configure(rootCommand, names, services));
 
-        return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider);
+        return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider, names.Invocation("auth login"));
     }
 
     // Every description is English, so System.CommandLine's own texts must be too, whatever the

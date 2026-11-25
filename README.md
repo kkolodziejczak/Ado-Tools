@@ -116,7 +116,7 @@ Create the token in Azure DevOps with only the scopes listed under Requirements.
 
 A read command with no stored token fails with `missingPat` (exit 5) and names the login command to run.
 
-When Azure DevOps refuses the token (`unauthorized` or `forbidden`, exit 5), the error names the scopes that command needs and the login command that replaces the token. Azure DevOps does not say which scope is missing, so the message lists all the scopes the command uses.
+When Azure DevOps refuses the token (`unauthorized` or `forbidden`, exit 5), the error names the scopes that command needs and the login command that replaces the token. Azure DevOps does not say which scope is missing, so the message lists all the scopes the command uses. A token refused as soon as a command connects, for example because it expired, fails with `unauthorized` in the `authentication` scope, and its message names only the login command, because no scope helps there.
 
 All nine tools share one token per organization and the same configuration file, so `auth login` in any of them signs in all of them, and `auth logout` in any of them signs them all out. `ado-write auth login` (or `ado-write-pr auth login`, `ado-write-work-item auth login`) asks for no privacy level, because the write tools return no Azure DevOps content; until a person runs `privacy set`, read commands fail with `privacyPolicyRequired`.
 

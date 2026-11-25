@@ -198,6 +198,23 @@ public sealed class ToolCompositionTests
         Assert.Contains("'ado-read config init --project <name> --force'", message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ARejectedTokenNamesTheLoginCommandInsteadOfAnUnexpectedError()
+    {
+        var writer = new StringWriter();
+        CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new RejectingSessionFactory(), credentialVault: TestPrivacy.ConsentedVault())
+            .CreateSlice("ado-read-pr", PullRequestModule.Definition);
+
+        int exitCode = await application.InvokeAsync(["42", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        JsonElement error = FirstError(writer.ToString());
+        Assert.Equal(("authentication", "unauthorized"), (error.GetProperty("scope").GetString(), error.GetProperty("code").GetString()));
+        Assert.Equal(
+            "Azure DevOps rejected the token: it may be mistyped, expired or revoked, or made for another organization. Store a new one with `ado-read-pr auth login`.",
+            error.GetProperty("message").GetString());
+    }
+
     private static CommandApplication ComposeSlice(string feature, StringWriter writer, IConfigurationStore? store = null) =>
         new ToolComposition(store ?? new ProbeStore(), new JsonOutput(writer), TimeProvider.System, credentialVault: TestPrivacy.ConsentedVault())
             .CreateSlice($"ado-read-{feature}", feature switch
@@ -258,6 +275,13 @@ public sealed class ToolCompositionTests
     private sealed class UnusedSessionFactory : IAdoSessionFactory
     {
         public IAdoSession Create(Uri organizationUrl, string pat) => new UnusedSession();
+    }
+
+    /// <summary>Like the SDK, which connects when the session asks for its first client.</summary>
+    private sealed class RejectingSessionFactory : IAdoSessionFactory
+    {
+        public IAdoSession Create(Uri organizationUrl, string pat) =>
+            throw new Microsoft.VisualStudio.Services.Common.VssUnauthorizedException("VS30063: secret service response");
     }
 
     private sealed class UnusedSession : IAdoSession

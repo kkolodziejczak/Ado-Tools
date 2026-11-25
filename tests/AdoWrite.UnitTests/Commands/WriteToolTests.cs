@@ -5,6 +5,7 @@ using AdoRead.Commands;
 using AdoRead.Credentials;
 using AdoRead.Output;
 using AdoWrite.Commands;
+using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 
 namespace AdoWrite.UnitTests.Commands;
@@ -171,6 +172,37 @@ public sealed class WriteToolTests
         Assert.Contains("Code (Read & write)", message, StringComparison.Ordinal);
         Assert.DoesNotContain("Work Items", message, StringComparison.Ordinal);
         Assert.Contains("ado-write auth login", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnauthorizedPost_NamesTheScopesTheWriteTokenNeeds()
+    {
+        _session.FakePullRequests.PullRequestFailure = new VssUnauthorizedException("VS30063: Denied.");
+
+        int exitCode = await Umbrella().InvokeAsync(["pr", "comment", "42", "--body", "Q", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        JsonElement error = Envelope().GetProperty("errors")[0];
+        Assert.Equal(("azureDevOps", "unauthorized"), (error.GetProperty("scope").GetString(), error.GetProperty("code").GetString()));
+        string message = error.GetProperty("message").GetString()!;
+        Assert.Contains("Code (Read & write)", message, StringComparison.Ordinal);
+        Assert.Contains("ado-write auth login", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("VS30063", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ATokenRejectedOnConnectingNamesTheLoginCommand()
+    {
+        _factory.CreateFailure = new VssUnauthorizedException("VS30063: Denied.");
+
+        int exitCode = await Umbrella().InvokeAsync(["pr", "comment", "42", "--body", "Q", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        JsonElement error = Envelope().GetProperty("errors")[0];
+        Assert.Equal(("authentication", "unauthorized"), (error.GetProperty("scope").GetString(), error.GetProperty("code").GetString()));
+        Assert.Equal(
+            "Azure DevOps rejected the token: it may be mistyped, expired or revoked, or made for another organization. Store a new one with `ado-write auth login`.",
+            error.GetProperty("message").GetString());
     }
 
     [Fact]
