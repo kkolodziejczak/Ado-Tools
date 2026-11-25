@@ -14,38 +14,39 @@ internal static class AdoReadExceptionTranslator
 
     public static ProjectCatalogException ProjectFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Describe(exception);
+        (string code, string message, bool transient) = Describe(exception, "Project and Team (Read)");
         return new ProjectCatalogException(code, message, transient, exception);
     }
 
     public static PullRequestSourceException PullRequestFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Describe(exception);
+        (string code, string message, bool transient) = Describe(exception, "Code (Read)");
         return new PullRequestSourceException(code, message, transient, exception);
     }
 
     public static WorkItemSourceException WorkItemFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Describe(exception);
+        (string code, string message, bool transient) = Describe(exception, "Work Items (Read)");
         return new WorkItemSourceException(code, message, transient, exception);
     }
 
     public static WikiSourceException WikiFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Describe(exception);
+        (string code, string message, bool transient) = Describe(exception, "Wiki (Read), and Code (Read) for a page read through its Git path");
         return new WikiSourceException(code, message, transient, exception);
     }
 
-    /// <summary>Pipeline reads need two scopes beyond code reading, so authorization failures name them.</summary>
     public static PipelineSourceException PipelineFailure(Exception exception)
     {
-        (string code, string message, bool transient) = Describe(exception);
-        if (code is "unauthorized" or "forbidden")
-        {
-            message += " Pipeline diagnosis needs Build (Read) and Test Management (Read) scopes on the PAT.";
-        }
-
+        (string code, string message, bool transient) = Describe(exception, "Build (Read), Test Management (Read) and Code (Read)");
         return new PipelineSourceException(code, message, transient, exception);
+    }
+
+    /// <summary>Like <see cref="Describe(Exception)"/>, and a refused token also names the <paramref name="scopes"/> the command needs.</summary>
+    private static (string Code, string Message, bool Transient) Describe(Exception exception, string scopes)
+    {
+        (string code, string message, bool transient) = Describe(exception);
+        return (code, TokenScopeHint.AppendTo(code, message, scopes), transient);
     }
 
     /// <summary>The stable code, safe message and transient flag of an SDK failure.</summary>

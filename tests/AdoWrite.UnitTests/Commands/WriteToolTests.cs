@@ -167,7 +167,23 @@ public sealed class WriteToolTests
         Assert.Equal(ExitCodes.Error, exitCode);
         JsonElement error = Envelope().GetProperty("errors")[0];
         Assert.Equal(("azureDevOps", "forbidden"), (error.GetProperty("scope").GetString(), error.GetProperty("code").GetString()));
-        Assert.Contains("Code (Read & write)", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        string message = error.GetProperty("message").GetString()!;
+        Assert.Contains("Code (Read & write)", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Work Items", message, StringComparison.Ordinal);
+        Assert.Contains("ado-write auth login", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ForbiddenWorkItemComment_NamesOnlyTheScopesThisCommandNeeds()
+    {
+        _session.FakeWorkItems.AddCommentFailure = new VssServiceResponseException(HttpStatusCode.Forbidden, "Denied.", null);
+
+        int exitCode = await Umbrella().InvokeAsync(["work-item", "comment", "7", "--body", "Q", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        string message = Envelope().GetProperty("errors")[0].GetProperty("message").GetString()!;
+        Assert.Contains("Work Items (Read & write)", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Code (Read & write)", message, StringComparison.Ordinal);
     }
 
     [Fact]

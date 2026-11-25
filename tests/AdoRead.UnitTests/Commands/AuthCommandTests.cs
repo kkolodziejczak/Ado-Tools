@@ -106,6 +106,23 @@ public sealed class AuthCommandTests
     }
 
     [Fact]
+    public async Task Login_SaysTheTokenWasStoredWhenThePrivacyStepFailsAfterwards()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.FailingAccounts.Add(Organization + "#privacy");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        Assert.Equal(Token, vault.Read(Organization));
+        JsonElement error = FirstError(writer.ToString());
+        Assert.Equal("credentialStoreUnavailable", error.GetProperty("code").GetString());
+        Assert.StartsWith("The token was stored", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Status_ReportsAStoredTokenAndTheVaultWithoutRevealingIt()
     {
         var vault = new MemoryCredentialVault();

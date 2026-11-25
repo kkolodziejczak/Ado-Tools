@@ -16,9 +16,6 @@ internal sealed class WriteException(
     public const string TimeoutMessage =
         "The Azure DevOps request timed out. The change may still have been made: run the same command again. A comment's key finds the earlier comment instead of posting twice, and an unchanged vote is not sent again. Before naming a build with --evaluation again, check it with pr requeue --dry-run.";
 
-    private const string ScopesHint =
-        " For writing, the token needs Work Items (Read & write) for work-item comments, Code (Read & write) for pull-request comments, requeues and votes, and Identity (Read) for mentions.";
-
     public string Scope { get; } = scope;
 
     public string Code { get; } = code;
@@ -36,15 +33,14 @@ internal sealed class WriteException(
     public static WriteException NotFound(string code, string message) =>
         new("azureDevOps", code, message, ExitCodes.NotFound);
 
-    /// <summary>An SDK failure, with the stable code and safe message the read tools use.</summary>
+    /// <summary>
+    /// An SDK failure, with the stable code and safe message the read tools use. The command adds the
+    /// scopes it needs to a refused token's message, see <c>WriteCommandContext</c>.
+    /// </summary>
     public static WriteException FromService(Exception exception)
     {
         (string code, string message, bool transient) = AdoReadExceptionTranslator.Describe(exception);
-        if (code is "unauthorized" or "forbidden")
-        {
-            message += ScopesHint;
-        }
-        else if (code == "timeout")
+        if (code == "timeout")
         {
             message = TimeoutMessage;
         }

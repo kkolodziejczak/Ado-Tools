@@ -130,7 +130,7 @@ These post nothing. Use the real pull request and work item from section 1.
 
 | # | Scenario | Command | What to check |
 | --- | --- | --- | --- |
-| W1 | PR comment preview | `ado-write-pr comment <pr-id> --body "Field test, please ignore" --agent "<your agent and model>" --dry-run` | `outcome: "preview"`; `text` ends with the footer naming the agent and the token owner |
+| W1 | PR comment preview | `ado-write-pr comment <pr-id> --body "Field test, please ignore" --agent "<your agent and model>" --dry-run` | `outcome: "preview"`; `text` has the footer naming the agent and the token owner, followed by the hidden `ado-write` marker |
 | W2 | Line comment preview | `ado-write-pr comment <pr-id> --file <path of a changed file> --line <a changed line> --body "Field test" --agent "<agent>" --dry-run` | `anchor` holds the file and line. A file the PR doesn't change gives `fileNotInPullRequest` |
 | W3 | Reply preview | `ado-write-pr reply <pr-id> --thread <a thread id from R2> --body "Field test" --agent "<agent>" --dry-run` | `outcome: "preview"` |
 | W4 | Work-item comment preview | `ado-write-work-item comment <wi-id> --body "Field test" --agent "<agent>" --dry-run` | `outcome: "preview"` |

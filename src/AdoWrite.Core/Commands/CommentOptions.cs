@@ -19,7 +19,7 @@ internal sealed class CommentOptions
 
     public Option<string?> Agent { get; } = new("--agent")
     {
-        Description = "The AI agent and model that wrote the comment, for example \"Claude Opus 5.5\". Adds a footer naming it and you. Without it, the comment is posted as written."
+        Description = "The AI agent and model that wrote the comment, for example \"Claude Opus 5.5\". Adds a footer naming it and you. Without it, no footer is added."
     };
 
     public Option<string[]> Mention { get; } = new("--mention")

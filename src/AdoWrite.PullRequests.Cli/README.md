@@ -1,6 +1,6 @@
 # ado-write-pr
 
-Lets an AI agent work on an Azure DevOps pull request on your behalf. It can post comments (general ones or ones attached to lines), reply in threads, requeue build policies, and set your vote. With `--agent`, a comment ends with a visible footer naming the agent; without it, the text is posted as written. Retrying the same command never posts twice. It never edits or deletes comments, resolves threads, or completes pull requests.
+Lets an AI agent work on an Azure DevOps pull request on your behalf. It can post comments (general ones or ones attached to lines), reply in threads, requeue build policies, and set your vote. With `--agent`, a comment ends with a visible footer naming the agent; without it, no footer is added. Retrying the same command never posts twice. It never edits or deletes comments, resolves threads, or completes pull requests.
 
 Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on work items, use `AdoWrite.Tool` (`ado-write`). To read pull requests, use [`AdoRead.PullRequests.Tool`](https://www.nuget.org/packages/AdoRead.PullRequests.Tool) (`ado-read-pr`).
 
@@ -19,7 +19,7 @@ ado-write-pr config init --organization https://dev.azure.com/example
 ado-write-pr auth login
 ```
 
-Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so if you already logged in with a read tool, there is nothing more to set up. For writing, the token also needs **Code (Read & write)**, plus **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so a tool you install later needs no login of its own. For writing, that token also needs **Code (Read & write)**, plus **Identity (Read)** to mention people by mail address.
 
 ## Commands
 

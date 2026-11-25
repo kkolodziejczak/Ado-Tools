@@ -186,7 +186,9 @@ public sealed class WorkItemSourceTests
             source.GetAsync(42, CancellationToken.None));
 
         Assert.Equal("unauthorized", exception.Code);
-        Assert.Equal("The PAT was rejected by Azure DevOps.", exception.Message);
+        Assert.StartsWith("The PAT was rejected by Azure DevOps.", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Work Items (Read)", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("auth login", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("secret service response", exception.Message, StringComparison.Ordinal);
         Assert.False(exception.Transient);
     }
@@ -216,7 +218,8 @@ public sealed class WorkItemSourceTests
                 CancellationToken.None));
 
         Assert.Equal("forbidden", exception.Code);
-        Assert.Equal("The PAT cannot read this Azure DevOps resource.", exception.Message);
+        Assert.StartsWith("The PAT cannot read this Azure DevOps resource.", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Work Items (Read)", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("private attachment response", exception.Message, StringComparison.Ordinal);
     }
 

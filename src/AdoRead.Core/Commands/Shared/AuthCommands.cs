@@ -191,7 +191,18 @@ public static class AuthCommands
             return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null, legacyWriteTokenRemoved);
         }
 
-        bool privacyConfigured = EnsurePrivacyLevel(organizationUrl, services);
+        bool privacyConfigured;
+        try
+        {
+            privacyConfigured = EnsurePrivacyLevel(organizationUrl, services);
+        }
+        catch (CredentialException exception)
+        {
+            throw new CredentialException(
+                exception.Code,
+                $"The token was stored and every Ado-Tools tool now uses it, but the privacy level could not be checked or saved. {exception.Message}");
+        }
+
         return new LoginView(
             services.CredentialVault.Kind,
             TokenStored: true,

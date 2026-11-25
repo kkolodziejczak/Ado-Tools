@@ -19,7 +19,7 @@ public static class PullRequestWriteModule
     public static CommandModule Create(IAdoWriteSessionFactory sessionFactory) => new(
         "pr",
         "Comment on a pull request or on its lines, reply in one of its threads, requeue its builds, or vote on it.",
-        (target, _, services) => Configure(target, new WriteCommandContext(services, sessionFactory)));
+        (target, names, services) => Configure(target, new WriteCommandContext(services, sessionFactory, names.Root.Invocation("auth login"))));
 
     private static IReadOnlyDictionary<Command, string> Configure(Command target, WriteCommandContext context)
     {
