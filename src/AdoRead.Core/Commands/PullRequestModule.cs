@@ -8,12 +8,12 @@ using AdoRead.PullRequests;
 
 namespace AdoRead.Commands;
 
-/// <summary>Pull-request lookup across every accessible project: <c>pr &lt;id-or-url&gt;</c>.</summary>
+/// <summary>Pull-request lookup across every accessible project: <c>pr show &lt;id-or-url&gt;</c>.</summary>
 public static class PullRequestModule
 {
     public static CommandModule Definition { get; } = new(
         "pr",
-        "Find a pull request across all accessible projects.",
+        "Read pull requests across all accessible projects.",
         Configure);
 
     public static IReadOnlyDictionary<Command, string> Configure(
@@ -29,11 +29,13 @@ public static class PullRequestModule
         {
             Description = "Override the default ~/.ado-read/config.json path."
         };
-        target.Arguments.Add(referenceArgument);
-        target.Options.Add(configOption);
+        var command = new Command("show", "Find one pull request across all accessible projects.");
+        command.Arguments.Add(referenceArgument);
+        command.Options.Add(configOption);
         var privacyOptions = new PrivacyRequestOptions();
-        privacyOptions.AddTo(target);
-        target.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
+        privacyOptions.AddTo(command);
+        target.Subcommands.Add(command);
+        command.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
             parseResult.GetValue(referenceArgument),
             parseResult.GetValue(configOption),
             parseResult.GetValue(services.CompactOption),
@@ -45,7 +47,7 @@ public static class PullRequestModule
             services.JsonOutput,
             services.TimeProvider,
             cancellationToken));
-        return new Dictionary<Command, string> { [target] = "pullRequestSearch" };
+        return new Dictionary<Command, string> { [command] = "pullRequestSearch" };
     }
 
     private static async Task<int> ReadAsync(

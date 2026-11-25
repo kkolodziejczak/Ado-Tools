@@ -6,12 +6,12 @@ public sealed class ToolHelpProcessTests
 {
     public static TheoryData<string, string[]> Tools => new()
     {
-        { "AdoRead.Cli", ["config", "auth", "privacy", "projects", "teams", "pr", "work-item", "wiki", "sprints", "pipelines"] },
-        { "AdoRead.PullRequests.Cli", ["config", "auth", "privacy", "projects", "teams"] },
-        { "AdoRead.WorkItems.Cli", ["config", "auth", "privacy", "projects", "teams"] },
-        { "AdoRead.Wiki.Cli", ["config", "auth", "privacy", "projects", "teams", "list", "pages", "page", "search"] },
-        { "AdoRead.Sprints.Cli", ["config", "auth", "privacy", "projects", "teams", "list", "show"] },
-        { "AdoRead.Pipelines.Cli", ["config", "auth", "privacy", "projects", "teams", "pr", "run", "tests"] },
+        { "AdoRead.Cli", ["config", "auth", "privacy", "project", "team", "pr", "work-item", "wiki", "sprint", "pipeline"] },
+        { "AdoRead.PullRequests.Cli", ["config", "auth", "privacy", "project", "team", "show"] },
+        { "AdoRead.WorkItems.Cli", ["config", "auth", "privacy", "project", "team", "show"] },
+        { "AdoRead.Wiki.Cli", ["config", "auth", "privacy", "project", "team", "list", "page"] },
+        { "AdoRead.Sprints.Cli", ["config", "auth", "privacy", "project", "team", "list", "show"] },
+        { "AdoRead.Pipelines.Cli", ["config", "auth", "privacy", "project", "team", "run", "test"] },
         { "AdoWrite.Cli", ["config", "auth", "pr", "work-item"] },
         { "AdoWrite.PullRequests.Cli", ["config", "auth", "comment", "reply", "requeue", "vote"] },
         { "AdoWrite.WorkItems.Cli", ["config", "auth", "comment"] },

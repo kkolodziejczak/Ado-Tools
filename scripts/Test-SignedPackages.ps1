@@ -24,8 +24,8 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.Security.Cryptography.Pkcs
 
 $packageIds = @(
-    'AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool',
-    'AdoRead.Pipelines.Tool', 'AdoWrite.Tool', 'AdoWrite.PullRequests.Tool', 'AdoWrite.WorkItems.Tool'
+    'ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprint',
+    'ado-read-pipeline', 'ado-write', 'ado-write-pr', 'ado-write-work-item'
 )
 $expectedNames = @($packageIds | ForEach-Object { "$_.$PackageVersion.nupkg" } | Sort-Object)
 $actualNames = @(Get-ChildItem -LiteralPath $PackageDirectory -Filter '*.nupkg' -File | ForEach-Object Name | Sort-Object)

@@ -6,7 +6,7 @@
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-read-pr</ToolCommandName>
-    <PackageId>AdoRead.PullRequests.Tool</PackageId>
+    <PackageId>ado-read-pr</PackageId>
     <Description>Read-only Azure DevOps pull-request context as agent-friendly JSON.</Description>
     <PackageTags>$(PackageTags);read-only;pull-requests;code-review</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

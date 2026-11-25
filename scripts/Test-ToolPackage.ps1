@@ -5,11 +5,11 @@ param(
     [string]$PackagePath,
 
     [Parameter(Mandatory)]
-    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool', 'AdoRead.Pipelines.Tool', 'AdoWrite.Tool', 'AdoWrite.PullRequests.Tool', 'AdoWrite.WorkItems.Tool')]
+    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprint', 'ado-read-pipeline', 'ado-write', 'ado-write-pr', 'ado-write-work-item')]
     [string]$PackageId,
 
     [Parameter(Mandatory)]
-    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprints', 'ado-read-pipelines', 'ado-write', 'ado-write-pr', 'ado-write-work-item')]
+    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprint', 'ado-read-pipeline', 'ado-write', 'ado-write-pr', 'ado-write-work-item')]
     [string]$CommandName,
 
     [string]$PackageVersion = '1.0.0'
@@ -21,51 +21,51 @@ $ErrorActionPreference = 'Stop'
 # Commands each package must list under its help, and the foreign command it must reject. A write
 # package also rejects an invalid target before it reads a token, which a clean machine does not have.
 $toolContracts = @{
-    'AdoRead.Tool' = @{
+    'ado-read' = @{
         Command = 'ado-read'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'work-item', 'wiki', 'sprints', 'pipelines')
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'pr', 'work-item', 'wiki', 'sprint', 'pipeline')
         Foreign = $null
     }
-    'AdoRead.PullRequests.Tool' = @{
+    'ado-read-pr' = @{
         Command = 'ado-read-pr'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams')
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'show')
         Foreign = @('wiki', 'list')
     }
-    'AdoRead.WorkItems.Tool' = @{
+    'ado-read-work-item' = @{
         Command = 'ado-read-work-item'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams')
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'show')
         Foreign = @('wiki', 'list')
     }
-    'AdoRead.Wiki.Tool' = @{
+    'ado-read-wiki' = @{
         Command = 'ado-read-wiki'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'list', 'pages', 'page', 'search')
-        Foreign = @('pr', '1')
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'list', 'page')
+        Foreign = @('pr', 'show', '1')
     }
-    'AdoRead.Sprints.Tool' = @{
-        Command = 'ado-read-sprints'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'list', 'show')
+    'ado-read-sprint' = @{
+        Command = 'ado-read-sprint'
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'list', 'show')
         Foreign = @('wiki', 'list')
     }
-    'AdoRead.Pipelines.Tool' = @{
-        Command = 'ado-read-pipelines'
-        Commands = @('config', 'auth', 'privacy', 'projects', 'teams', 'pr', 'run', 'tests')
+    'ado-read-pipeline' = @{
+        Command = 'ado-read-pipeline'
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'run', 'test')
         Foreign = @('wiki', 'list')
     }
-    'AdoWrite.Tool' = @{
+    'ado-write' = @{
         Command = 'ado-write'
         Commands = @('config', 'auth', 'pr', 'work-item')
         Foreign = @('privacy', 'show')
         InvalidTarget = @('pr', 'comment', '0', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'invalidPullRequestId'
     }
-    'AdoWrite.PullRequests.Tool' = @{
+    'ado-write-pr' = @{
         Command = 'ado-write-pr'
         Commands = @('config', 'auth', 'comment', 'reply', 'requeue', 'vote')
         Foreign = @('work-item', 'comment', '1')
         InvalidTarget = @('reply', '42', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'threadRequired'
     }
-    'AdoWrite.WorkItems.Tool' = @{
+    'ado-write-work-item' = @{
         Command = 'ado-write-work-item'
         Commands = @('config', 'auth', 'comment')
         Foreign = @('reply', '1')
@@ -80,8 +80,8 @@ if ($contract.Command -ne $CommandName)
     throw "Package $PackageId exposes the command $($contract.Command), not $CommandName."
 }
 
-$isUmbrella = $PackageId -eq 'AdoRead.Tool'
-$isWrite = $PackageId.StartsWith('AdoWrite.', [StringComparison]::Ordinal)
+$isUmbrella = $PackageId -eq 'ado-read'
+$isWrite = $PackageId.StartsWith('ado-write', [StringComparison]::Ordinal)
 $packageFullPath = (Resolve-Path -LiteralPath $PackagePath).Path
 $packageDirectory = Split-Path -Parent $packageFullPath
 $expectedPackageName = "$PackageId.$PackageVersion.nupkg"
@@ -182,7 +182,7 @@ function Invoke-FixtureMediaCommand
         [string]$OutputDirectory
     )
 
-    $output = @(& dotnet $fixtureHostAssembly work-item 123 --download-images $OutputDirectory --compact)
+    $output = @(& dotnet $fixtureHostAssembly work-item show 123 --download-images $OutputDirectory --compact)
     if ($LASTEXITCODE -ne 0)
     {
         throw "Fixture media command failed with exit code $LASTEXITCODE."
@@ -274,7 +274,7 @@ function Test-InstalledConfiguration
 
     # No privacy policy is stored for the fabricated organization on a clean machine, so a read must refuse
     # before it touches a token, and privacy show must report that nothing is configured.
-    Assert-JsonValidationError -Arguments @('projects', '--config', $configPath, '--compact') -ExpectedCode 'privacyPolicyRequired'
+    Assert-JsonValidationError -Arguments @('project', 'list', '--config', $configPath, '--compact') -ExpectedCode 'privacyPolicyRequired'
 
     $privacy = & $toolExecutable privacy show --config $configPath --compact
     if ($LASTEXITCODE -ne 0)
@@ -310,7 +310,7 @@ function Test-UmbrellaSmoke
 {
     Test-InstalledTool
 
-    $workItemHelp = @(& $toolExecutable work-item --help)
+    $workItemHelp = @(& $toolExecutable work-item show --help)
     if ($LASTEXITCODE -ne 0 -or ($workItemHelp -join [Environment]::NewLine) -notmatch '(?i)--download-images')
     {
         throw 'Installed work-item help omitted --download-images.'
@@ -378,7 +378,7 @@ function Test-UmbrellaSmoke
 
     # Withheld images must not be downloaded or written, and the privacy section must say so.
     $withheldOutputDirectory = Join-Path $temporaryRoot 'withheld-image-output'
-    $withheldOutput = & dotnet $fixtureHostAssembly work-item 123 --download-images $withheldOutputDirectory --withhold images --compact
+    $withheldOutput = & dotnet $fixtureHostAssembly work-item show 123 --download-images $withheldOutputDirectory --withhold images --compact
     if ($LASTEXITCODE -ne 0)
     {
         throw "Fixture withheld-image command failed with exit code $LASTEXITCODE."
@@ -392,7 +392,7 @@ function Test-UmbrellaSmoke
     }
 
     # The fixture host has a full policy, so an invalid image directory is reported as before.
-    $invalidImageOutput = & dotnet $fixtureHostAssembly work-item 123 --download-images $invalidImageDirectory --compact
+    $invalidImageOutput = & dotnet $fixtureHostAssembly work-item show 123 --download-images $invalidImageDirectory --compact
     if ($LASTEXITCODE -ne 2)
     {
         throw "Fixture invalid image directory exited with code $LASTEXITCODE instead of 2."
@@ -410,6 +410,7 @@ function Test-UmbrellaSmoke
     # A clean machine has no privacy policy, so the read refuses before it looks at the image directory.
     Assert-JsonValidationError -Arguments @(
         'work-item',
+        'show',
         '123',
         '--download-images',
         $invalidImageDirectory,
@@ -417,15 +418,15 @@ function Test-UmbrellaSmoke
         $configPath,
         '--compact') -ExpectedCode 'privacyPolicyRequired'
 
-    Assert-JsonValidationError -Arguments @('work-item', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidWorkItemId'
-    Assert-JsonValidationError -Arguments @('pr', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidPullRequestId'
-    Invoke-FixtureCommand -Arguments @('work-item', 'https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123', '--compact') -ExpectedKind 'workItemSearch' -ExpectedId 123 -ExpectedSchemaVersion '2.0'
-    Invoke-FixtureCommand -Arguments @('pr', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--compact') -ExpectedKind 'pullRequestSearch' -ExpectedId 126
-    Invoke-FixtureCommand -Arguments @('pipelines', 'pr', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--project', 'Fabricated.Alpha', '--compact') -ExpectedKind 'pipelinePullRequest' -ExpectedId 126
+    Assert-JsonValidationError -Arguments @('work-item', 'show', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidWorkItemId'
+    Assert-JsonValidationError -Arguments @('pr', 'show', '0', '--config', $configPath, '--compact') -ExpectedCode 'invalidPullRequestId'
+    Invoke-FixtureCommand -Arguments @('work-item', 'show', 'https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123', '--compact') -ExpectedKind 'workItemSearch' -ExpectedId 123 -ExpectedSchemaVersion '2.0'
+    Invoke-FixtureCommand -Arguments @('pr', 'show', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--compact') -ExpectedKind 'pullRequestSearch' -ExpectedId 126
+    Invoke-FixtureCommand -Arguments @('pipeline', 'run', 'list', '--pr', 'https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126', '--project', 'Fabricated.Alpha', '--compact') -ExpectedKind 'pipelinePullRequest' -ExpectedId 126
     Invoke-FixtureCommand -Arguments @('wiki', 'list', '--compact') -ExpectedKind 'wikiCatalog'
-    Invoke-FixtureCommand -Arguments @('wiki', 'pages', '--wiki', 'FabricatedApp.wiki', '--compact') -ExpectedKind 'wikiPageCatalog'
-    Invoke-FixtureCommand -Arguments @('wiki', 'page', 'https://dev.azure.com/fabricated/FabricatedApp/_wiki/wikis/FabricatedApp.wiki/51/Authentication', '--compact') -ExpectedKind 'wikiPageLookup' -ExpectedId 51
-    $searchOutput = & dotnet $fixtureHostAssembly wiki search authentication --compact
+    Invoke-FixtureCommand -Arguments @('wiki', 'page', 'list', '--wiki', 'FabricatedApp.wiki', '--compact') -ExpectedKind 'wikiPageCatalog'
+    Invoke-FixtureCommand -Arguments @('wiki', 'page', 'show', 'https://dev.azure.com/fabricated/FabricatedApp/_wiki/wikis/FabricatedApp.wiki/51/Authentication', '--compact') -ExpectedKind 'wikiPageLookup' -ExpectedId 51
+    $searchOutput = & dotnet $fixtureHostAssembly wiki page search authentication --compact
     if ($LASTEXITCODE -ne 0)
     {
         throw "Fixture wiki search failed with exit code $LASTEXITCODE."
@@ -437,7 +438,7 @@ function Test-UmbrellaSmoke
         throw 'Fixture wiki search returned an unexpected success document.'
     }
 
-    Invoke-FixtureCommand -Arguments (@('wiki', 'page') + [string[]]$search.results[0].next.arguments + @('--compact')) -ExpectedKind 'wikiPageLookup'
+    Invoke-FixtureCommand -Arguments (@('wiki', 'page', 'show') + [string[]]$search.results[0].next.arguments + @('--compact')) -ExpectedKind 'wikiPageLookup'
 }
 
 try

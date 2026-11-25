@@ -341,6 +341,60 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "ado-read": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "ado-read-pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "ado-read-pr": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "ado-read-sprint": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "ado-read-wiki": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "ado-read-work-item": {
+        "type": "Project",
+        "dependencies": {
+          "AdoRead.Core": "[1.0.0, )"
+        }
+      },
+      "ado-write": {
+        "type": "Project",
+        "dependencies": {
+          "AdoWrite.Core": "[1.0.0, )"
+        }
+      },
+      "ado-write-pr": {
+        "type": "Project",
+        "dependencies": {
+          "AdoWrite.Core": "[1.0.0, )"
+        }
+      },
+      "ado-write-work-item": {
+        "type": "Project",
+        "dependencies": {
+          "AdoWrite.Core": "[1.0.0, )"
+        }
+      },
       "adoread.core": {
         "type": "Project",
         "dependencies": {
@@ -352,64 +406,10 @@
           "System.Security.Cryptography.Xml": "[10.0.13, )"
         }
       },
-      "AdoRead.Pipelines.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoRead.Core": "[1.0.0, )"
-        }
-      },
-      "AdoRead.PullRequests.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoRead.Core": "[1.0.0, )"
-        }
-      },
-      "AdoRead.Sprints.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoRead.Core": "[1.0.0, )"
-        }
-      },
-      "AdoRead.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoRead.Core": "[1.0.0, )"
-        }
-      },
-      "AdoRead.Wiki.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoRead.Core": "[1.0.0, )"
-        }
-      },
-      "AdoRead.WorkItems.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoRead.Core": "[1.0.0, )"
-        }
-      },
       "adowrite.core": {
         "type": "Project",
         "dependencies": {
           "AdoRead.Core": "[1.0.0, )"
-        }
-      },
-      "AdoWrite.PullRequests.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoWrite.Core": "[1.0.0, )"
-        }
-      },
-      "AdoWrite.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoWrite.Core": "[1.0.0, )"
-        }
-      },
-      "AdoWrite.WorkItems.Tool": {
-        "type": "Project",
-        "dependencies": {
-          "AdoWrite.Core": "[1.0.0, )"
         }
       },
       "HtmlAgilityPack": {

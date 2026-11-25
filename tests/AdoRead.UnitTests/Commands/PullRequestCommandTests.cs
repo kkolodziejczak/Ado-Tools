@@ -24,7 +24,7 @@ public sealed class PullRequestCommandTests
         var factory = new FakeAdoSessionFactory(session);
         CommandApplication application = CreateApplication(writer, factory);
 
-        int exitCode = await application.InvokeAsync(["pr", "42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["pr", "show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Partial, exitCode);
         using JsonDocument output = JsonDocument.Parse(writer.ToString());
@@ -49,7 +49,7 @@ public sealed class PullRequestCommandTests
                 pullRequests));
         CommandApplication application = CreateApplication(writer, factory);
 
-        int exitCode = await application.InvokeAsync(["pr", reference, "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["pr", "show", reference, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Equal([42], pullRequests.RequestedIds);
@@ -66,7 +66,7 @@ public sealed class PullRequestCommandTests
         CommandApplication application = CreateApplication(writer, factory);
 
         int exitCode = await application.InvokeAsync(
-            ["pr", "https://dev.azure.com/fabricated/Payments/_git/Repo/pullrequest/42", "--compact"],
+            ["pr", "show", "https://dev.azure.com/fabricated/Payments/_git/Repo/pullrequest/42", "--compact"],
             CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -87,7 +87,7 @@ public sealed class PullRequestCommandTests
         CommandApplication application = CreateApplication(writer, factory);
 
         int exitCode = await application.InvokeAsync(
-            ["pr", reference, "--compact"],
+            ["pr", "show", reference, "--compact"],
             CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -104,7 +104,7 @@ public sealed class PullRequestCommandTests
             new FakeAdoSession(new FakeProjectCatalog([]), new FakePullRequestSource()));
         CommandApplication application = CreateApplication(writer, factory);
 
-        int exitCode = await application.InvokeAsync(["pr", "0", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["pr", "show", "0", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         using JsonDocument output = JsonDocument.Parse(writer.ToString());
@@ -131,7 +131,7 @@ public sealed class PullRequestCommandTests
             new FakePatProvider(),
             factory);
 
-        int exitCode = await application.InvokeAsync(["pr", "42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["pr", "show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Partial, exitCode);
         using JsonDocument output = JsonDocument.Parse(writer.ToString());

@@ -11,7 +11,7 @@ public sealed class ReleasePackageValidationTests
         string toolRoot = FindToolRoot();
         string scriptPath = Path.Combine(toolRoot, "scripts", "Verify-ReleasePackage.ps1");
         string temporaryDirectory = Path.Combine(Path.GetTempPath(), $"ado-read-package-validation-{Guid.NewGuid():N}");
-        string packagePath = Path.Combine(temporaryDirectory, "AdoRead.Tool.1.0.0.nupkg");
+        string packagePath = Path.Combine(temporaryDirectory, "ado-read.1.0.0.nupkg");
         try
         {
             Directory.CreateDirectory(temporaryDirectory);
@@ -33,15 +33,15 @@ public sealed class ReleasePackageValidationTests
 
     private static readonly (string Project, string PackageId, string Command)[] Tools =
     [
-        ("AdoRead.Cli", "AdoRead.Tool", "ado-read"),
-        ("AdoRead.PullRequests.Cli", "AdoRead.PullRequests.Tool", "ado-read-pr"),
-        ("AdoRead.WorkItems.Cli", "AdoRead.WorkItems.Tool", "ado-read-work-item"),
-        ("AdoRead.Wiki.Cli", "AdoRead.Wiki.Tool", "ado-read-wiki"),
-        ("AdoRead.Sprints.Cli", "AdoRead.Sprints.Tool", "ado-read-sprints"),
-        ("AdoRead.Pipelines.Cli", "AdoRead.Pipelines.Tool", "ado-read-pipelines"),
-        ("AdoWrite.Cli", "AdoWrite.Tool", "ado-write"),
-        ("AdoWrite.PullRequests.Cli", "AdoWrite.PullRequests.Tool", "ado-write-pr"),
-        ("AdoWrite.WorkItems.Cli", "AdoWrite.WorkItems.Tool", "ado-write-work-item"),
+        ("AdoRead.Cli", "ado-read", "ado-read"),
+        ("AdoRead.PullRequests.Cli", "ado-read-pr", "ado-read-pr"),
+        ("AdoRead.WorkItems.Cli", "ado-read-work-item", "ado-read-work-item"),
+        ("AdoRead.Wiki.Cli", "ado-read-wiki", "ado-read-wiki"),
+        ("AdoRead.Sprints.Cli", "ado-read-sprint", "ado-read-sprint"),
+        ("AdoRead.Pipelines.Cli", "ado-read-pipeline", "ado-read-pipeline"),
+        ("AdoWrite.Cli", "ado-write", "ado-write"),
+        ("AdoWrite.PullRequests.Cli", "ado-write-pr", "ado-write-pr"),
+        ("AdoWrite.WorkItems.Cli", "ado-write-work-item", "ado-write-work-item"),
     ];
 
     [Fact]
@@ -74,14 +74,14 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("--download-images", smokeContract, StringComparison.Ordinal);
         Assert.Contains("schemaVersion -ne '2.1'", smokeContract, StringComparison.Ordinal);
         Assert.Contains("'wiki', 'list'", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("'wiki', 'pages'", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("'wiki', 'page'", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("wiki search authentication", smokeContract, StringComparison.Ordinal);
-        Assert.Contains("'pipelines', 'pr'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'wiki', 'page', 'list'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'wiki', 'page', 'show'", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("wiki page search authentication", smokeContract, StringComparison.Ordinal);
+        Assert.Contains("'pipeline', 'run', 'list', '--pr'", smokeContract, StringComparison.Ordinal);
         Assert.Contains("Test-WriteSmoke", smokeContract, StringComparison.Ordinal);
         string readmeContract = await File.ReadAllTextAsync(readme);
         Assert.Contains("--version 1.0.0", readmeContract, StringComparison.Ordinal);
-        Assert.Contains("ado-read-pipelines", readmeContract, StringComparison.Ordinal);
+        Assert.Contains("ado-read-pipeline", readmeContract, StringComparison.Ordinal);
         Assert.Contains("ado-write-pr", readmeContract, StringComparison.Ordinal);
         Assert.Contains("ado-write-work-item", readmeContract, StringComparison.Ordinal);
         Assert.Contains("Code (Read & write)", readmeContract, StringComparison.Ordinal);

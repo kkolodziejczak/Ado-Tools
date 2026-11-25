@@ -5,8 +5,8 @@
     <RootNamespace>AdoRead</RootNamespace>
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
-    <ToolCommandName>ado-read-sprints</ToolCommandName>
-    <PackageId>AdoRead.Sprints.Tool</PackageId>
+    <ToolCommandName>ado-read-sprint</ToolCommandName>
+    <PackageId>ado-read-sprint</PackageId>
     <Description>Read-only Azure DevOps sprints and their work items as agent-friendly JSON.</Description>
     <PackageTags>$(PackageTags);read-only;sprints;iterations;boards;agile</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

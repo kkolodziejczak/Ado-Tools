@@ -17,69 +17,83 @@ public sealed class ToolCompositionTests
         new[] { "privacy", "show" },
         new[] { "privacy", "set", "minimal" },
         new[] { "privacy", "reset" },
-        new[] { "projects" },
-        new[] { "teams" },
-        new[] { "pr", "1" },
-        new[] { "work-item", "1" },
+        new[] { "project", "list" },
+        new[] { "team", "list" },
+        new[] { "pr", "show", "1" },
+        new[] { "work-item", "show", "1" },
         new[] { "wiki", "list" },
-        new[] { "wiki", "pages", "--wiki", "Wiki" },
-        new[] { "wiki", "page", "--wiki", "Wiki", "--path", "/Page" },
-        new[] { "wiki", "search", "authentication" },
-        new[] { "sprints", "list" },
-        new[] { "sprints", "show" },
+        new[] { "wiki", "page", "list", "--wiki", "Wiki" },
+        new[] { "wiki", "page", "show", "--wiki", "Wiki", "--path", "/Page" },
+        new[] { "wiki", "page", "search", "authentication" },
+        new[] { "sprint", "list" },
+        new[] { "sprint", "show" },
+        new[] { "pipeline", "run", "list", "--pr", "1" },
+        new[] { "pipeline", "run", "show", "1" },
+        new[] { "pipeline", "test", "list", "--run", "1" },
     };
 
+    // Every name the tools shipped before one naming scheme, so none of them is accepted by mistake.
     public static TheoryData<string[]> RemovedUmbrellaCommands => new()
     {
         new[] { "wikis" },
         new[] { "wiki-pages", "--wiki", "Wiki" },
         new[] { "wiki-page", "--path", "/Page" },
         new[] { "wiki-search", "authentication" },
-        new[] { "sprints" },
+        new[] { "wiki", "pages", "--wiki", "Wiki" },
+        new[] { "wiki", "search", "authentication" },
+        new[] { "sprints", "show" },
         new[] { "sprint" },
+        new[] { "projects" },
+        new[] { "teams" },
+        new[] { "pr", "1" },
+        new[] { "work-item", "1" },
+        new[] { "pipelines", "pr", "1" },
+        new[] { "pipeline", "run", "1" },
+        new[] { "pipeline", "tests", "1" },
     };
 
     public static TheoryData<string, string[]> SliceCommands => new()
     {
-        { "pr", ["1"] },
+        { "pr", ["show", "1"] },
         { "pr", ["privacy", "show"] },
         { "pr", ["config", "show"] },
-        { "pr", ["projects"] },
-        { "pr", ["teams"] },
-        { "work-item", ["1"] },
+        { "pr", ["project", "list"] },
+        { "pr", ["team", "list"] },
+        { "work-item", ["show", "1"] },
         { "work-item", ["config", "show"] },
-        { "work-item", ["teams"] },
+        { "work-item", ["team", "list"] },
         { "wiki", ["list"] },
-        { "wiki", ["pages", "--wiki", "Wiki"] },
-        { "wiki", ["page", "--wiki", "Wiki", "--path", "/Page"] },
-        { "wiki", ["search", "authentication"] },
-        { "wiki", ["projects"] },
-        { "sprints", ["list"] },
-        { "sprints", ["show"] },
-        { "sprints", ["config", "show"] },
-        { "sprints", ["projects"] },
-        { "sprints", ["privacy", "reset"] },
+        { "wiki", ["page", "list", "--wiki", "Wiki"] },
+        { "wiki", ["page", "show", "--wiki", "Wiki", "--path", "/Page"] },
+        { "wiki", ["page", "search", "authentication"] },
+        { "wiki", ["project", "list"] },
+        { "sprint", ["list"] },
+        { "sprint", ["show"] },
+        { "sprint", ["config", "show"] },
+        { "sprint", ["project", "list"] },
+        { "sprint", ["privacy", "reset"] },
         { "wiki", ["privacy", "set", "minimal"] },
-        { "pipelines", ["pr", "126"] },
-        { "pipelines", ["run", "9002"] },
-        { "pipelines", ["tests", "9002"] },
+        { "pipeline", ["run", "list", "--pr", "126"] },
+        { "pipeline", ["run", "show", "9002"] },
+        { "pipeline", ["test", "list", "--run", "9002"] },
     };
 
     public static TheoryData<string, string[]> ForeignCommands => new()
     {
         { "pr", ["wiki", "list"] },
-        { "pr", ["work-item", "1"] },
-        { "pr", ["sprints", "list"] },
+        { "pr", ["work-item", "show", "1"] },
+        { "pr", ["sprint", "list"] },
         { "work-item", ["wiki", "list"] },
-        { "work-item", ["pr", "1"] },
-        { "work-item", ["sprints", "show"] },
-        { "wiki", ["pr", "1"] },
-        { "wiki", ["work-item", "1"] },
-        { "wiki", ["sprints", "list"] },
+        { "work-item", ["pr", "show", "1"] },
+        { "work-item", ["sprint", "show"] },
+        { "wiki", ["pr", "show", "1"] },
+        { "wiki", ["work-item", "show", "1"] },
+        { "wiki", ["sprint", "list"] },
         { "wiki", ["1"] },
-        { "sprints", ["wiki", "list"] },
-        { "sprints", ["pr", "1"] },
-        { "sprints", ["work-item", "1"] },
+        { "sprint", ["wiki", "list"] },
+        { "sprint", ["pr", "show", "1"] },
+        { "sprint", ["work-item", "show", "1"] },
+        { "pipeline", ["pr", "show", "1"] },
     };
 
     private static readonly CommandModule[] AllModules =
@@ -142,29 +156,29 @@ public sealed class ToolCompositionTests
     }
 
     [Theory]
-    [InlineData("pages", "list")]
-    [InlineData("page", "projects")]
+    [InlineData("list", "list")]
+    [InlineData("show", "project list")]
     public async Task WikiSlice_HintsNameTheSliceCommands(string command, string nextCommand)
     {
         var writer = new StringWriter();
         CommandApplication application = ComposeSlice("wiki", writer, new ConfiguredStore());
 
-        await application.InvokeAsync([command, "--compact"], CancellationToken.None);
+        await application.InvokeAsync(["page", command, "--compact"], CancellationToken.None);
 
         JsonElement next = FirstError(writer.ToString()).GetProperty("next");
         Assert.Equal(nextCommand, next.GetProperty("command").GetString());
     }
 
     [Theory]
-    [InlineData("pages", "wiki list")]
-    [InlineData("page", "projects")]
+    [InlineData("list", "wiki list")]
+    [InlineData("show", "project list")]
     public async Task UmbrellaWiki_HintsNameTheGroupedCommands(string command, string nextCommand)
     {
         var writer = new StringWriter();
         CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, credentialVault: TestPrivacy.ConsentedVault())
             .CreateUmbrella("ado-read", AllModules);
 
-        await application.InvokeAsync(["wiki", command, "--compact"], CancellationToken.None);
+        await application.InvokeAsync(["wiki", "page", command, "--compact"], CancellationToken.None);
 
         JsonElement next = FirstError(writer.ToString()).GetProperty("next");
         Assert.Equal(nextCommand, next.GetProperty("command").GetString());
@@ -175,13 +189,13 @@ public sealed class ToolCompositionTests
     {
         var writer = new StringWriter();
         CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new UnusedSessionFactory(), credentialVault: TestPrivacy.ConsentedVault())
-            .CreateSlice("ado-read-sprints", SprintModule.Definition);
+            .CreateSlice("ado-read-sprint", SprintModule.Definition);
 
         await application.InvokeAsync(["show", "--compact"], CancellationToken.None);
 
         string message = FirstError(writer.ToString()).GetProperty("message").GetString()!;
-        Assert.Contains("Run 'ado-read-sprints projects'", message, StringComparison.Ordinal);
-        Assert.Contains("'ado-read-sprints config init --project <name> --force'", message, StringComparison.Ordinal);
+        Assert.Contains("Run 'ado-read-sprint project list'", message, StringComparison.Ordinal);
+        Assert.Contains("'ado-read-sprint config init --project <name> --force'", message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -191,10 +205,10 @@ public sealed class ToolCompositionTests
         CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new UnusedSessionFactory(), credentialVault: TestPrivacy.ConsentedVault())
             .CreateUmbrella("ado-read", AllModules);
 
-        await application.InvokeAsync(["sprints", "show", "--compact"], CancellationToken.None);
+        await application.InvokeAsync(["sprint", "show", "--compact"], CancellationToken.None);
 
         string message = FirstError(writer.ToString()).GetProperty("message").GetString()!;
-        Assert.Contains("Run 'ado-read projects'", message, StringComparison.Ordinal);
+        Assert.Contains("Run 'ado-read project list'", message, StringComparison.Ordinal);
         Assert.Contains("'ado-read config init --project <name> --force'", message, StringComparison.Ordinal);
     }
 
@@ -205,7 +219,7 @@ public sealed class ToolCompositionTests
         CommandApplication application = new ToolComposition(new ConfiguredStore(), new JsonOutput(writer), TimeProvider.System, new Pat(), new RejectingSessionFactory(), credentialVault: TestPrivacy.ConsentedVault())
             .CreateSlice("ado-read-pr", PullRequestModule.Definition);
 
-        int exitCode = await application.InvokeAsync(["42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Error, exitCode);
         JsonElement error = FirstError(writer.ToString());
@@ -222,8 +236,8 @@ public sealed class ToolCompositionTests
                 "pr" => PullRequestModule.Definition,
                 "work-item" => WorkItemModule.Definition,
                 "wiki" => WikiModule.Definition,
-                "sprints" => SprintModule.Definition,
-                "pipelines" => PipelineModule.Definition,
+                "sprint" => SprintModule.Definition,
+                "pipeline" => PipelineModule.Definition,
                 _ => throw new ArgumentOutOfRangeException(nameof(feature), feature, null)
             });
 

@@ -121,7 +121,7 @@ internal static class PrivacySamples
         new WikiSearchProjectDocument(Guid.Parse("00000000-0000-0000-0000-0000000000a1"), "Fabricated.Alpha"),
         new WikiSearchWikiDocument(Guid.Parse("00000000-0000-0000-0000-0000000000c1"), "Fabricated.wiki", null, "main"),
         [new WikiSearchMatchDocument("content", ["fabricated identity provider"])],
-        new CommandHintDocument("wiki page", []));
+        new CommandHintDocument("wiki page show", []));
 
     public static SprintDocument Sprint() => new(
         OrganizationUrl,

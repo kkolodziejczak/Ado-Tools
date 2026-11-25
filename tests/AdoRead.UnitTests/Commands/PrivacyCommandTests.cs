@@ -26,13 +26,13 @@ public sealed class PrivacyCommandTests
 
     public static TheoryData<string[]> ReadCommandsWithoutPolicy => new()
     {
-        new[] { "projects" },
-        new[] { "teams" },
-        new[] { "pr", "126" },
-        new[] { "work-item", "42" },
+        new[] { "project", "list" },
+        new[] { "team", "list" },
+        new[] { "pr", "show", "126" },
+        new[] { "work-item", "show", "42" },
         new[] { "wiki", "list" },
-        new[] { "wiki", "search", "authentication" },
-        new[] { "sprints", "show" },
+        new[] { "wiki", "page", "search", "authentication" },
+        new[] { "sprint", "show" },
     };
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class PrivacyCommandTests
         var writer = new StringWriter();
 
         int exitCode = await App(Seeded(PrivacyLevel.Full), new ScriptedTerminalInput(isInputRedirected: true, answer: null), writer, WorkItemSessions())
-            .InvokeAsync(["work-item", "42", "--privacy", "minimal", "--compact"], CancellationToken.None);
+            .InvokeAsync(["work-item", "show", "42", "--privacy", "minimal", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         JsonElement result = FirstResult(writer.ToString());
@@ -305,7 +305,7 @@ public sealed class PrivacyCommandTests
         var writer = new StringWriter();
 
         int exitCode = await App(Seeded(PrivacyLevel.Minimal), new ScriptedTerminalInput(isInputRedirected: true, answer: null), writer, WorkItemSessions())
-            .InvokeAsync(["work-item", "42", "--privacy", "full", "--compact"], CancellationToken.None);
+            .InvokeAsync(["work-item", "show", "42", "--privacy", "full", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Null(FirstResult(writer.ToString()).GetProperty("description").GetProperty("raw").GetString());
@@ -319,7 +319,7 @@ public sealed class PrivacyCommandTests
         var writer = new StringWriter();
 
         int exitCode = await App(Seeded(PrivacyLevel.Full), new ScriptedTerminalInput(isInputRedirected: true, answer: null), writer, WorkItemSessions())
-            .InvokeAsync(["work-item", "42", "--withhold", "comments", "--compact"], CancellationToken.None);
+            .InvokeAsync(["work-item", "show", "42", "--withhold", "comments", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         JsonElement result = FirstResult(writer.ToString());
@@ -336,7 +336,7 @@ public sealed class PrivacyCommandTests
         var writer = new StringWriter();
 
         int exitCode = await App(Seeded(PrivacyLevel.Full), new ScriptedTerminalInput(isInputRedirected: true, answer: null), writer, WorkItemSessions())
-            .InvokeAsync(["work-item", "42", option, value, "--compact"], CancellationToken.None);
+            .InvokeAsync(["work-item", "show", "42", option, value, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal(code, FirstError(writer.ToString()).GetProperty("code").GetString());
@@ -350,7 +350,7 @@ public sealed class PrivacyCommandTests
         var writer = new StringWriter();
 
         int exitCode = await App(Seeded(PrivacyLevel.Standard), new ScriptedTerminalInput(isInputRedirected: true, answer: null), writer, new FixtureSessionFactory(new FixtureSession(source)))
-            .InvokeAsync(["work-item", "42", "--download-images", outputDirectory, "--compact"], CancellationToken.None);
+            .InvokeAsync(["work-item", "show", "42", "--download-images", outputDirectory, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -368,7 +368,7 @@ public sealed class PrivacyCommandTests
         var writer = new StringWriter();
 
         int exitCode = await App(Seeded(PrivacyLevel.Minimal), new ScriptedTerminalInput(isInputRedirected: true, answer: null), writer, new FixtureSessionFactory(new FixtureSession(new FixtureWorkItemSource())))
-            .InvokeAsync(["teams", "--project", "Fabricated.Alpha", "--compact"], CancellationToken.None);
+            .InvokeAsync(["team", "list", "--project", "Fabricated.Alpha", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         JsonElement team = FirstResult(writer.ToString());

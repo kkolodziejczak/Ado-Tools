@@ -9,12 +9,12 @@ using AdoRead.WorkItems;
 
 namespace AdoRead.Commands;
 
-/// <summary>Work-item lookup with comments and optional image download: <c>work-item &lt;id-or-url&gt;</c>.</summary>
+/// <summary>Work-item lookup with comments and optional image download: <c>work-item show &lt;id-or-url&gt;</c>.</summary>
 public static class WorkItemModule
 {
     public static CommandModule Definition { get; } = new(
         "work-item",
-        "Read one Azure DevOps work item and all of its comments.",
+        "Read Azure DevOps work items and their comments.",
         Configure);
 
     public static IReadOnlyDictionary<Command, string> Configure(
@@ -35,11 +35,13 @@ public static class WorkItemModule
             Description = "Download supported work-item images to an empty directory. Needs the images privacy category."
         };
         var privacyOptions = new PrivacyRequestOptions();
-        target.Arguments.Add(referenceArgument);
-        target.Options.Add(configOption);
-        target.Options.Add(downloadImagesOption);
-        privacyOptions.AddTo(target);
-        target.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
+        var command = new Command("show", "Read one Azure DevOps work item and all of its comments.");
+        command.Arguments.Add(referenceArgument);
+        command.Options.Add(configOption);
+        command.Options.Add(downloadImagesOption);
+        privacyOptions.AddTo(command);
+        target.Subcommands.Add(command);
+        command.SetAction(async (parseResult, cancellationToken) => await ReadAsync(
             parseResult.GetValue(referenceArgument),
             parseResult.GetValue(configOption),
             parseResult.GetValue(downloadImagesOption),
@@ -52,7 +54,7 @@ public static class WorkItemModule
             services.JsonOutput,
             services.TimeProvider,
             cancellationToken));
-        return new Dictionary<Command, string> { [target] = "workItemSearch" };
+        return new Dictionary<Command, string> { [command] = "workItemSearch" };
     }
 
     private static async Task<int> ReadAsync(

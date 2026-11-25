@@ -6,7 +6,7 @@
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-write-work-item</ToolCommandName>
-    <PackageId>AdoWrite.WorkItems.Tool</PackageId>
+    <PackageId>ado-write-work-item</PackageId>
     <Description>Post Azure DevOps work-item discussion comments on your behalf, for AI agents.</Description>
     <PackageTags>$(PackageTags);work-items;comments;boards</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

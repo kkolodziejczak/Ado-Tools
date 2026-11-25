@@ -5,7 +5,7 @@ Reads Azure DevOps pull requests, work items, pipelines, Wiki pages and sprints 
 ## Install
 
 ```powershell
-dotnet tool install --global AdoRead.Tool
+dotnet tool install --global ado-read
 ```
 
 Needs .NET 10.
@@ -35,22 +35,22 @@ Withheld fields come back as `null` or empty. `privacy show` shows what is allow
 
 | Command | Returns | Also available on its own |
 | --- | --- | --- |
-| `pr <id-or-url>` | A pull request with its review threads | [`AdoRead.PullRequests.Tool`](https://www.nuget.org/packages/AdoRead.PullRequests.Tool) (`ado-read-pr`) |
-| `work-item <id-or-url> [--download-images <dir>]` | A work item, and optionally its images | [`AdoRead.WorkItems.Tool`](https://www.nuget.org/packages/AdoRead.WorkItems.Tool) (`ado-read-work-item`) |
-| `pipelines pr\|run\|tests` | Pipeline diagnosis for a pull request or a build | [`AdoRead.Pipelines.Tool`](https://www.nuget.org/packages/AdoRead.Pipelines.Tool) (`ado-read-pipelines`) |
-| `wiki list\|pages\|page\|search` | Wiki discovery, search and page reads | [`AdoRead.Wiki.Tool`](https://www.nuget.org/packages/AdoRead.Wiki.Tool) (`ado-read-wiki`) |
-| `sprints list\|show` | A team's sprints and their work items | [`AdoRead.Sprints.Tool`](https://www.nuget.org/packages/AdoRead.Sprints.Tool) (`ado-read-sprints`) |
-| `projects`, `teams` | The projects and teams you can access | every read tool |
+| `pr show <id-or-url>` | A pull request with its review threads | [`ado-read-pr`](https://www.nuget.org/packages/ado-read-pr) |
+| `work-item show <id-or-url> [--download-images <dir>]` | A work item, and optionally its images | [`ado-read-work-item`](https://www.nuget.org/packages/ado-read-work-item) |
+| `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` | Pipeline diagnosis for a pull request or a build | [`ado-read-pipeline`](https://www.nuget.org/packages/ado-read-pipeline) |
+| `wiki list`, `wiki page list\|show\|search` | Wiki discovery, search and page reads | [`ado-read-wiki`](https://www.nuget.org/packages/ado-read-wiki) |
+| `sprint list\|show` | A team's sprints and their work items | [`ado-read-sprint`](https://www.nuget.org/packages/ado-read-sprint) |
+| `project list`, `team list` | The projects and teams you can access | every read tool |
 | `config`, `auth`, `privacy` | Settings, the stored token, and the content policy | every read tool |
 
 ```powershell
-ado-read pr 412 --compact
-ado-read work-item 12345 --compact
-ado-read pipelines pr 412 --project Payments --compact
-ado-read sprints show --compact
+ado-read pr show 412 --compact
+ado-read work-item show 12345 --compact
+ado-read pipeline run list --pr 412 --project Payments --compact
+ado-read sprint show --compact
 ```
 
-The single-feature tools have the same commands without the feature name (`ado-read-pr 412`), so an agent or a team can install only what it needs. To post comments, requeue builds or vote, install [`AdoWrite.Tool`](https://www.nuget.org/packages/AdoWrite.Tool) (`ado-write`). It is a separate package, so installing a read tool never lets an agent post anything.
+The single-feature tools have the same commands without the feature name (`ado-read-pr show 412`), so an agent or a team can install only what it needs. To post comments, requeue builds or vote, install [`ado-write`](https://www.nuget.org/packages/ado-write). It is a separate package, so installing a read tool never lets an agent post anything.
 
 ## Learn more
 

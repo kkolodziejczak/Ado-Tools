@@ -6,7 +6,7 @@
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-read-wiki</ToolCommandName>
-    <PackageId>AdoRead.Wiki.Tool</PackageId>
+    <PackageId>ado-read-wiki</PackageId>
     <Description>Read-only Azure DevOps Wiki pages and search as agent-friendly JSON.</Description>
     <PackageTags>$(PackageTags);read-only;wiki;documentation;search</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

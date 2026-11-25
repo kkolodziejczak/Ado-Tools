@@ -20,8 +20,8 @@ public static class DiscoveryCommands
         var context = new ReadCommandContext(services, names.Root);
         Command projects = CreateProjectsCommand(context, services);
         Command teams = CreateTeamsCommand(context, services);
-        target.Subcommands.Add(projects);
-        target.Subcommands.Add(teams);
+        target.Subcommands.Add(new Command("project", "Projects in the organization.") { Subcommands = { projects } });
+        target.Subcommands.Add(new Command("team", "Teams in a project.") { Subcommands = { teams } });
         return new Dictionary<Command, string>
         {
             [projects] = "projectSearch",
@@ -33,7 +33,7 @@ public static class DiscoveryCommands
     {
         Option<string?> configOption = ReadCommandContext.CreateConfigOption();
         var privacyOptions = new PrivacyRequestOptions();
-        var command = new Command("projects", "List every accessible project in the organization.");
+        var command = new Command("list", "List every accessible project in the organization.");
         command.Options.Add(configOption);
         privacyOptions.AddTo(command);
         command.SetAction(async (parseResult, cancellationToken) => await context.RunAsync(
@@ -67,7 +67,7 @@ public static class DiscoveryCommands
         {
             Description = "Include teams you are not a member of."
         };
-        var command = new Command("teams", "List teams in a project.");
+        var command = new Command("list", "List teams in a project.");
         command.Options.Add(configOption);
         command.Options.Add(projectOption);
         command.Options.Add(allOption);

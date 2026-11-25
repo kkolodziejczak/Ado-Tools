@@ -13,7 +13,7 @@ public sealed class WikiPageCommandTests
     public async Task InvokeAsync_GitPathWithoutVersionIsAValidatedWikiReferenceError()
     {
         var writer = new StringWriter();
-        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", "Wiki", "--git-path", "/Page.md", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", "Wiki", "--git-path", "/Page.md", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -26,7 +26,7 @@ public sealed class WikiPageCommandTests
     public async Task InvokeAsync_RejectsUnsafeReferenceBeforeSession(string url, string code, int configLoads)
     {
         var store = new Store(); var pat = new Pat(); var factory = new Factory(new Source()); var writer = new StringWriter();
-        int exit = await App(store, pat, factory, writer).InvokeAsync(["wiki", "page", url, "--compact"], CancellationToken.None);
+        int exit = await App(store, pat, factory, writer).InvokeAsync(["wiki", "page", "show", url, "--compact"], CancellationToken.None);
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit); Assert.Equal(configLoads, store.Loads); Assert.Equal(0, pat.Reads); Assert.Equal(0, factory.Calls); using JsonDocument json = JsonDocument.Parse(writer.ToString()); Assert.Equal(code, json.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
     }
     [Theory]
@@ -34,13 +34,13 @@ public sealed class WikiPageCommandTests
     [InlineData("error", "error", 5)]
     public async Task InvokeAsync_MapsSourceTerminalStates(string page, string status, int expectedExit)
     {
-        var writer = new StringWriter(); int exit = await App(new Store(), new Pat(), new Factory(new Source(page)), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", "Wiki", "--page-id", "1", "--compact"], CancellationToken.None);
+        var writer = new StringWriter(); int exit = await App(new Store(), new Pat(), new Factory(new Source(page)), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", "Wiki", "--page-id", "1", "--compact"], CancellationToken.None);
         Assert.Equal(expectedExit, exit); using JsonDocument json = JsonDocument.Parse(writer.ToString()); Assert.Equal(status, json.RootElement.GetProperty("status").GetString()); Assert.Equal("2.0", json.RootElement.GetProperty("schemaVersion").GetString());
     }
     [Fact]
     public async Task InvokeAsync_UsesWikiV2EnvelopeForMalformedArguments()
     {
-        var writer = new StringWriter(); int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "--page-id", "0", "--compact"], CancellationToken.None);
+        var writer = new StringWriter(); int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "show", "--page-id", "0", "--compact"], CancellationToken.None);
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit); using JsonDocument json = JsonDocument.Parse(writer.ToString()); Assert.Equal("wikiPageLookup", json.RootElement.GetProperty("kind").GetString()); Assert.Equal("2.0", json.RootElement.GetProperty("schemaVersion").GetString()); Assert.Equal("invalidWikiReference", json.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
     }
 
@@ -49,7 +49,7 @@ public sealed class WikiPageCommandTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new MissingStore(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "--wiki", "Wiki", "--page-id", "0", "--compact"], CancellationToken.None);
+        int exit = await App(new MissingStore(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "show", "--wiki", "Wiki", "--page-id", "0", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -58,13 +58,13 @@ public sealed class WikiPageCommandTests
     [Fact]
     public async Task InvokeAsync_MapsWholeCommandTimeoutToWikiV2Error()
     {
-        var writer = new StringWriter(); int exit = await App(new Store(1), new Pat(), new Factory(new Source("delay")), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", "Wiki", "--page-id", "1", "--compact"], CancellationToken.None);
+        var writer = new StringWriter(); int exit = await App(new Store(1), new Pat(), new Factory(new Source("delay")), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", "Wiki", "--page-id", "1", "--compact"], CancellationToken.None);
         Assert.Equal(ExitCodes.Error, exit); using JsonDocument json = JsonDocument.Parse(writer.ToString()); Assert.Equal("wikiPageLookup", json.RootElement.GetProperty("kind").GetString()); Assert.Equal("timeout", json.RootElement.GetProperty("errors")[0].GetProperty("code").GetString()); Assert.True(json.RootElement.GetProperty("errors")[0].GetProperty("transient").GetBoolean());
     }
     [Fact]
     public async Task InvokeAsync_MapsCallerCancellationToEstablishedExitCode()
     {
-        var writer = new StringWriter(); using var cancellation = new CancellationTokenSource(); cancellation.Cancel(); int exit = await App(new Store(), new Pat(), new Factory(new Source("delay")), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", "Wiki", "--page-id", "1", "--compact"], cancellation.Token);
+        var writer = new StringWriter(); using var cancellation = new CancellationTokenSource(); cancellation.Cancel(); int exit = await App(new Store(), new Pat(), new Factory(new Source("delay")), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", "Wiki", "--page-id", "1", "--compact"], cancellation.Token);
         Assert.Equal(ExitCodes.Cancelled, exit); using JsonDocument json = JsonDocument.Parse(writer.ToString()); Assert.Equal("wikiPageLookup", json.RootElement.GetProperty("kind").GetString()); Assert.Equal("cancelled", json.RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
     }
 
@@ -73,7 +73,7 @@ public sealed class WikiPageCommandTests
     {
         var source = new Source(); var writer = new StringWriter();
 
-        int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "--wiki", "Wiki", "--path", "/P", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "show", "--wiki", "Wiki", "--path", "/P", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exit);
         Assert.Equal("Configured Project", source.LastReference!.Project);
@@ -84,7 +84,7 @@ public sealed class WikiPageCommandTests
     {
         var source = new Source(); var writer = new StringWriter();
 
-        int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "--project", "   ", "--wiki", "Wiki", "--path", "/P", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "show", "--project", "   ", "--wiki", "Wiki", "--path", "/P", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -94,12 +94,12 @@ public sealed class WikiPageCommandTests
 
     [Theory]
     [InlineData("Configured Project", "wiki list")]
-    [InlineData(null, "projects")]
+    [InlineData(null, "project list")]
     public async Task InvokeAsync_NoReferenceProvidesStructuredWizardHint(string? defaultProject, string nextCommand)
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(defaultProject: defaultProject), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(defaultProject: defaultProject), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "show", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -113,7 +113,7 @@ public sealed class WikiPageCommandTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "--project", "Explicit Project", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(defaultProject: "Configured Project"), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "show", "--project", "Explicit Project", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -132,7 +132,7 @@ public sealed class WikiPageCommandTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "--project", project, "--wiki", wiki, "--path", "/P", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(new Source()), writer).InvokeAsync(["wiki", "page", "show", "--project", project, "--wiki", wiki, "--path", "/P", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -146,7 +146,7 @@ public sealed class WikiPageCommandTests
     {
         var source = new Source(); var writer = new StringWriter();
 
-        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", " Wiki ", "--path", "/P", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", " Wiki ", "--path", "/P", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exit);
         Assert.Equal("Wiki", source.LastReference!.Wiki);
@@ -157,7 +157,7 @@ public sealed class WikiPageCommandTests
     {
         var source = new Source(); var writer = new StringWriter();
 
-        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", "Wiki", "--path", "/P", "--version", "v1.0", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", "Wiki", "--path", "/P", "--version", "v1.0", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exit);
         Assert.Equal("tag", source.LastReference!.Version!.Type);
@@ -171,7 +171,7 @@ public sealed class WikiPageCommandTests
         IReadOnlyList<SourceWikiVersion> versions = duplicate ? [new("release", "branch"), new("release", "tag")] : [new("main", "branch")];
         var source = new Source(versions: versions); var writer = new StringWriter();
 
-        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "--project", "Project", "--wiki", "Wiki", "--path", "/P", "--version", "release", "--compact"], CancellationToken.None);
+        int exit = await App(new Store(), new Pat(), new Factory(source), writer).InvokeAsync(["wiki", "page", "show", "--project", "Project", "--wiki", "Wiki", "--path", "/P", "--version", "release", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());

@@ -21,7 +21,7 @@ public static class PipelineModule
         "The project in the URL differs from --project. Pass one project, or none, and let the URL decide.";
 
     public static CommandModule Definition { get; } = new(
-        "pipelines",
+        "pipeline",
         "Explain why pull-request pipelines failed: failed steps, failed tests, messages and log tails.",
         Configure);
 
@@ -33,9 +33,11 @@ public static class PipelineModule
         Command pullRequest = CreatePullRequestCommand(names, services);
         Command run = CreateRunCommand(names, services);
         Command tests = CreateTestsCommand(names, services);
-        target.Subcommands.Add(pullRequest);
-        target.Subcommands.Add(run);
-        target.Subcommands.Add(tests);
+        target.Subcommands.Add(new Command("run", "Pipeline runs: the latest validation runs of a pull request, or one run.")
+        {
+            Subcommands = { pullRequest, run }
+        });
+        target.Subcommands.Add(new Command("test", "Test results of a pipeline run.") { Subcommands = { tests } });
         return new Dictionary<Command, string>
         {
             [pullRequest] = PipelineKinds.PullRequest,
@@ -46,9 +48,10 @@ public static class PipelineModule
 
     private static Command CreatePullRequestCommand(ToolCommandNames names, CommandServices services)
     {
-        var reference = new Argument<string>("pull-request-url-or-id")
+        var reference = new Option<string>("--pr")
         {
-            Description = "Positive pull-request ID or Azure DevOps pull-request URL."
+            Description = "Positive pull-request ID or Azure DevOps pull-request URL.",
+            Required = true
         };
         Option<string?> project = ReadCommandContext.CreateProjectOption();
         var repository = new Option<string?>("--repository")
@@ -59,9 +62,9 @@ public static class PipelineModule
         Option<string?> config = ReadCommandContext.CreateConfigOption();
         var privacyOptions = new PrivacyRequestOptions();
         var command = new Command(
-            "pr",
+            "list",
             "Show the latest validation run of each pipeline for a pull request, with why it failed.");
-        command.Arguments.Add(reference);
+        command.Options.Add(reference);
         command.Options.Add(project);
         command.Options.Add(repository);
         command.Options.Add(logLines);
@@ -83,7 +86,7 @@ public static class PipelineModule
 
     private static Command CreateRunCommand(ToolCommandNames names, CommandServices services)
     {
-        var reference = new Argument<string>("build-url-or-id")
+        var reference = new Argument<string>("id-or-url")
         {
             Description = "Positive build ID or Azure DevOps build results URL (.../_build/results?buildId=N)."
         };
@@ -91,7 +94,7 @@ public static class PipelineModule
         Option<int?> logLines = CreateLogLinesOption();
         Option<string?> config = ReadCommandContext.CreateConfigOption();
         var privacyOptions = new PrivacyRequestOptions();
-        var command = new Command("run", "Diagnose one pipeline run: failed steps, failed tests, messages and log tails.");
+        var command = new Command("show", "Diagnose one pipeline run: failed steps, failed tests, messages and log tails.");
         command.Arguments.Add(reference);
         command.Options.Add(project);
         command.Options.Add(logLines);
@@ -112,9 +115,10 @@ public static class PipelineModule
 
     private static Command CreateTestsCommand(ToolCommandNames names, CommandServices services)
     {
-        var reference = new Argument<string>("build-url-or-id")
+        var reference = new Option<string>("--run")
         {
-            Description = "Positive build ID or Azure DevOps build results URL (.../_build/results?buildId=N)."
+            Description = "Positive build ID or Azure DevOps build results URL (.../_build/results?buildId=N).",
+            Required = true
         };
         Option<string?> project = ReadCommandContext.CreateProjectOption();
         var outcome = new Option<string?>("--outcome")
@@ -127,8 +131,8 @@ public static class PipelineModule
         };
         Option<string?> config = ReadCommandContext.CreateConfigOption();
         var privacyOptions = new PrivacyRequestOptions();
-        var command = new Command("tests", "List the test results of a build, with their messages and stack traces.");
-        command.Arguments.Add(reference);
+        var command = new Command("list", "List the test results of a build, with their messages and stack traces.");
+        command.Options.Add(reference);
         command.Options.Add(project);
         command.Options.Add(outcome);
         command.Options.Add(top);

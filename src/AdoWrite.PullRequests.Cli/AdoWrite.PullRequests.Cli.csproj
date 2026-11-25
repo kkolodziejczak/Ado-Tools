@@ -6,7 +6,7 @@
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-write-pr</ToolCommandName>
-    <PackageId>AdoWrite.PullRequests.Tool</PackageId>
+    <PackageId>ado-write-pr</PackageId>
     <Description>Post Azure DevOps pull-request comments, line comments and replies, requeue builds and vote on your behalf, for AI agents.</Description>
     <PackageTags>$(PackageTags);pull-requests;comments;code-review;requeue-build;vote</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -5,8 +5,8 @@
     <RootNamespace>AdoRead</RootNamespace>
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
-    <ToolCommandName>ado-read-pipelines</ToolCommandName>
-    <PackageId>AdoRead.Pipelines.Tool</PackageId>
+    <ToolCommandName>ado-read-pipeline</ToolCommandName>
+    <PackageId>ado-read-pipeline</PackageId>
     <Description>Read-only Azure DevOps pull-request pipeline diagnosis as agent-friendly JSON.</Description>
     <PackageTags>$(PackageTags);read-only;pipelines;builds;test-results;ci</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

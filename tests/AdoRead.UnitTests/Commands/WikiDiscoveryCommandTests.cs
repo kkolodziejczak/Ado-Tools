@@ -24,14 +24,14 @@ public sealed class WikiDiscoveryCommandTests
         Assert.Equal("wikiCatalog", json.RootElement.GetProperty("kind").GetString());
         JsonElement wiki = json.RootElement.GetProperty("results")[0];
         Assert.Equal("Space Wiki", wiki.GetProperty("name").GetString());
-        Assert.Equal("wiki pages", wiki.GetProperty("versions")[0].GetProperty("next").GetProperty("command").GetString());
+        Assert.Equal("wiki page list", wiki.GetProperty("versions")[0].GetProperty("next").GetProperty("command").GetString());
         Assert.Equal("--project", wiki.GetProperty("versions")[0].GetProperty("next").GetProperty("arguments")[0].GetString());
         Assert.Equal("Explicit Project", Assert.Single(factory.Source.Projects));
     }
 
     [Theory]
     [InlineData("wiki list", "wikiCatalog")]
-    [InlineData("wiki pages", "wikiPageCatalog")]
+    [InlineData("wiki page list", "wikiPageCatalog")]
     public async Task DiscoveryCommands_UseV2EnvelopeForMalformedArguments(string command, string kind)
     {
         var writer = new StringWriter();
@@ -46,7 +46,7 @@ public sealed class WikiDiscoveryCommandTests
 
     [Theory]
     [InlineData("wiki list", "wikiCatalog")]
-    [InlineData("wiki pages", "wikiPageCatalog")]
+    [InlineData("wiki page list", "wikiPageCatalog")]
     public async Task DiscoveryCommands_UseV2AuthenticationErrorForMissingPat(string command, string kind)
     {
         var writer = new StringWriter();
@@ -68,7 +68,7 @@ public sealed class WikiDiscoveryCommandTests
         var writer = new StringWriter();
 
         int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(
-            ["wiki", "pages", "--wiki", "Space Wiki", "--top", "50", "--continuation-token", "opaque+token/==", "--compact"],
+            ["wiki", "page", "list", "--wiki", "Space Wiki", "--top", "50", "--continuation-token", "opaque+token/==", "--compact"],
             CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exit);
@@ -85,7 +85,7 @@ public sealed class WikiDiscoveryCommandTests
     public async Task WikiPages_PreservesSelectedVersionInPageHintAndAllowsTheMaximumTop()
     {
         var writer = new StringWriter();
-        int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(["wiki", "pages", "--wiki", "Space Wiki", "--version", "wikiMaster", "--version-type", "branch", "--top", "100", "--compact"], CancellationToken.None);
+        int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(["wiki", "page", "list", "--wiki", "Space Wiki", "--version", "wikiMaster", "--version-type", "branch", "--top", "100", "--compact"], CancellationToken.None);
         Assert.Equal(ExitCodes.Success, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
         JsonElement arguments = json.RootElement.GetProperty("results")[0].GetProperty("next").GetProperty("arguments");
@@ -97,7 +97,7 @@ public sealed class WikiDiscoveryCommandTests
     public async Task WikiPages_RejectsTopAboveTheLocalMaximum()
     {
         var writer = new StringWriter();
-        int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(["wiki", "pages", "--wiki", "Space Wiki", "--top", "101", "--compact"], CancellationToken.None);
+        int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(["wiki", "page", "list", "--wiki", "Space Wiki", "--top", "101", "--compact"], CancellationToken.None);
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
         JsonElement error = json.RootElement.GetProperty("errors")[0];
@@ -110,7 +110,7 @@ public sealed class WikiDiscoveryCommandTests
     {
         var writer = new StringWriter();
 
-        int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(["wiki", "pages", "--wiki", "Space Wiki", "--version", "missing", "--compact"], CancellationToken.None);
+        int exit = await App(new Store("Configured Project"), new Factory(), writer).InvokeAsync(["wiki", "page", "list", "--wiki", "Space Wiki", "--version", "missing", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -122,8 +122,8 @@ public sealed class WikiDiscoveryCommandTests
     }
 
     [Theory]
-    [InlineData("wiki list", "projectRequired", "projects", "configuration")]
-    [InlineData("wiki pages", "wikiRequired", "wiki list", "command")]
+    [InlineData("wiki list", "projectRequired", "project list", "configuration")]
+    [InlineData("wiki page list", "wikiRequired", "wiki list", "command")]
     public async Task DiscoveryCommands_ProvideStructuredRecoveryHintsWhenContextIsMissing(
         string command,
         string errorCode,
@@ -144,7 +144,7 @@ public sealed class WikiDiscoveryCommandTests
 
     [Theory]
     [InlineData("wiki list")]
-    [InlineData("wiki pages")]
+    [InlineData("wiki page list")]
     public async Task DiscoveryCommands_RejectExplicitlyBlankProjectInsteadOfUsingConfiguredDefault(string command)
     {
         var writer = new StringWriter();
@@ -163,7 +163,7 @@ public sealed class WikiDiscoveryCommandTests
 
     [Theory]
     [InlineData("wiki list")]
-    [InlineData("wiki pages")]
+    [InlineData("wiki page list")]
     public async Task DiscoveryCommands_RejectUnsafeProjectAsInvalidInput(string command)
     {
         var writer = new StringWriter();
@@ -190,7 +190,7 @@ public sealed class WikiDiscoveryCommandTests
         var writer = new StringWriter();
         var factory = new Factory();
 
-        int exit = await App(new Store("Configured Project"), factory, writer).InvokeAsync(["wiki", "pages", "--wiki", wiki, "--compact"], CancellationToken.None);
+        int exit = await App(new Store("Configured Project"), factory, writer).InvokeAsync(["wiki", "page", "list", "--wiki", wiki, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exit);
         using JsonDocument json = JsonDocument.Parse(writer.ToString());
@@ -202,7 +202,7 @@ public sealed class WikiDiscoveryCommandTests
 
     [Theory]
     [InlineData("wiki list")]
-    [InlineData("wiki pages")]
+    [InlineData("wiki page list")]
     public async Task DiscoveryCommands_AttributePaddedUnsafeProjectToCommandInput(string command)
     {
         var writer = new StringWriter();
