@@ -129,8 +129,20 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         });
     }
 
-    public Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<GitPullRequestCommentThread>>(Threads);
+    /// <summary>How long a thread lookup takes, so two runs can look before either posts.</summary>
+    public TimeSpan LookupDelay { get; set; }
+
+    /// <summary>Adds each created thread to <see cref="Threads"/>, as Azure DevOps does.</summary>
+    public bool KeepsCreated { get; set; }
+
+    public async Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken)
+    {
+        await Task.Delay(LookupDelay, cancellationToken);
+        lock (Threads)
+        {
+            return [.. Threads];
+        }
+    }
 
     public Task<IReadOnlyList<GitPullRequestIteration>> GetIterationsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<GitPullRequestIteration>>(Iterations);
@@ -166,12 +178,20 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
 
     public Task<GitPullRequestCommentThread> CreateThreadAsync(PullRequestLocation location, GitPullRequestCommentThread thread, CancellationToken cancellationToken)
     {
-        CreatedThreads.Add(thread);
         var created = new GitPullRequestCommentThread
         {
             Id = 900,
             Comments = thread.Comments.Select(comment => Fabricated.CommentBy(1, comment.Content)).ToList()
         };
+        lock (Threads)
+        {
+            CreatedThreads.Add(thread);
+            if (KeepsCreated)
+            {
+                Threads.Add(created);
+            }
+        }
+
         return Task.FromResult(created);
     }
 
@@ -226,8 +246,20 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<WorkItemComment>> GetCommentsAsync(string project, int workItemId, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<WorkItemComment>>(Comments);
+    /// <summary>How long a comment lookup takes, so two runs can look before either posts.</summary>
+    public TimeSpan LookupDelay { get; set; }
+
+    /// <summary>Adds each posted comment to <see cref="Comments"/>, as Azure DevOps does.</summary>
+    public bool KeepsAdded { get; set; }
+
+    public async Task<IReadOnlyList<WorkItemComment>> GetCommentsAsync(string project, int workItemId, CancellationToken cancellationToken)
+    {
+        await Task.Delay(LookupDelay, cancellationToken);
+        lock (Comments)
+        {
+            return [.. Comments];
+        }
+    }
 
     public Task<WorkItemComment> AddCommentAsync(string project, int workItemId, string markdown, CancellationToken cancellationToken)
     {
@@ -236,8 +268,17 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
             throw AddCommentFailure;
         }
 
-        Added.Add((project, workItemId, markdown));
-        return Task.FromResult(new WorkItemComment(31, Store(markdown), false, Fabricated.Author.Id));
+        var created = new WorkItemComment(31, Store(markdown), false, Fabricated.Author.Id);
+        lock (Comments)
+        {
+            Added.Add((project, workItemId, markdown));
+            if (KeepsAdded)
+            {
+                Comments.Add(created);
+            }
+        }
+
+        return Task.FromResult(created);
     }
 }
 

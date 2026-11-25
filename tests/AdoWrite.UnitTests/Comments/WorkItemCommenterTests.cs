@@ -91,6 +91,22 @@ public sealed class WorkItemCommenterTests
         Assert.Equal(ExitCodes.NotFound, exception.ExitCode);
     }
 
+    [Fact]
+    public async Task CommentAsync_TwoIdenticalRunsAtOncePostOnce()
+    {
+        _client.KeepsAdded = true;
+        _client.LookupDelay = TimeSpan.FromMilliseconds(300);
+        CommentDraft draft = Draft("Q", key: $"race-{Guid.NewGuid():N}");
+
+        PostedCommentDocument[] posted = await Task.WhenAll(
+            Task.Run(() => Commenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None)),
+            Task.Run(() => Commenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None)));
+
+        Assert.Single(_client.Added);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Created);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Duplicate);
+    }
+
     private WorkItemCommenter Commenter() => new(_client, _people, Fabricated.Organization);
 
     private static CommentDraft Draft(string body, string[]? mentions = null, string? key = null, bool dryRun = false) =>

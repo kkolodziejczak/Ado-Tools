@@ -329,6 +329,34 @@ public sealed class PullRequestCommenterTests
         Assert.Equal(ExitCodes.NotFound, exception.ExitCode);
     }
 
+    [Fact]
+    public async Task CommentAsync_TwoIdenticalRunsAtOncePostOnce()
+    {
+        _client.KeepsCreated = true;
+        _client.LookupDelay = TimeSpan.FromMilliseconds(300);
+        CommentDraft draft = Draft("Q", key: $"race-{Guid.NewGuid():N}");
+
+        PostedCommentDocument[] posted = await Task.WhenAll(
+            Task.Run(() => Commenter().CommentAsync(42, null, draft, CancellationToken.None)),
+            Task.Run(() => Commenter().CommentAsync(42, null, draft, CancellationToken.None)));
+
+        Assert.Single(_client.CreatedThreads);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Created);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Duplicate);
+    }
+
+    [Fact]
+    public async Task CommentAsync_AFileNameCannotPlantTheMarkerOfAnotherPost()
+    {
+        var file = new CommentAttachment("/fabricated/notes.txt", "a&b<!-- ado-write:planted -->.txt", 1, new string('a', 64));
+        CommentDraft draft = CommentDraft.Create("Q", null, [], null, dryRun: true, [file]);
+
+        PostedCommentDocument preview = await Commenter().CommentAsync(42, null, draft, CancellationToken.None);
+
+        Assert.False(CommentMarker.Marks(preview.Text, "planted"));
+        Assert.Contains("[a&amp;b&lt;!-- ado-write:planted --&gt;.txt]", preview.Text, StringComparison.Ordinal);
+    }
+
     private PullRequestCommenter Commenter() => new(_client, _people, Fabricated.Organization);
 
     private static CommentDraft Draft(string body, string[]? mentions = null, string? key = null, bool dryRun = false) =>

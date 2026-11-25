@@ -12,9 +12,11 @@ internal sealed class WriteException(
     bool transient = false,
     Exception? innerException = null) : Exception(message, innerException)
 {
-    /// <summary>A timed-out write may still have reached Azure DevOps; every write command is safe to retry.</summary>
-    public const string TimeoutMessage =
-        "The Azure DevOps request timed out. The change may still have been made: run the same command again. A comment's key finds the earlier comment instead of posting twice, and an unchanged vote is not sent again. Before naming a build with --evaluation again, check it with pr requeue --dry-run.";
+    /// <summary>A write that failed this way may still have reached Azure DevOps; every write command is safe to run again.</summary>
+    public const string MayHaveBeenMade =
+        " The change may still have been made: run the same command again. A comment's key finds the earlier comment instead of posting twice, and an unchanged vote is not sent again. Before naming a build with --evaluation again, check it with pr requeue --dry-run.";
+
+    public const string TimeoutMessage = "The Azure DevOps request timed out." + MayHaveBeenMade;
 
     public string Scope { get; } = scope;
 
@@ -34,15 +36,17 @@ internal sealed class WriteException(
         new("azureDevOps", code, message, ExitCodes.NotFound);
 
     /// <summary>
-    /// An SDK failure, with the stable code and safe message the read tools use. The command adds the
-    /// scopes it needs to a refused token's message, see <c>WriteCommandContext</c>.
+    /// An SDK failure, with the stable code and safe message the read tools use. A transient failure
+    /// other than throttling may come after Azure DevOps made the change, so it says that running the
+    /// command again is safe. The command adds the scopes it needs to a refused token's message, see
+    /// <c>WriteCommandContext</c>.
     /// </summary>
     public static WriteException FromService(Exception exception)
     {
         (string code, string message, bool transient) = AdoReadExceptionTranslator.Describe(exception);
-        if (code == "timeout")
+        if (transient && code != "throttled")
         {
-            message = TimeoutMessage;
+            message += MayHaveBeenMade;
         }
 
         return new("azureDevOps", code, message, code == "notFound" ? ExitCodes.NotFound : ExitCodes.Error, transient, exception);

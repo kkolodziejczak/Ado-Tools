@@ -88,7 +88,7 @@ internal sealed class CommentComposer(IPeopleDirectory people)
 
         foreach (AttachmentLink link in links)
         {
-            string label = link.File.Name.Replace("[", "\\[", StringComparison.Ordinal).Replace("]", "\\]", StringComparison.Ordinal);
+            string label = LinkLabel(link.File.Name);
             // Parentheses would end the Markdown link early, and an absolute URI keeps them unescaped.
             string target = (link.Url?.AbsoluteUri ?? $"attachment:{Uri.EscapeDataString(link.File.Name)}")
                 .Replace("(", "%28", StringComparison.Ordinal)
@@ -106,6 +106,17 @@ internal sealed class CommentComposer(IPeopleDirectory people)
         text.Append(CommentMarker.Render(key));
         return text.ToString();
     }
+
+    /// <summary>
+    /// A file name as link text. Brackets would end the label early, and <c>&lt;</c> as an entity keeps
+    /// a name such as <c>&lt;!-- ado-write:KEY --&gt;</c> from planting the marker of another post.
+    /// </summary>
+    private static string LinkLabel(string name) =>
+        name.Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("[", "\\[", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal);
 
     private const string FooterStart = "\n\n---\n🤖 *Posted by ";
 

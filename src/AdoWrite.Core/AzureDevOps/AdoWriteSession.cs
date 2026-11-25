@@ -31,7 +31,7 @@ public sealed class AdoWriteSessionFactory : IAdoWriteSessionFactory
         ArgumentNullException.ThrowIfNull(organizationUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(pat);
 
-        var connection = new VssConnection(organizationUrl, new VssBasicCredential(string.Empty, pat));
+        VssConnection connection = Connect(organizationUrl, new VssBasicCredential(string.Empty, pat));
         try
         {
             return new AdoWriteSession(connection);
@@ -41,6 +41,18 @@ public sealed class AdoWriteSessionFactory : IAdoWriteSessionFactory
             connection.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// The SDK resends a request after a 502, 503 or 504 answer, a POST too, so a comment Azure DevOps
+    /// saved before it answered could be posted again past the marker check. This connection sends each
+    /// request once; a failed write tells the caller to run the command again, which the key makes safe.
+    /// </summary>
+    internal static VssConnection Connect(Uri organizationUrl, VssCredentials credentials)
+    {
+        VssClientHttpRequestSettings settings = VssClientHttpRequestSettings.Default.Clone();
+        settings.MaxRetryRequest = 0;
+        return new VssConnection(organizationUrl, credentials, settings);
     }
 }
 

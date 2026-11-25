@@ -31,6 +31,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
     {
         (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
         string key = draft.KeyFor(Target, pullRequestId, lines?.FilePath, lines?.Side, lines?.StartLine, lines?.EndLine);
+        using IDisposable postLock = await PostLock.AcquireAsync(organizationUrl, key, cancellationToken);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
         {
@@ -76,12 +77,13 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         CancellationToken cancellationToken)
     {
         (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
+        string key = draft.KeyFor("pullRequestReply", pullRequestId, threadId);
+        using IDisposable postLock = await PostLock.AcquireAsync(organizationUrl, key, cancellationToken);
         IReadOnlyList<GitPullRequestCommentThread> threads = await GetThreadsAsync(location, cancellationToken);
         GitPullRequestCommentThread thread = threads.FirstOrDefault(candidate => candidate.Id == threadId)
             ?? throw WriteException.NotFound(
                 "threadNotFound",
                 $"Pull request {pullRequestId} has no thread {threadId}. Read the pull request to find its thread IDs.");
-        string key = draft.KeyFor("pullRequestReply", pullRequestId, threadId);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(threads, key, author) is { } earlier)
         {

@@ -5,6 +5,7 @@ using AdoRead.Commands;
 using AdoRead.Credentials;
 using AdoRead.Output;
 using AdoWrite.Commands;
+using AdoWrite.Comments;
 using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 
@@ -202,6 +203,22 @@ public sealed class WriteToolTests
         Assert.Equal(("authentication", "unauthorized"), (error.GetProperty("scope").GetString(), error.GetProperty("code").GetString()));
         Assert.Equal(
             "Azure DevOps rejected the token: it may be mistyped, expired or revoked, or made for another organization. Store a new one with `ado-write auth login`.",
+            error.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task UnavailableServiceSaysThePostMayHaveBeenMadeAndARunAgainIsSafe()
+    {
+        _session.FakeWorkItems.AddCommentFailure = new VssServiceResponseException(HttpStatusCode.ServiceUnavailable, "Down.", null);
+
+        int exitCode = await Umbrella().InvokeAsync(["work-item", "comment", "7", "--body", "Q", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        JsonElement error = Envelope().GetProperty("errors")[0];
+        Assert.Equal("serviceUnavailable", error.GetProperty("code").GetString());
+        Assert.True(error.GetProperty("transient").GetBoolean());
+        Assert.Equal(
+            "Azure DevOps could not complete the request." + WriteException.MayHaveBeenMade,
             error.GetProperty("message").GetString());
     }
 

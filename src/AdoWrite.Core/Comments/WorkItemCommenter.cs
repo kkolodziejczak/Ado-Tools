@@ -18,6 +18,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
     {
         (string project, IReadOnlyList<WorkItemAttachment> attached) = await FindAsync(workItemId, cancellationToken);
         string key = draft.KeyFor(Target, workItemId);
+        using IDisposable postLock = await PostLock.AcquireAsync(organizationUrl, key, cancellationToken);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         IReadOnlyList<WorkItemComment> comments = await AzureDevOpsCall.RunAsync(
             () => client.GetCommentsAsync(project, workItemId, cancellationToken),
