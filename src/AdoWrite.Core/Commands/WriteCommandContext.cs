@@ -1,21 +1,23 @@
 using System.CommandLine;
 using System.Text.Json.Serialization;
+using AdoRead.AzureDevOps;
 using AdoRead.Commands;
 using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
 using AdoRead.Output;
 using AdoWrite.AzureDevOps;
 using AdoWrite.Comments;
+using AdoWrite.Reviews;
 
 namespace AdoWrite.Commands;
 
 /// <summary>
 /// Shared plumbing for the write commands: resolve the target and its input, load configuration,
-/// check the organization, read the write token, apply the whole-command timeout, open one session,
+/// check the organization, read the token, apply the whole-command timeout, open one session,
 /// and map every expected failure onto a single JSON envelope and exit code. Nothing reaches Azure
 /// DevOps until the target, the input and the configuration are valid.
 /// </summary>
-internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSessionFactory sessionFactory)
+internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSessionFactory sessionFactory, string loginCommand)
 {
     /// <summary>A comment command: the target is resolved first, then the draft is read and checked.</summary>
     public Task<int> RunAsync(
@@ -75,13 +77,13 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
                 target.Query,
                 services.TimeProvider.GetUtcNow(),
                 outcome.Results,
-                outcome.Failure is null ? [] : [outcome.Failure]);
+                outcome.Failure is null ? [] : [WithScopeHint(outcome.Failure, kind)]);
             await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
             return outcome.Failure is null ? ExitCodes.Success : ExitCodes.Partial;
         }
         catch (WriteException exception)
         {
-            return await WriteErrorAsync(kind, exception.ToError(), exception.ExitCode, compact, cancellationToken);
+            return await WriteErrorAsync(kind, WithScopeHint(exception.ToError(), kind), exception.ExitCode, compact, cancellationToken);
         }
         catch (ConfigurationException exception)
         {
@@ -111,6 +113,18 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
                 CancellationToken.None);
         }
     }
+
+    /// <summary>A refused token's error names the scopes this command needs and the login that replaces the token.</summary>
+    private SearchError WithScopeHint(SearchError error, string kind) =>
+        error with { Message = TokenScopeHint.AppendTo(error.Code, error.Message, ScopesFor(kind), loginCommand) };
+
+    private static string ScopesFor(string kind) => kind switch
+    {
+        CommentKinds.WorkItemComment => "Work Items (Read & write), plus Identity (Read) to mention people by mail address",
+        CommentKinds.PullRequestComment or CommentKinds.PullRequestReply => "Code (Read & write), plus Identity (Read) to mention people by mail address",
+        ReviewKinds.PullRequestRequeue or ReviewKinds.PullRequestVote => "Code (Read & write)",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown write command.")
+    };
 
     private async Task<int> WriteErrorAsync(
         string kind,

@@ -1,6 +1,7 @@
 using AdoRead.AzureDevOps;
 using AdoRead.WorkItems;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models;
+using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 using System.Net;
 
@@ -186,9 +187,24 @@ public sealed class WorkItemSourceTests
             source.GetAsync(42, CancellationToken.None));
 
         Assert.Equal("unauthorized", exception.Code);
-        Assert.Equal("The PAT was rejected by Azure DevOps.", exception.Message);
+        Assert.StartsWith("The PAT was rejected by Azure DevOps.", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Work Items (Read)", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("auth login", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("secret service response", exception.Message, StringComparison.Ordinal);
         Assert.False(exception.Transient);
+    }
+
+    [Fact]
+    public async Task GetAsync_TranslatesTheSdkUnauthorizedExceptionLikeARejectedPat()
+    {
+        var source = new WorkItemSource(new FailedWorkItemTrackingClient(new VssUnauthorizedException("VS30063: secret service response")));
+
+        WorkItemSourceException exception = await Assert.ThrowsAsync<WorkItemSourceException>(() =>
+            source.GetAsync(42, CancellationToken.None));
+
+        Assert.Equal("unauthorized", exception.Code);
+        Assert.Contains("Work Items (Read)", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret service response", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -216,7 +232,8 @@ public sealed class WorkItemSourceTests
                 CancellationToken.None));
 
         Assert.Equal("forbidden", exception.Code);
-        Assert.Equal("The PAT cannot read this Azure DevOps resource.", exception.Message);
+        Assert.StartsWith("The PAT cannot read this Azure DevOps resource.", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Work Items (Read)", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("private attachment response", exception.Message, StringComparison.Ordinal);
     }
 

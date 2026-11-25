@@ -25,10 +25,11 @@ public sealed class PullRequestCommenterTests
             "@<00000000-0000-0000-0000-00000000B002>\n\n"
             + "Should the retry be configurable?\n\n"
             + "---\n"
-            + "🤖 *Posted by AI agent Claude Opus 5.5 on behalf of Example Author*\n\n"
+            + "🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*\n\n"
             + $"<!-- ado-write:{key} -->",
             Assert.Single(thread.Comments).Content);
         Assert.Equal(CommentOutcomes.Created, posted.Outcome);
+        Assert.Equal("Example Author", posted.ActingAs);
         Assert.Equal("pullRequest", posted.Target);
         Assert.Equal(900, posted.ThreadId);
         Assert.Equal(1, posted.CommentId);
@@ -39,6 +40,46 @@ public sealed class PullRequestCommenterTests
         Assert.Equal(
             "https://dev.azure.com/fabricated/Fabricated%20App/_git/Fabricated.Repo/pullrequest/42?discussionId=900",
             posted.Url!.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task CommentAsync_WithoutAnAgentPostsTheBodyWithoutAFooter()
+    {
+        CommentDraft draft = CommentDraft.Create("Should the retry be configurable?", null, [], null, false);
+
+        await Commenter().CommentAsync(Fabricated.PullRequestId, null, draft, CancellationToken.None);
+
+        string key = draft.KeyFor("pullRequest", Fabricated.PullRequestId, null, null, null, null);
+        Assert.Equal(
+            "Should the retry be configurable?\n\n"
+            + $"<!-- ado-write:{key} -->",
+            Assert.Single(Assert.Single(_client.CreatedThreads).Comments).Content);
+    }
+
+    [Fact]
+    public async Task CommentAsync_NotesWhenAddingAnAgentToAnEarlierCommentWithoutAFooter()
+    {
+        _client.Threads.Add(new GitPullRequestCommentThread { Id = 71, Comments = [Fabricated.CommentBy(3, "Question?\n\n<!-- ado-write:q1 -->")] });
+
+        PostedCommentDocument retry = await Commenter().CommentAsync(Fabricated.PullRequestId, null, Draft("Question?", key: "q1"), CancellationToken.None);
+
+        Assert.Equal(CommentOutcomes.Duplicate, retry.Outcome);
+        Assert.Contains("--key", retry.Notice, StringComparison.Ordinal);
+        Assert.Empty(_client.CreatedThreads);
+    }
+
+    [Fact]
+    public async Task CommentAsync_EscapesEmphasisMarksInTheFooterNames()
+    {
+        _people.SignedIn = Fabricated.Author with { DisplayName = "Example *Author*" };
+        CommentDraft draft = CommentDraft.Create("Q", "gpt_6_sol", [], null, false);
+
+        await Commenter().CommentAsync(Fabricated.PullRequestId, null, draft, CancellationToken.None);
+
+        Assert.Contains(
+            @"🤖 *Posted by gpt\_6\_sol on behalf of Example \*Author\**",
+            Assert.Single(Assert.Single(_client.CreatedThreads).Comments).Content,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -188,7 +229,7 @@ public sealed class PullRequestCommenterTests
         Assert.Empty(_client.CreatedThreads);
         Assert.Equal(CommentOutcomes.Preview, preview.Outcome);
         Assert.Null(preview.ThreadId);
-        Assert.Contains("🤖 *Posted by AI agent Claude Opus 5.5 on behalf of Example Author*", preview.Text, StringComparison.Ordinal);
+        Assert.Contains("🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*", preview.Text, StringComparison.Ordinal);
         Assert.EndsWith($"<!-- ado-write:{preview.Key} -->", preview.Text, StringComparison.Ordinal);
         Assert.Equal(new CommentAnchorDocument("/src/App.cs", "right", 3, 3, 3), preview.Anchor);
     }
@@ -286,6 +327,34 @@ public sealed class PullRequestCommenterTests
 
         Assert.Equal("threadNotFound", exception.Code);
         Assert.Equal(ExitCodes.NotFound, exception.ExitCode);
+    }
+
+    [Fact]
+    public async Task CommentAsync_TwoIdenticalRunsAtOncePostOnce()
+    {
+        _client.KeepsCreated = true;
+        _client.LookupDelay = TimeSpan.FromMilliseconds(300);
+        CommentDraft draft = Draft("Q", key: $"race-{Guid.NewGuid():N}");
+
+        PostedCommentDocument[] posted = await Task.WhenAll(
+            Task.Run(() => Commenter().CommentAsync(42, null, draft, CancellationToken.None)),
+            Task.Run(() => Commenter().CommentAsync(42, null, draft, CancellationToken.None)));
+
+        Assert.Single(_client.CreatedThreads);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Created);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Duplicate);
+    }
+
+    [Fact]
+    public async Task CommentAsync_AFileNameCannotPlantTheMarkerOfAnotherPost()
+    {
+        var file = new CommentAttachment("/fabricated/notes.txt", "a&b<!-- ado-write:planted -->.txt", 1, new string('a', 64));
+        CommentDraft draft = CommentDraft.Create("Q", null, [], null, dryRun: true, [file]);
+
+        PostedCommentDocument preview = await Commenter().CommentAsync(42, null, draft, CancellationToken.None);
+
+        Assert.False(CommentMarker.Marks(preview.Text, "planted"));
+        Assert.Contains("[a&amp;b&lt;!-- ado-write:planted --&gt;.txt]", preview.Text, StringComparison.Ordinal);
     }
 
     private PullRequestCommenter Commenter() => new(_client, _people, Fabricated.Organization);

@@ -64,12 +64,12 @@ Then run `--version` and `--help` for all nine commands: `ado-read`, `ado-read-p
 
 ## 3. Tokens (person)
 
-The read tools and the write tools use two separate personal access tokens, so a read-only setup can never post. Ask the person to create them at `https://dev.azure.com/<organization>/_usersSettings/tokens`. Choose **Custom defined** scopes, the single organization being tested, and a short expiry (for example 7 days).
+The read tools and the write tools share one personal access token. Ask the person to create it at `https://dev.azure.com/<organization>/_usersSettings/tokens`. Choose **Custom defined** scopes, the single organization being tested, and a short expiry (for example 7 days).
 
-| Token | Scopes |
+| Used by | Scopes |
 | --- | --- |
-| Read | **Work Items: Read**, **Code: Read**, **Wiki: Read**, **Build: Read**, **Test Management: Read**, **Project and Team: Read** |
-| Write | **Work Items: Read & write**, **Code: Read & write**, **Identity: Read** (Identity is only needed to `--mention` people by mail address) |
+| Read tools | **Work Items: Read**, **Code: Read**, **Wiki: Read**, **Build: Read**, **Test Management: Read**, **Project and Team: Read** |
+| Write tools | **Work Items: Read & write**, **Code: Read & write**, **Identity: Read** (Identity is only needed to `--mention` people by mail address) |
 
 If a scope is missing, the matching commands fail with `forbidden` or `unauthorized`. Record that as a finding, together with which scope fixed it.
 
@@ -84,11 +84,10 @@ ado-read config show
 
 If a config file already exists, `config init` refuses. Ask the person before adding `--force`, or use a separate file with `--config <path>` on every command instead.
 
-Then ask the **person** to run both logins in an interactive terminal. Each one prompts for the token with masked input:
+Then ask the **person** to log in once in an interactive terminal. It prompts for the token with masked input, and every read and write tool uses that token, so it needs the read scopes and the write scopes from the README:
 
 ```shell
 ado-read auth login
-ado-write auth login
 ```
 
 `ado-read auth login` then asks for a privacy level for the organization. For this test, suggest `3` (full), so every field can be checked; scenario R12 then checks the stricter levels per call. Afterwards, run:
@@ -99,7 +98,7 @@ ado-write auth status
 ado-read privacy show
 ```
 
-Both must report a stored token without showing any part of it.
+Both must report a stored token and the same `actingAs` name, the person whose token it is, without showing any part of the token.
 
 ## 5. Scenarios
 
@@ -131,7 +130,7 @@ These post nothing. Use the real pull request and work item from section 1.
 
 | # | Scenario | Command | What to check |
 | --- | --- | --- | --- |
-| W1 | PR comment preview | `ado-write-pr comment <pr-id> --body "Field test, please ignore" --agent "<your agent and model>" --dry-run` | `outcome: "preview"`; `text` ends with the footer naming the agent and the token owner |
+| W1 | PR comment preview | `ado-write-pr comment <pr-id> --body "Field test, please ignore" --agent "<your agent and model>" --dry-run` | `outcome: "preview"`; `text` has the footer naming the agent and the token owner, followed by the hidden `ado-write` marker |
 | W2 | Line comment preview | `ado-write-pr comment <pr-id> --file <path of a changed file> --line <a changed line> --body "Field test" --agent "<agent>" --dry-run` | `anchor` holds the file and line. A file the PR doesn't change gives `fileNotInPullRequest` |
 | W3 | Reply preview | `ado-write-pr reply <pr-id> --thread <a thread id from R2> --body "Field test" --agent "<agent>" --dry-run` | `outcome: "preview"` |
 | W4 | Work-item comment preview | `ado-write-work-item comment <wi-id> --body "Field test" --agent "<agent>" --dry-run` | `outcome: "preview"` |

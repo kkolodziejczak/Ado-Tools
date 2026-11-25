@@ -46,6 +46,27 @@ public sealed class WorkItemCommenterTests
 
         Assert.Empty(_client.Added);
         Assert.Equal((CommentOutcomes.Duplicate, 20), (posted.Outcome, posted.CommentId));
+        Assert.Equal("Example Author", posted.ActingAs);
+    }
+
+    [Theory]
+    [InlineData("Q\n\n---\n🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*\n\n<!-- ado-write:q1 -->", "Claude Opus 5.5", false)]
+    [InlineData("Q\n\n<!-- ado-write:q1 -->", "Claude Opus 5.5", true)]
+    [InlineData("Q\n\n---\n🤖 *Posted by Other Model on behalf of Example Author*\n\n<!-- ado-write:q1 -->", "Claude Opus 5.5", true)]
+    [InlineData("Q\n\n---\n🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*\n\n<!-- ado-write:q1 -->", null, true)]
+    [InlineData("Q\n\n<!-- ado-write:q1 -->", null, false)]
+    public async Task CommentAsync_NotesWhenTheEarlierCommentsFooterDiffersFromTheRequestedOne(string earlierText, string? agent, bool differs)
+    {
+        _client.Comments.Add(new WorkItemComment(20, earlierText, false, Fabricated.Author.Id));
+
+        PostedCommentDocument posted = await Commenter().CommentAsync(
+            Fabricated.WorkItemId,
+            CommentDraft.Create("Q", agent, [], "q1", dryRun: false),
+            CancellationToken.None);
+
+        Assert.Equal(CommentOutcomes.Duplicate, posted.Outcome);
+        Assert.Equal(differs, posted.Notice is not null);
+        Assert.Empty(_client.Added);
     }
 
     [Fact]
@@ -68,6 +89,22 @@ public sealed class WorkItemCommenterTests
 
         Assert.Equal("workItemNotFound", exception.Code);
         Assert.Equal(ExitCodes.NotFound, exception.ExitCode);
+    }
+
+    [Fact]
+    public async Task CommentAsync_TwoIdenticalRunsAtOncePostOnce()
+    {
+        _client.KeepsAdded = true;
+        _client.LookupDelay = TimeSpan.FromMilliseconds(300);
+        CommentDraft draft = Draft("Q", key: $"race-{Guid.NewGuid():N}");
+
+        PostedCommentDocument[] posted = await Task.WhenAll(
+            Task.Run(() => Commenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None)),
+            Task.Run(() => Commenter().CommentAsync(Fabricated.WorkItemId, draft, CancellationToken.None)));
+
+        Assert.Single(_client.Added);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Created);
+        Assert.Single(posted, result => result.Outcome == CommentOutcomes.Duplicate);
     }
 
     private WorkItemCommenter Commenter() => new(_client, _people, Fabricated.Organization);

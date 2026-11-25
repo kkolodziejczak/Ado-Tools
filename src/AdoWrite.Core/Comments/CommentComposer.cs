@@ -6,7 +6,7 @@ namespace AdoWrite.Comments;
 
 /// <summary>
 /// Turns a draft into the Markdown that is posted: mentions, the body, the attached files, a visible
-/// footer naming the agent and the person it posts for, and a hidden marker that lets a retry find the
+/// footer naming the agent and the person it posts for when the draft names an agent, and a hidden marker that lets a retry find the
 /// comment instead of posting it twice. Mentions are resolved before anything is uploaded, so a bad
 /// mention leaves no orphaned files.
 /// </summary>
@@ -88,7 +88,7 @@ internal sealed class CommentComposer(IPeopleDirectory people)
 
         foreach (AttachmentLink link in links)
         {
-            string label = link.File.Name.Replace("[", "\\[", StringComparison.Ordinal).Replace("]", "\\]", StringComparison.Ordinal);
+            string label = LinkLabel(link.File.Name);
             // Parentheses would end the Markdown link early, and an absolute URI keeps them unescaped.
             string target = (link.Url?.AbsoluteUri ?? $"attachment:{Uri.EscapeDataString(link.File.Name)}")
                 .Replace("(", "%28", StringComparison.Ordinal)
@@ -97,11 +97,51 @@ internal sealed class CommentComposer(IPeopleDirectory people)
             text.Append(link.File.IsImage ? $"![{label}]({target})" : $"📎 [{label}]({target})");
         }
 
-        text.Append("\n\n---\n");
-        text.Append($"🤖 *Posted by AI agent {draft.Agent} on behalf of {onBehalfOf}*");
+        if (draft.Agent is not null)
+        {
+            text.Append(Footer(draft.Agent, onBehalfOf));
+        }
+
         text.Append("\n\n");
         text.Append(CommentMarker.Render(key));
         return text.ToString();
+    }
+
+    /// <summary>
+    /// A file name as link text. Brackets would end the label early, and <c>&lt;</c> as an entity keeps
+    /// a name such as <c>&lt;!-- ado-write:KEY --&gt;</c> from planting the marker of another post.
+    /// </summary>
+    private static string LinkLabel(string name) =>
+        name.Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("[", "\\[", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal);
+
+    private const string FooterStart = "\n\n---\n🤖 *Posted by ";
+
+    /// <summary>The names sit inside <c>*…*</c>, so their own emphasis marks are escaped and shown as typed.</summary>
+    private static string Footer(string agent, string onBehalfOf) =>
+        $"{FooterStart}{EscapeEmphasis(agent)} on behalf of {EscapeEmphasis(onBehalfOf)}*";
+
+    private static string EscapeEmphasis(string name) =>
+        name.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("*", "\\*", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The notice for a duplicate whose earlier comment has another footer than <paramref name="draft"/>
+    /// would add (none where one was asked for, another agent, or one where none was asked for), else null.
+    /// The key leaves the footer out on purpose, so a retry never posts twice.
+    /// </summary>
+    public static string? DuplicateNotice(CommentDraft draft, Person author, string? earlierText)
+    {
+        bool differs = draft.Agent is null
+            ? earlierText?.Contains(FooterStart, StringComparison.Ordinal) == true
+            : earlierText?.Contains(Footer(draft.Agent, author.DisplayName), StringComparison.Ordinal) != true;
+        return differs
+            ? "An earlier comment of yours carries the same key, so nothing was posted. Its footer differs from the one this command asked for with --agent. To post it again with that footer, pass a new --key."
+            : null;
     }
 }
 

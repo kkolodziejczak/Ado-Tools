@@ -45,7 +45,8 @@ public sealed class CommandApplicationTests
             compact,
             new Dictionary<Command, string> { [workItem] = "workItemSearch" },
             new JsonOutput(writer),
-            TimeProvider.System);
+            TimeProvider.System,
+            "ado-read auth login");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         int exitCode = await application.InvokeAsync(["work-item", "--compact=true"], cancellation.Token);
@@ -81,7 +82,8 @@ public sealed class CommandApplicationTests
             compact,
             new Dictionary<Command, string> { [workItem] = "workItemSearch" },
             new JsonOutput(writer),
-            TimeProvider.System);
+            TimeProvider.System,
+            "ado-read auth login");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         string mediaArgument = form switch
@@ -119,7 +121,8 @@ public sealed class CommandApplicationTests
             compact,
             new Dictionary<Command, string> { [pullRequest] = "pullRequestSearch" },
             new JsonOutput(writer),
-            TimeProvider.System);
+            TimeProvider.System,
+            "ado-read auth login");
 
         int exitCode = await application.InvokeAsync(["pr", "--compact=true"], CancellationToken.None);
 
@@ -147,7 +150,8 @@ public sealed class CommandApplicationTests
             compact,
             new Dictionary<Command, string> { [workItem] = "workItemSearch" },
             new JsonOutput(writer),
-            TimeProvider.System);
+            TimeProvider.System,
+            "ado-read auth login");
 
         int exitCode = await application.InvokeAsync(
             ["work-item", "--download-images", "C:\\images", "--compact=true"],
@@ -186,7 +190,8 @@ public sealed class CommandApplicationTests
             compact,
             new Dictionary<Command, string> { [workItem] = "workItemSearch" },
             new JsonOutput(writer),
-            TimeProvider.System);
+            TimeProvider.System,
+            "ado-read auth login");
         string[] arguments = form switch
         {
             "separate" => ["work-item", "42", "--download-images", "C:\\images", "--compact=true"],

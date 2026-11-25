@@ -113,7 +113,8 @@ public sealed class AuthPrivacyLoginTests
             patProvider: null,
             sessionFactory: null,
             credentialVault: vault,
-            terminalInput: terminal)
+            terminalInput: terminal,
+            tokenOwners: new FakeTokenOwners())
             .CreateUmbrella("ado-read", []);
 
     private static JsonElement FirstResult(string output)

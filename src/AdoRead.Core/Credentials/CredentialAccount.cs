@@ -1,9 +1,12 @@
 namespace AdoRead.Credentials;
 
-/// <summary>Maps an organization to the vault accounts that hold its tokens and its privacy policy.</summary>
+/// <summary>Maps an organization to the vault accounts that hold its token and its privacy policy.</summary>
 public static class CredentialAccount
 {
-    /// <summary>The normalized organization URL, for example <c>https://dev.azure.com/fabricated</c>.</summary>
+    /// <summary>
+    /// The account of the organization's token, which every read and write tool uses: the normalized
+    /// organization URL, for example <c>https://dev.azure.com/fabricated</c>.
+    /// </summary>
     public static string For(Uri organizationUrl) =>
         organizationUrl.AbsoluteUri.TrimEnd('/').ToLowerInvariant();
 
@@ -13,7 +16,9 @@ public static class CredentialAccount
     /// </summary>
     public static string ForPrivacy(Uri organizationUrl) => $"{For(organizationUrl)}#privacy";
 
-    /// <summary>The account that holds the token of <paramref name="scope"/>. The read token keeps the plain account.</summary>
-    public static string ForToken(Uri organizationUrl, TokenScope scope) =>
-        scope == TokenScope.Write ? $"{For(organizationUrl)}#write" : For(organizationUrl);
+    /// <summary>
+    /// Where prereleases before the shared token kept the write tools' token. Nothing reads it any more;
+    /// login and logout remove it so that no write token outlives a logout.
+    /// </summary>
+    public static string ForLegacyWriteToken(Uri organizationUrl) => $"{For(organizationUrl)}#write";
 }

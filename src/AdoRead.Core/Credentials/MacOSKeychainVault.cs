@@ -46,8 +46,14 @@ internal sealed class MacOSKeychainVault : ICredentialVault
             int status = SecItemUpdate(query, update);
             if (status == errSecItemNotFound)
             {
-                CFDictionaryAddValue(query, kSecValueData, data);
-                status = SecItemAdd(query, IntPtr.Zero);
+                IntPtr item = CreateItemQuery(objects, account);
+                CFDictionaryAddValue(item, kSecValueData, data);
+                status = SecItemAdd(item, IntPtr.Zero);
+                if (status == errSecDuplicateItem)
+                {
+                    // Another login added the item between the two calls, so this one replaces it.
+                    status = SecItemUpdate(query, update);
+                }
             }
 
             ThrowIfFailed("write", status);

@@ -1,6 +1,6 @@
 # ado-write
 
-Lets an AI agent act in Azure DevOps on your behalf: it can comment on pull requests and work items, reply in pull-request threads, requeue pull-request builds, and set your vote. Every comment ends with a visible footer naming the agent, and retrying the same command never posts twice. It is the all-in-one write tool of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools). It never edits or deletes comments, resolves threads, completes pull requests, or changes work-item fields.
+Lets an AI agent act in Azure DevOps on your behalf: it can comment on pull requests and work items, reply in pull-request threads, requeue pull-request builds, and set your vote. With `--agent`, a comment ends with a visible footer naming the agent; without it, no footer is added. Retrying the same command never posts twice. It is the all-in-one write tool of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools). It never edits or deletes comments, resolves threads, completes pull requests, or changes work-item fields.
 
 ## Install
 
@@ -17,7 +17,7 @@ ado-write config init --organization https://dev.azure.com/example
 ado-write auth login
 ```
 
-The write tools keep their own token in your operating system's credential vault, separate from the read token. Give it only what you use: **Code (Read & write)** for pull requests, **Work Items (Read & write)** for work items, and **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so a tool you install later needs no login of its own. For writing, that token also needs only what you use: **Code (Read & write)** for pull requests, **Work Items (Read & write)** for work items, and **Identity (Read)** to mention people by mail address.
 
 ## Commands
 
@@ -27,7 +27,7 @@ The write tools keep their own token in your operating system's credential vault
 | `pr requeue` | Requeues build policies | [`AdoWrite.PullRequests.Tool`](https://www.nuget.org/packages/AdoWrite.PullRequests.Tool) (`ado-write-pr`) |
 | `pr vote` | Sets your vote (needs `--confirm`) | [`AdoWrite.PullRequests.Tool`](https://www.nuget.org/packages/AdoWrite.PullRequests.Tool) (`ado-write-pr`) |
 | `work-item comment` | Comments on a work item | [`AdoWrite.WorkItems.Tool`](https://www.nuget.org/packages/AdoWrite.WorkItems.Tool) (`ado-write-work-item`) |
-| `config`, `auth` | Settings and the stored write token | every write tool |
+| `config`, `auth` | Settings and the stored token | every write tool |
 
 Every command accepts `--dry-run`, which shows what would happen without changing anything.
 

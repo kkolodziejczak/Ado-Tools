@@ -1,6 +1,6 @@
 # ado-write-pr
 
-Lets an AI agent work on an Azure DevOps pull request on your behalf. It can post comments (general ones or ones attached to lines), reply in threads, requeue build policies, and set your vote. Every comment ends with a visible footer naming the agent, and retrying the same command never posts twice. It never edits or deletes comments, resolves threads, or completes pull requests.
+Lets an AI agent work on an Azure DevOps pull request on your behalf. It can post comments (general ones or ones attached to lines), reply in threads, requeue build policies, and set your vote. With `--agent`, a comment ends with a visible footer naming the agent; without it, no footer is added. Retrying the same command never posts twice. It never edits or deletes comments, resolves threads, or completes pull requests.
 
 Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on work items, use `AdoWrite.Tool` (`ado-write`). To read pull requests, use [`AdoRead.PullRequests.Tool`](https://www.nuget.org/packages/AdoRead.PullRequests.Tool) (`ado-read-pr`).
 
@@ -19,17 +19,17 @@ ado-write-pr config init --organization https://dev.azure.com/example
 ado-write-pr auth login
 ```
 
-The write tools keep their own token in your operating system's credential vault, separate from the read token. It needs **Code (Read & write)**, plus **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so a tool you install later needs no login of its own. For writing, that token also needs **Code (Read & write)**, plus **Identity (Read)** to mention people by mail address.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
-| `comment <id-or-url> --body <markdown> --agent <name> [--file <path> --line <n>]` | Opens a thread, attached to lines when `--file` is given |
-| `reply <id-or-url> --thread <id> --body <markdown> --agent <name>` | Replies in an existing thread |
+| `comment <id-or-url> --body <markdown> [--agent <name>] [--file <path> --line <n>]` | Opens a thread, attached to lines when `--file` is given |
+| `reply <id-or-url> --thread <id> --body <markdown> [--agent <name>]` | Replies in an existing thread |
 | `requeue <id-or-url> [--evaluation <id>]...` | Requeues expired build policies, or the ones you name |
 | `vote <id-or-url> --vote <vote> --confirm` | Sets your vote: `approve`, `approve-with-suggestions`, `none`, `wait-for-author` or `reject` |
-| `config`, `auth` | Settings and the stored write token |
+| `config`, `auth` | Settings and the stored token |
 
 Every command accepts `--dry-run`, which shows what would happen without changing anything. Comments also take `--mention`, `--attach` and `--key`.
 

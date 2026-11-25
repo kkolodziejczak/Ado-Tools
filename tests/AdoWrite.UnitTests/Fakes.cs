@@ -1,4 +1,5 @@
 using System.Net;
+using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Terminal;
@@ -47,7 +48,9 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
 
     public List<string> Searches { get; } = [];
 
-    public Task<Person> GetSignedInUserAsync(CancellationToken cancellationToken) => Task.FromResult(Fabricated.Author);
+    public Person SignedIn { get; set; } = Fabricated.Author;
+
+    public Task<Person> GetSignedInUserAsync(CancellationToken cancellationToken) => Task.FromResult(SignedIn);
 
     public Task<IReadOnlyList<Person>> FindAsync(string value, CancellationToken cancellationToken)
     {
@@ -126,8 +129,20 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         });
     }
 
-    public Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<GitPullRequestCommentThread>>(Threads);
+    /// <summary>How long a thread lookup takes, so two runs can look before either posts.</summary>
+    public TimeSpan LookupDelay { get; set; }
+
+    /// <summary>Adds each created thread to <see cref="Threads"/>, as Azure DevOps does.</summary>
+    public bool KeepsCreated { get; set; }
+
+    public async Task<IReadOnlyList<GitPullRequestCommentThread>> GetThreadsAsync(PullRequestLocation location, CancellationToken cancellationToken)
+    {
+        await Task.Delay(LookupDelay, cancellationToken);
+        lock (Threads)
+        {
+            return [.. Threads];
+        }
+    }
 
     public Task<IReadOnlyList<GitPullRequestIteration>> GetIterationsAsync(PullRequestLocation location, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<GitPullRequestIteration>>(Iterations);
@@ -163,12 +178,20 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
 
     public Task<GitPullRequestCommentThread> CreateThreadAsync(PullRequestLocation location, GitPullRequestCommentThread thread, CancellationToken cancellationToken)
     {
-        CreatedThreads.Add(thread);
         var created = new GitPullRequestCommentThread
         {
             Id = 900,
             Comments = thread.Comments.Select(comment => Fabricated.CommentBy(1, comment.Content)).ToList()
         };
+        lock (Threads)
+        {
+            CreatedThreads.Add(thread);
+            if (KeepsCreated)
+            {
+                Threads.Add(created);
+            }
+        }
+
         return Task.FromResult(created);
     }
 
@@ -223,8 +246,20 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<WorkItemComment>> GetCommentsAsync(string project, int workItemId, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<WorkItemComment>>(Comments);
+    /// <summary>How long a comment lookup takes, so two runs can look before either posts.</summary>
+    public TimeSpan LookupDelay { get; set; }
+
+    /// <summary>Adds each posted comment to <see cref="Comments"/>, as Azure DevOps does.</summary>
+    public bool KeepsAdded { get; set; }
+
+    public async Task<IReadOnlyList<WorkItemComment>> GetCommentsAsync(string project, int workItemId, CancellationToken cancellationToken)
+    {
+        await Task.Delay(LookupDelay, cancellationToken);
+        lock (Comments)
+        {
+            return [.. Comments];
+        }
+    }
 
     public Task<WorkItemComment> AddCommentAsync(string project, int workItemId, string markdown, CancellationToken cancellationToken)
     {
@@ -233,8 +268,17 @@ internal sealed class FakeWorkItemCommentClient : IWorkItemCommentClient
             throw AddCommentFailure;
         }
 
-        Added.Add((project, workItemId, markdown));
-        return Task.FromResult(new WorkItemComment(31, Store(markdown), false, Fabricated.Author.Id));
+        var created = new WorkItemComment(31, Store(markdown), false, Fabricated.Author.Id);
+        lock (Comments)
+        {
+            Added.Add((project, workItemId, markdown));
+            if (KeepsAdded)
+            {
+                Comments.Add(created);
+            }
+        }
+
+        return Task.FromResult(created);
     }
 }
 
@@ -335,11 +379,23 @@ internal sealed class FakeWriteSessionFactory(FakeWriteSession session) : IAdoWr
 {
     public string? Pat { get; private set; }
 
+    /// <summary>Thrown by <see cref="Create"/>, as the SDK does when it connects with a token Azure DevOps refuses.</summary>
+    public Exception? CreateFailure { get; set; }
+
     public IAdoWriteSession Create(Uri organizationUrl, string pat)
     {
         Pat = pat;
-        return session;
+        return CreateFailure is null ? session : throw CreateFailure;
     }
+}
+
+/// <summary>Says every token belongs to <see cref="DisplayName"/>, without Azure DevOps.</summary>
+internal sealed class FakeTokenOwners : ITokenOwnerLookup
+{
+    public const string DisplayName = "Fabricated Owner";
+
+    public Task<string> FindDisplayNameAsync(Uri organizationUrl, string pat, CancellationToken cancellationToken) =>
+        Task.FromResult(DisplayName);
 }
 
 internal sealed class FixedConfigurationStore : IConfigurationStore
@@ -369,8 +425,11 @@ internal sealed class MemoryCredentialVault : ICredentialVault
     public bool Remove(string account) => _secrets.Remove(account);
 }
 
-internal sealed class ScriptedTerminalInput(string answer) : ITerminalInput
+/// <summary>Answers the masked token prompt with <paramref name="answer"/> and each plain prompt with the next of <paramref name="lines"/>.</summary>
+internal sealed class ScriptedTerminalInput(string answer, params string[] lines) : ITerminalInput
 {
+    private readonly Queue<string> _lines = new(lines);
+
     public List<string> Prompts { get; } = [];
 
     public bool IsInputRedirected => false;
@@ -381,5 +440,6 @@ internal sealed class ScriptedTerminalInput(string answer) : ITerminalInput
         return answer;
     }
 
-    public string ReadLine(string prompt) => throw new InvalidOperationException($"Unexpected prompt: {prompt}");
+    public string ReadLine(string prompt) =>
+        _lines.TryDequeue(out string? line) ? line : throw new InvalidOperationException($"Unexpected prompt: {prompt}");
 }

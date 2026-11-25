@@ -31,10 +31,14 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
     {
         (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
         string key = draft.KeyFor(Target, pullRequestId, lines?.FilePath, lines?.Side, lines?.StartLine, lines?.EndLine);
+        using IDisposable postLock = await PostLock.AcquireAsync(organizationUrl, key, cancellationToken);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.Comment.Id, AnchorOf(earlier.Thread), key, author) with
+            {
+                Notice = CommentComposer.DuplicateNotice(draft, author, earlier.Comment.Content)
+            };
         }
 
         LineAnchor? anchor = lines is null ? null : await AnchorAsync(location, lines, cancellationToken);
@@ -46,7 +50,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, key, comment);
+            return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, key, author, comment);
         }
 
         GitPullRequestCommentThread created = await AzureDevOpsCall.RunAsync(
@@ -60,6 +64,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             first?.Id,
             anchor?.Document,
             key,
+            author,
             comment,
             markerKept: CommentMarker.Marks(first?.Content, key));
     }
@@ -72,16 +77,20 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         CancellationToken cancellationToken)
     {
         (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
+        string key = draft.KeyFor("pullRequestReply", pullRequestId, threadId);
+        using IDisposable postLock = await PostLock.AcquireAsync(organizationUrl, key, cancellationToken);
         IReadOnlyList<GitPullRequestCommentThread> threads = await GetThreadsAsync(location, cancellationToken);
         GitPullRequestCommentThread thread = threads.FirstOrDefault(candidate => candidate.Id == threadId)
             ?? throw WriteException.NotFound(
                 "threadNotFound",
                 $"Pull request {pullRequestId} has no thread {threadId}. Read the pull request to find its thread IDs.");
-        string key = draft.KeyFor("pullRequestReply", pullRequestId, threadId);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(threads, key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.Comment.Id, AnchorOf(earlier.Thread), key, author) with
+            {
+                Notice = CommentComposer.DuplicateNotice(draft, author, earlier.Comment.Content)
+            };
         }
 
         ComposedComment comment = await _composer.ComposeAsync(
@@ -92,7 +101,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, location, threadId, null, null, key, comment);
+            return Result(CommentOutcomes.Preview, location, threadId, null, null, key, author, comment);
         }
 
         var reply = new Comment
@@ -111,6 +120,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             created.Id,
             null,
             key,
+            author,
             comment,
             markerKept: CommentMarker.Marks(created.Content, key));
     }
@@ -230,7 +240,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
     }
 
     /// <summary>Only the signed-in user's own comments count, so a person quoting the marker cannot stand in for a post.</summary>
-    private static (GitPullRequestCommentThread Thread, int CommentId)? FindMarked(
+    private static (GitPullRequestCommentThread Thread, Comment Comment)? FindMarked(
         IEnumerable<GitPullRequestCommentThread> threads,
         string key,
         Person author)
@@ -244,7 +254,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
                 && CommentMarker.Marks(comment.Content, key));
             if (marked is not null)
             {
-                return (thread, marked.Id);
+                return (thread, marked);
             }
         }
 
@@ -310,6 +320,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         int? commentId,
         CommentAnchorDocument? anchor,
         string key,
+        Person author,
         ComposedComment? comment = null,
         bool? markerKept = null) =>
         new(
@@ -323,6 +334,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             comment?.Mentions ?? [],
             comment?.Attachments ?? [],
             key,
+            author.DisplayName,
             markerKept,
             outcome == CommentOutcomes.Preview ? comment?.Text : null);
 

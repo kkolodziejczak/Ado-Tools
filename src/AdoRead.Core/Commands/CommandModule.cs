@@ -33,8 +33,7 @@ public sealed record CommandServices(
     PrivacyGate Privacy,
     PrivacyPolicyStore PrivacyPolicies)
 {
-    /// <summary>Selects the vault token: read tools and write tools keep separate tokens.</summary>
-    public TokenScope TokenScope { get; init; } = TokenScope.Read;
+    public ToolKind ToolKind { get; init; } = ToolKind.Read;
 
-    public string TokenAccount(Uri organizationUrl) => CredentialAccount.ForToken(organizationUrl, TokenScope);
+    public required ITokenOwnerLookup TokenOwners { get; init; }
 }

@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Text.Json.Serialization;
+using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Output;
@@ -9,9 +10,11 @@ namespace AdoRead.Commands.Shared;
 
 /// <summary>
 /// Stores, checks and removes the personal access token of one organization in the OS credential
-/// vault. No command accepts a token value: login reads it from a masked terminal prompt. Login also
-/// asks a person for the privacy level when the organization has none yet. Write tools store their
-/// own token and ask for no privacy level, because they return no Azure DevOps content.
+/// vault. No command accepts a token value: login reads it from a masked terminal prompt. Read and write
+/// tools share the token. Login and status ask Azure DevOps whose token it is, so login stores only a
+/// token Azure DevOps accepts, and status finds one that has expired. Login in a read tool also asks a
+/// person for the privacy level when the organization has none yet; a write tool asks for none, because
+/// it returns no Azure DevOps content.
 /// </summary>
 public static class AuthCommands
 {
@@ -26,7 +29,7 @@ public static class AuthCommands
     {
         var authCommand = new Command("auth", "Store, check or remove the token of an organization in the OS credential vault.");
         Command login = CreateLoginCommand(names, services);
-        Command status = CreateStatusCommand(services);
+        Command status = CreateStatusCommand(names, services);
         Command logout = CreateLogoutCommand(services);
         authCommand.Subcommands.Add(login);
         authCommand.Subcommands.Add(status);
@@ -59,11 +62,11 @@ public static class AuthCommands
         return command;
     }
 
-    private static Command CreateStatusCommand(CommandServices services)
+    private static Command CreateStatusCommand(ToolCommandNames names, CommandServices services)
     {
         Option<string?> organizationOption = CreateOrganizationOption();
         Option<string?> configOption = ReadCommandContext.CreateConfigOption();
-        var command = new Command("status", "Report whether a token is stored for an organization, and in which vault.");
+        var command = new Command("status", "Report whether a token is stored for an organization, in which vault, and whose it is.");
         command.Options.Add(organizationOption);
         command.Options.Add(configOption);
         command.SetAction(async (parseResult, cancellationToken) => await RunAsync(
@@ -72,7 +75,7 @@ public static class AuthCommands
             parseResult.GetValue(configOption),
             parseResult.GetValue(services.CompactOption),
             services,
-            organizationUrl => Task.FromResult(ReadTokenState(organizationUrl, services)),
+            organizationUrl => ReadTokenStateAsync(organizationUrl, names, services, cancellationToken),
             cancellationToken));
         return command;
     }
@@ -125,7 +128,7 @@ public static class AuthCommands
             configPath,
             compact,
             services,
-            organizationUrl => Task.FromResult(Login(organizationUrl, names, services)),
+            organizationUrl => LoginAsync(organizationUrl, names, services, cancellationToken),
             cancellationToken);
     }
 
@@ -173,32 +176,77 @@ public static class AuthCommands
                 services,
                 cancellationToken);
         }
+        catch (TokenOwnerException exception)
+        {
+            return await WriteErrorAsync(
+                kind,
+                new SearchError("azureDevOps", null, exception.Code, exception.Message, exception.Transient),
+                ExitCodes.Error,
+                compact,
+                services,
+                cancellationToken);
+        }
     }
 
-    private static LoginView Login(Uri organizationUrl, ToolCommandNames names, CommandServices services)
+    private static async Task<LoginView> LoginAsync(
+        Uri organizationUrl,
+        ToolCommandNames names,
+        CommandServices services,
+        CancellationToken cancellationToken)
     {
-        string account = services.TokenAccount(organizationUrl);
+        string account = CredentialAccount.For(organizationUrl);
         string token = services.TerminalInput.ReadMaskedLine($"Personal access token for {account}: ").Trim();
         if (token.Length == 0)
         {
             throw new ConfigurationException("tokenRequired", "No token was entered, so nothing was stored.");
         }
 
-        services.CredentialVault.Write(account, token);
-        if (services.TokenScope == TokenScope.Write)
+        string actingAs;
+        try
         {
-            return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null);
+            actingAs = await services.TokenOwners.FindDisplayNameAsync(organizationUrl, token, cancellationToken);
+        }
+        catch (TokenOwnerException exception)
+        {
+            throw new TokenOwnerException(exception.Code, $"{Explain(exception)} Nothing was stored.", exception.Transient, exception);
         }
 
-        bool privacyConfigured = EnsurePrivacyLevel(organizationUrl, services);
+        string? stored = services.CredentialVault.Read(account);
+        bool? replacedStoredToken = !string.IsNullOrEmpty(stored) && stored != token ? true : null;
+        services.CredentialVault.Write(account, token);
+        bool? legacyWriteTokenRemoved = RemoveLegacyWriteToken(organizationUrl, services);
+        if (services.ToolKind == ToolKind.Write)
+        {
+            return new LoginView(services.CredentialVault.Kind, TokenStored: true, actingAs, PrivacyConfigured: null, Notice: null, replacedStoredToken, legacyWriteTokenRemoved);
+        }
+
+        bool privacyConfigured;
+        try
+        {
+            privacyConfigured = EnsurePrivacyLevel(organizationUrl, services);
+        }
+        catch (CredentialException exception)
+        {
+            throw new CredentialException(
+                exception.Code,
+                $"The token was stored and every Ado-Tools tool now uses it, but the privacy level could not be checked or saved. {exception.Message}");
+        }
+
         return new LoginView(
             services.CredentialVault.Kind,
             TokenStored: true,
+            actingAs,
             PrivacyConfigured: privacyConfigured,
             Notice: privacyConfigured
                 ? null
-                : $"No privacy level was set, so content stays withheld until '{names.Invocation("privacy set <minimal|standard|full>")}' is run in an interactive terminal.");
+                : $"No privacy level was set, so content stays withheld until '{names.Invocation("privacy set <minimal|standard|full>")}' is run in an interactive terminal.",
+            replacedStoredToken,
+            legacyWriteTokenRemoved);
     }
+
+    /// <summary>True when a token from the separate write account of earlier prereleases was removed, otherwise null.</summary>
+    private static bool? RemoveLegacyWriteToken(Uri organizationUrl, CommandServices services) =>
+        services.CredentialVault.Remove(CredentialAccount.ForLegacyWriteToken(organizationUrl)) ? true : null;
 
     /// <summary>Asks for a level when the organization has none. An empty or invalid answer stores nothing.</summary>
     private static bool EnsurePrivacyLevel(Uri organizationUrl, CommandServices services)
@@ -239,14 +287,43 @@ public static class AuthCommands
         _ => null
     };
 
-    private static TokenStateView ReadTokenState(Uri organizationUrl, CommandServices services)
+    /// <summary>A failure keeps its code; its message says that a token is stored and, when it was rejected, how to replace it.</summary>
+    private static async Task<TokenStateView> ReadTokenStateAsync(
+        Uri organizationUrl,
+        ToolCommandNames names,
+        CommandServices services,
+        CancellationToken cancellationToken)
     {
-        string? token = services.CredentialVault.Read(services.TokenAccount(organizationUrl));
-        return new TokenStateView(services.CredentialVault.Kind, TokenStored: !string.IsNullOrEmpty(token));
+        string? token = services.CredentialVault.Read(CredentialAccount.For(organizationUrl));
+        if (string.IsNullOrEmpty(token))
+        {
+            return new TokenStateView(services.CredentialVault.Kind, TokenStored: false, ActingAs: null);
+        }
+
+        try
+        {
+            string actingAs = await services.TokenOwners.FindDisplayNameAsync(organizationUrl, token, cancellationToken);
+            return new TokenStateView(services.CredentialVault.Kind, TokenStored: true, actingAs);
+        }
+        catch (TokenOwnerException exception)
+        {
+            string message = exception.Code == "unauthorized"
+                ? $"A token is stored, but {TokenScopeHint.RejectedOnConnecting(names.Invocation("auth login"))}"
+                : $"A token is stored, but it could not be checked: {exception.Message}";
+            throw new TokenOwnerException(exception.Code, message, exception.Transient, exception);
+        }
     }
 
+    private static string Explain(TokenOwnerException exception) =>
+        exception.Code == "unauthorized"
+            ? TokenScopeHint.Rejected
+            : exception.Message;
+
     private static TokenRemovalView RemoveToken(Uri organizationUrl, CommandServices services) =>
-        new(services.CredentialVault.Kind, TokenRemoved: services.CredentialVault.Remove(services.TokenAccount(organizationUrl)));
+        new(
+            services.CredentialVault.Kind,
+            TokenRemoved: services.CredentialVault.Remove(CredentialAccount.For(organizationUrl)),
+            RemoveLegacyWriteToken(organizationUrl, services));
 
     private static async Task<int> WriteErrorAsync(
         string kind,
@@ -268,13 +345,22 @@ public static class AuthCommands
 
     private sealed record OrganizationQuery(Uri OrganizationUrl);
 
-    private sealed record TokenStateView(string Vault, bool TokenStored);
+    private sealed record TokenStateView(
+        string Vault,
+        bool TokenStored,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActingAs);
 
     private sealed record LoginView(
         string Vault,
         bool TokenStored,
+        string ActingAs,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? PrivacyConfigured,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notice);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notice,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ReplacedStoredToken,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? LegacyWriteTokenRemoved);
 
-    private sealed record TokenRemovalView(string Vault, bool TokenRemoved);
+    private sealed record TokenRemovalView(
+        string Vault,
+        bool TokenRemoved,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? LegacyWriteTokenRemoved);
 }

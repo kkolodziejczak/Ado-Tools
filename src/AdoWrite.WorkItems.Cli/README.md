@@ -1,6 +1,6 @@
 # ado-write-work-item
 
-Lets an AI agent comment on an Azure DevOps work item on your behalf, for example to ask a question during refinement. It can mention people and attach files. Every comment ends with a visible footer naming the agent, and retrying the same command never posts twice. Attached files are also added to the work item's Attachments; apart from that, it never changes the work item.
+Lets an AI agent comment on an Azure DevOps work item on your behalf, for example to ask a question during refinement. It can mention people and attach files. With `--agent`, a comment ends with a visible footer naming the agent; without it, no footer is added. Retrying the same command never posts twice. Attached files are also added to the work item's Attachments; apart from that, it never changes the work item.
 
 Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on pull requests, use `AdoWrite.Tool` (`ado-write`). To read the answers, use [`AdoRead.WorkItems.Tool`](https://www.nuget.org/packages/AdoRead.WorkItems.Tool) (`ado-read-work-item`).
 
@@ -19,14 +19,14 @@ ado-write-work-item config init --organization https://dev.azure.com/example
 ado-write-work-item auth login
 ```
 
-The write tools keep their own token in your operating system's credential vault, separate from the read token. It needs **Work Items (Read & write)**, plus **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so a tool you install later needs no login of its own. For writing, that token also needs **Work Items (Read & write)**, plus **Identity (Read)** to mention people by mail address.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
-| `comment <id-or-url> (--body <markdown> \| --body-file <path>) --agent <name> [--mention <mail>]... [--attach <path>]... [--key <key>] [--dry-run]` | Posts a comment |
-| `config`, `auth` | Settings and the stored write token |
+| `comment <id-or-url> (--body <markdown> \| --body-file <path>) [--agent <name>] [--mention <mail>]... [--attach <path>]... [--key <key>] [--dry-run]` | Posts a comment |
+| `config`, `auth` | Settings and the stored token |
 
 ```powershell
 ado-write-work-item comment 12345 --body "Which markets does the new limit apply to?" --agent "Claude Opus 5.5" --mention analyst@example.com --compact

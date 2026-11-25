@@ -13,7 +13,7 @@ public static class WorkItemCommentModule
     public static CommandModule Create(IAdoWriteSessionFactory sessionFactory) => new(
         "work-item",
         "Comment in a work item's discussion.",
-        (target, _, services) => Configure(target, new WriteCommandContext(services, sessionFactory)));
+        (target, names, services) => Configure(target, new WriteCommandContext(services, sessionFactory, names.Root.Invocation("auth login"))));
 
     private static IReadOnlyDictionary<Command, string> Configure(Command target, WriteCommandContext context)
     {

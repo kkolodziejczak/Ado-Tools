@@ -18,6 +18,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
     {
         (string project, IReadOnlyList<WorkItemAttachment> attached) = await FindAsync(workItemId, cancellationToken);
         string key = draft.KeyFor(Target, workItemId);
+        using IDisposable postLock = await PostLock.AcquireAsync(organizationUrl, key, cancellationToken);
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         IReadOnlyList<WorkItemComment> comments = await AzureDevOpsCall.RunAsync(
             () => client.GetCommentsAsync(project, workItemId, cancellationToken),
@@ -26,7 +27,10 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             !comment.IsDeleted && comment.AuthorId == author.Id && CommentMarker.Marks(comment.Text, key));
         if (earlier is not null)
         {
-            return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, key);
+            return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, key, author) with
+            {
+                Notice = CommentComposer.DuplicateNotice(draft, author, earlier.Text)
+            };
         }
 
         ComposedComment comment = await _composer.ComposeAsync(
@@ -37,7 +41,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, workItemId, project, null, key, comment);
+            return Result(CommentOutcomes.Preview, workItemId, project, null, key, author, comment);
         }
 
         WorkItemComment created = await AzureDevOpsCall.RunAsync(
@@ -49,6 +53,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             project,
             created.Id,
             key,
+            author,
             comment,
             markerKept: CommentMarker.Marks(created.Text, key));
     }
@@ -114,6 +119,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
         string project,
         int? commentId,
         string key,
+        Person author,
         ComposedComment? comment = null,
         bool? markerKept = null) =>
         new(
@@ -127,6 +133,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             comment?.Mentions ?? [],
             comment?.Attachments ?? [],
             key,
+            author.DisplayName,
             markerKept,
             outcome == CommentOutcomes.Preview ? comment?.Text : null);
 }

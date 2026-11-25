@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AdoRead.AzureDevOps;
 using AdoRead.Commands;
 using AdoRead.Configuration;
 using AdoRead.Output;
@@ -12,6 +13,9 @@ public sealed class AuthCommandTests
 {
     private const string Token = "fabricated-token-value-1234";
     private const string Organization = "https://dev.azure.com/fabricated";
+    private const string LegacyWriteAccount = Organization + "#write";
+
+    private readonly FakeTokenOwners _owners = new();
 
     public static TheoryData<string[]> TokenArguments => new()
     {
@@ -45,6 +49,74 @@ public sealed class AuthCommandTests
         JsonElement result = FirstResult(output);
         Assert.Equal("memory", result.GetProperty("vault").GetString());
         Assert.True(result.GetProperty("tokenStored").GetBoolean());
+        Assert.False(result.TryGetProperty("replacedStoredToken", out _));
+    }
+
+    [Theory]
+    [InlineData("fabricated-older-token", true)]
+    [InlineData(Token, false)]
+    public async Task Login_SaysWhenItReplacedADifferentStoredToken(string storedToken, bool replaced)
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, storedToken);
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(replaced, FirstResult(writer.ToString()).TryGetProperty("replacedStoredToken", out _));
+    }
+
+    [Fact]
+    public async Task Login_NamesWhoseTokenItStored()
+    {
+        var writer = new StringWriter();
+
+        int exitCode = await App(new MemoryCredentialVault(), new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(Token, Assert.Single(_owners.CheckedTokens));
+        Assert.Equal(FakeTokenOwners.DisplayName, FirstResult(writer.ToString()).GetProperty("actingAs").GetString());
+    }
+
+    [Theory]
+    [InlineData("unauthorized", false)]
+    [InlineData("networkError", true)]
+    public async Task Login_StoresNothingAndAsksNothingMoreWhenTheTokenCannotBeChecked(string code, bool transient)
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, "fabricated-older-token");
+        _owners.Failure = new TokenOwnerException(code, "Fabricated failure.", transient);
+        var terminal = new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, terminal, writer).InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        Assert.Equal("fabricated-older-token", vault.Read(Organization));
+        Assert.Single(terminal.Prompts);
+        JsonElement error = FirstError(writer.ToString());
+        Assert.Equal("azureDevOps", error.GetProperty("scope").GetString());
+        Assert.Equal(code, error.GetProperty("code").GetString());
+        Assert.Equal(transient, error.GetProperty("transient").GetBoolean());
+        Assert.EndsWith("Nothing was stored.", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(Token, writer.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Login_ExplainsARejectedToken()
+    {
+        _owners.Failure = new TokenOwnerException("unauthorized", "The PAT was rejected by Azure DevOps.", false);
+        var writer = new StringWriter();
+
+        await App(new MemoryCredentialVault(), new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(
+            "Azure DevOps rejected the token: it may be mistyped, expired or revoked, or made for another organization. Nothing was stored.",
+            FirstError(writer.ToString()).GetProperty("message").GetString());
     }
 
     [Fact]
@@ -105,6 +177,23 @@ public sealed class AuthCommandTests
     }
 
     [Fact]
+    public async Task Login_SaysTheTokenWasStoredWhenThePrivacyStepFailsAfterwards()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.FailingAccounts.Add(Organization + "#privacy");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        Assert.Equal(Token, vault.Read(Organization));
+        JsonElement error = FirstError(writer.ToString());
+        Assert.Equal("credentialStoreUnavailable", error.GetProperty("code").GetString());
+        Assert.StartsWith("The token was stored", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Status_ReportsAStoredTokenAndTheVaultWithoutRevealingIt()
     {
         var vault = new MemoryCredentialVault();
@@ -123,6 +212,60 @@ public sealed class AuthCommandTests
     }
 
     [Fact]
+    public async Task Status_NamesWhoseTokenIsStored()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, Token);
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: null), writer)
+            .InvokeAsync(["auth", "status", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(Token, Assert.Single(_owners.CheckedTokens));
+        Assert.Equal(FakeTokenOwners.DisplayName, FirstResult(writer.ToString()).GetProperty("actingAs").GetString());
+    }
+
+    [Fact]
+    public async Task Status_ReportsAStoredTokenThatAzureDevOpsRejectsAndHowToReplaceIt()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, Token);
+        _owners.Failure = new TokenOwnerException("unauthorized", "The PAT was rejected by Azure DevOps.", false);
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: null), writer)
+            .InvokeAsync(["auth", "status", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        Assert.Equal(Token, vault.Read(Organization));
+        JsonElement error = FirstError(writer.ToString());
+        Assert.Equal("unauthorized", error.GetProperty("code").GetString());
+        Assert.Equal(
+            "A token is stored, but Azure DevOps rejected the token: it may be mistyped, expired or revoked, or made for another organization. Store a new one with `ado-read auth login`.",
+            error.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Status_ReportsAStoredTokenThatCouldNotBeChecked()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, Token);
+        _owners.Failure = new TokenOwnerException("networkError", "Azure DevOps could not be reached.", true);
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: null), writer)
+            .InvokeAsync(["auth", "status", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        JsonElement error = FirstError(writer.ToString());
+        Assert.True(error.GetProperty("transient").GetBoolean());
+        Assert.Equal(
+            "A token is stored, but it could not be checked: Azure DevOps could not be reached.",
+            error.GetProperty("message").GetString());
+    }
+
+    [Fact]
     public async Task Status_ReportsAMissingTokenAsNotStored()
     {
         var writer = new StringWriter();
@@ -132,6 +275,7 @@ public sealed class AuthCommandTests
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.False(FirstResult(writer.ToString()).GetProperty("tokenStored").GetBoolean());
+        Assert.Empty(_owners.CheckedTokens);
     }
 
     [Fact]
@@ -150,6 +294,40 @@ public sealed class AuthCommandTests
         Assert.True(FirstResult(firstWriter.ToString()).GetProperty("tokenRemoved").GetBoolean());
         Assert.Equal(ExitCodes.Success, secondExit);
         Assert.False(FirstResult(secondWriter.ToString()).GetProperty("tokenRemoved").GetBoolean());
+        Assert.False(FirstResult(firstWriter.ToString()).TryGetProperty("legacyWriteTokenRemoved", out _));
+    }
+
+    [Fact]
+    public async Task Logout_AlsoRemovesTheWriteTokenEarlierVersionsStoredSeparately()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, Token);
+        vault.Write(LegacyWriteAccount, "fabricated-legacy-write-token");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: null), writer)
+            .InvokeAsync(["auth", "logout", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Null(vault.Read(Organization));
+        Assert.Null(vault.Read(LegacyWriteAccount));
+        Assert.True(FirstResult(writer.ToString()).GetProperty("legacyWriteTokenRemoved").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Login_RemovesTheWriteTokenEarlierVersionsStoredSeparately()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(LegacyWriteAccount, "fabricated-legacy-write-token");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(Token, vault.Read(Organization));
+        Assert.Null(vault.Read(LegacyWriteAccount));
+        Assert.True(FirstResult(writer.ToString()).GetProperty("legacyWriteTokenRemoved").GetBoolean());
     }
 
     [Theory]
@@ -168,7 +346,7 @@ public sealed class AuthCommandTests
         Assert.DoesNotContain(Token, writer.ToString(), StringComparison.Ordinal);
     }
 
-    private static CommandApplication App(MemoryCredentialVault vault, ITerminalInput terminal, TextWriter writer) =>
+    private CommandApplication App(MemoryCredentialVault vault, ITerminalInput terminal, TextWriter writer) =>
         new ToolComposition(
             new ConfiguredStore(),
             new JsonOutput(writer),
@@ -176,7 +354,8 @@ public sealed class AuthCommandTests
             patProvider: null,
             sessionFactory: null,
             credentialVault: vault,
-            terminalInput: terminal)
+            terminalInput: terminal,
+            tokenOwners: _owners)
             .CreateUmbrella("ado-read", []);
 
     private static JsonElement FirstError(string output)

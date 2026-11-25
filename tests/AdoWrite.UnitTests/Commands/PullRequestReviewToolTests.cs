@@ -28,7 +28,7 @@ public sealed class PullRequestReviewToolTests
     public PullRequestReviewToolTests()
     {
         _factory = new FakeWriteSessionFactory(_session);
-        _vault.Write(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Write), "fabricated-write-token");
+        _vault.Write(CredentialAccount.For(Fabricated.Organization), "fabricated-token");
         _session.FakeReviews.Evaluations.AddRange(
         [
             FakePullRequestReviewClient.Build(Expired, PolicyEvaluationStatus.Approved, """{"isExpired":true,"buildId":501}""", "CI"),
@@ -258,6 +258,7 @@ public sealed class PullRequestReviewToolTests
         Assert.Equal("pullRequestVote", envelope.GetProperty("kind").GetString());
         JsonElement result = envelope.GetProperty("results")[0];
         Assert.Equal(("voted", "approve", "none"), (result.GetProperty("outcome").GetString(), result.GetProperty("vote").GetString(), result.GetProperty("previousVote").GetString()));
+        Assert.Equal("Example Author", result.GetProperty("actingAs").GetString());
         Assert.Equal(
             "https://dev.azure.com/fabricated/Fabricated%20App/_git/Fabricated.Repo/pullrequest/42",
             result.GetProperty("url").GetString());
@@ -321,7 +322,7 @@ public sealed class PullRequestReviewToolTests
                 new JsonOutput(_output),
                 TimeProvider.System,
                 credentialVault: _vault,
-                tokenScope: TokenScope.Write)
+                toolKind: ToolKind.Write)
             .CreateUmbrella("ado-write", [PullRequestWriteModule.Create(_factory), WorkItemCommentModule.Create(_factory)])
             .InvokeAsync([.. args, "--compact"], CancellationToken.None);
 
