@@ -118,6 +118,8 @@ A read command with no stored token fails with `missingPat` (exit 5) and names t
 
 All nine tools share one token per organization and the same configuration file, so `auth login` in any of them signs in all of them, and `auth logout` in any of them signs them all out. `ado-write auth login` (or `ado-write-pr auth login`, `ado-write-work-item auth login`) asks for no privacy level, because the write tools return no Azure DevOps content; until a person runs `privacy set`, read commands fail with `privacyPolicyRequired`.
 
+Earlier prereleases kept the write tools' token separately, under `<organization>#write`. `auth login` and `auth logout` remove that entry when they find it and report `legacyWriteTokenRemoved: true`. After upgrading, run `auth login` once with a token that has both the read and the write scopes you use.
+
 ### Credential vaults
 
 | Operating system | Vault | Notes |

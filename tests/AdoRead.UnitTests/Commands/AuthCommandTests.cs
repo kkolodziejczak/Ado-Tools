@@ -12,6 +12,7 @@ public sealed class AuthCommandTests
 {
     private const string Token = "fabricated-token-value-1234";
     private const string Organization = "https://dev.azure.com/fabricated";
+    private const string LegacyWriteAccount = Organization + "#write";
 
     public static TheoryData<string[]> TokenArguments => new()
     {
@@ -150,6 +151,40 @@ public sealed class AuthCommandTests
         Assert.True(FirstResult(firstWriter.ToString()).GetProperty("tokenRemoved").GetBoolean());
         Assert.Equal(ExitCodes.Success, secondExit);
         Assert.False(FirstResult(secondWriter.ToString()).GetProperty("tokenRemoved").GetBoolean());
+        Assert.False(FirstResult(firstWriter.ToString()).TryGetProperty("legacyWriteTokenRemoved", out _));
+    }
+
+    [Fact]
+    public async Task Logout_AlsoRemovesTheWriteTokenEarlierVersionsStoredSeparately()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, Token);
+        vault.Write(LegacyWriteAccount, "fabricated-legacy-write-token");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: null), writer)
+            .InvokeAsync(["auth", "logout", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Null(vault.Read(Organization));
+        Assert.Null(vault.Read(LegacyWriteAccount));
+        Assert.True(FirstResult(writer.ToString()).GetProperty("legacyWriteTokenRemoved").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Login_RemovesTheWriteTokenEarlierVersionsStoredSeparately()
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(LegacyWriteAccount, "fabricated-legacy-write-token");
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(Token, vault.Read(Organization));
+        Assert.Null(vault.Read(LegacyWriteAccount));
+        Assert.True(FirstResult(writer.ToString()).GetProperty("legacyWriteTokenRemoved").GetBoolean());
     }
 
     [Theory]

@@ -15,4 +15,10 @@ public static class CredentialAccount
     /// account so that logging out never removes the policy.
     /// </summary>
     public static string ForPrivacy(Uri organizationUrl) => $"{For(organizationUrl)}#privacy";
+
+    /// <summary>
+    /// Where prereleases before the shared token kept the write tools' token. Nothing reads it any more;
+    /// login and logout remove it so that no write token outlives a logout.
+    /// </summary>
+    public static string ForLegacyWriteToken(Uri organizationUrl) => $"{For(organizationUrl)}#write";
 }

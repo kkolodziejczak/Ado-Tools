@@ -185,9 +185,10 @@ public static class AuthCommands
         }
 
         services.CredentialVault.Write(account, token);
+        bool? legacyWriteTokenRemoved = RemoveLegacyWriteToken(organizationUrl, services);
         if (services.ToolKind == ToolKind.Write)
         {
-            return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null);
+            return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null, legacyWriteTokenRemoved);
         }
 
         bool privacyConfigured = EnsurePrivacyLevel(organizationUrl, services);
@@ -197,8 +198,13 @@ public static class AuthCommands
             PrivacyConfigured: privacyConfigured,
             Notice: privacyConfigured
                 ? null
-                : $"No privacy level was set, so content stays withheld until '{names.Invocation("privacy set <minimal|standard|full>")}' is run in an interactive terminal.");
+                : $"No privacy level was set, so content stays withheld until '{names.Invocation("privacy set <minimal|standard|full>")}' is run in an interactive terminal.",
+            legacyWriteTokenRemoved);
     }
+
+    /// <summary>True when a token from the separate write account of earlier prereleases was removed, otherwise null.</summary>
+    private static bool? RemoveLegacyWriteToken(Uri organizationUrl, CommandServices services) =>
+        services.CredentialVault.Remove(CredentialAccount.ForLegacyWriteToken(organizationUrl)) ? true : null;
 
     /// <summary>Asks for a level when the organization has none. An empty or invalid answer stores nothing.</summary>
     private static bool EnsurePrivacyLevel(Uri organizationUrl, CommandServices services)
@@ -246,7 +252,10 @@ public static class AuthCommands
     }
 
     private static TokenRemovalView RemoveToken(Uri organizationUrl, CommandServices services) =>
-        new(services.CredentialVault.Kind, TokenRemoved: services.CredentialVault.Remove(CredentialAccount.For(organizationUrl)));
+        new(
+            services.CredentialVault.Kind,
+            TokenRemoved: services.CredentialVault.Remove(CredentialAccount.For(organizationUrl)),
+            RemoveLegacyWriteToken(organizationUrl, services));
 
     private static async Task<int> WriteErrorAsync(
         string kind,
@@ -274,7 +283,11 @@ public static class AuthCommands
         string Vault,
         bool TokenStored,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? PrivacyConfigured,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notice);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notice,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? LegacyWriteTokenRemoved);
 
-    private sealed record TokenRemovalView(string Vault, bool TokenRemoved);
+    private sealed record TokenRemovalView(
+        string Vault,
+        bool TokenRemoved,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? LegacyWriteTokenRemoved);
 }
