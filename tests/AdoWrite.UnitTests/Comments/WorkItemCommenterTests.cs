@@ -46,6 +46,7 @@ public sealed class WorkItemCommenterTests
 
         Assert.Empty(_client.Added);
         Assert.Equal((CommentOutcomes.Duplicate, 20), (posted.Outcome, posted.CommentId));
+        Assert.Equal("Example Author", posted.ActingAs);
     }
 
     [Fact]

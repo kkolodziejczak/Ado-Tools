@@ -258,6 +258,7 @@ public sealed class PullRequestReviewToolTests
         Assert.Equal("pullRequestVote", envelope.GetProperty("kind").GetString());
         JsonElement result = envelope.GetProperty("results")[0];
         Assert.Equal(("voted", "approve", "none"), (result.GetProperty("outcome").GetString(), result.GetProperty("vote").GetString(), result.GetProperty("previousVote").GetString()));
+        Assert.Equal("Example Author", result.GetProperty("actingAs").GetString());
         Assert.Equal(
             "https://dev.azure.com/fabricated/Fabricated%20App/_git/Fabricated.Repo/pullrequest/42",
             result.GetProperty("url").GetString());

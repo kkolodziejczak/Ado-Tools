@@ -44,8 +44,11 @@ public static class RequeueOutcomes
 /// <summary>Every build policy's outcome, and the failure that stopped the requeues, if any.</summary>
 public sealed record RequeueReport(IReadOnlyList<RequeuedBuildDocument> Builds, AdoRead.Output.SearchError? Failure);
 
-/// <summary>The result of <c>pr vote</c>. <see cref="Outcome"/> is <c>voted</c>, <c>unchanged</c> or <c>preview</c>.</summary>
-public sealed record CastVoteDocument(string Outcome, int PullRequestId, string Vote, string PreviousVote, Uri Url);
+/// <summary>
+/// The result of <c>pr vote</c>. <see cref="Outcome"/> is <c>voted</c>, <c>unchanged</c> or <c>preview</c>.
+/// <see cref="ActingAs"/> is the display name of the token owner, whose vote it is.
+/// </summary>
+public sealed record CastVoteDocument(string Outcome, int PullRequestId, string Vote, string PreviousVote, Uri Url, string ActingAs);
 
 public static class VoteOutcomes
 {

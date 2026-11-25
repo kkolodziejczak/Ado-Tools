@@ -184,11 +184,13 @@ public static class AuthCommands
             throw new ConfigurationException("tokenRequired", "No token was entered, so nothing was stored.");
         }
 
+        string? stored = services.CredentialVault.Read(account);
+        bool? replacedStoredToken = !string.IsNullOrEmpty(stored) && stored != token ? true : null;
         services.CredentialVault.Write(account, token);
         bool? legacyWriteTokenRemoved = RemoveLegacyWriteToken(organizationUrl, services);
         if (services.ToolKind == ToolKind.Write)
         {
-            return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null, legacyWriteTokenRemoved);
+            return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null, replacedStoredToken, legacyWriteTokenRemoved);
         }
 
         bool privacyConfigured;
@@ -210,6 +212,7 @@ public static class AuthCommands
             Notice: privacyConfigured
                 ? null
                 : $"No privacy level was set, so content stays withheld until '{names.Invocation("privacy set <minimal|standard|full>")}' is run in an interactive terminal.",
+            replacedStoredToken,
             legacyWriteTokenRemoved);
     }
 
@@ -295,6 +298,7 @@ public static class AuthCommands
         bool TokenStored,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? PrivacyConfigured,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notice,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ReplacedStoredToken,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? LegacyWriteTokenRemoved);
 
     private sealed record TokenRemovalView(

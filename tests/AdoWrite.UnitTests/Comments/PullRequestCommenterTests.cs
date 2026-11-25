@@ -29,6 +29,7 @@ public sealed class PullRequestCommenterTests
             + $"<!-- ado-write:{key} -->",
             Assert.Single(thread.Comments).Content);
         Assert.Equal(CommentOutcomes.Created, posted.Outcome);
+        Assert.Equal("Example Author", posted.ActingAs);
         Assert.Equal("pullRequest", posted.Target);
         Assert.Equal(900, posted.ThreadId);
         Assert.Equal(1, posted.CommentId);

@@ -26,7 +26,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             !comment.IsDeleted && comment.AuthorId == author.Id && CommentMarker.Marks(comment.Text, key));
         if (earlier is not null)
         {
-            return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, key);
+            return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, key, author);
         }
 
         ComposedComment comment = await _composer.ComposeAsync(
@@ -37,7 +37,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, workItemId, project, null, key, comment);
+            return Result(CommentOutcomes.Preview, workItemId, project, null, key, author, comment);
         }
 
         WorkItemComment created = await AzureDevOpsCall.RunAsync(
@@ -49,6 +49,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             project,
             created.Id,
             key,
+            author,
             comment,
             markerKept: CommentMarker.Marks(created.Text, key));
     }
@@ -114,6 +115,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
         string project,
         int? commentId,
         string key,
+        Person author,
         ComposedComment? comment = null,
         bool? markerKept = null) =>
         new(
@@ -127,6 +129,7 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             comment?.Mentions ?? [],
             comment?.Attachments ?? [],
             key,
+            author.DisplayName,
             markerKept,
             outcome == CommentOutcomes.Preview ? comment?.Text : null);
 }

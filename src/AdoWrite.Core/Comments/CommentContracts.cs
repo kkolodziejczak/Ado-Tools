@@ -8,7 +8,8 @@ namespace AdoWrite.Comments;
 /// preview carries <see cref="Text"/>. <see cref="Attachments"/> lists the uploaded files; a reused one
 /// was already uploaded with the same name and content, for example by a run that did not finish.
 /// <see cref="MarkerKept"/> is false when Azure DevOps dropped the
-/// hidden marker, so a retry could not detect this comment.
+/// hidden marker, so a retry could not detect this comment. <see cref="ActingAs"/> is the display
+/// name of the token owner, whom the comment is posted as.
 /// </summary>
 public sealed record PostedCommentDocument(
     string Outcome,
@@ -21,6 +22,7 @@ public sealed record PostedCommentDocument(
     IReadOnlyList<MentionDocument> Mentions,
     IReadOnlyList<AttachmentDocument> Attachments,
     string Key,
+    string ActingAs,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? MarkerKept = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text = null);
 

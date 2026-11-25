@@ -46,6 +46,23 @@ public sealed class AuthCommandTests
         JsonElement result = FirstResult(output);
         Assert.Equal("memory", result.GetProperty("vault").GetString());
         Assert.True(result.GetProperty("tokenStored").GetBoolean());
+        Assert.False(result.TryGetProperty("replacedStoredToken", out _));
+    }
+
+    [Theory]
+    [InlineData("fabricated-older-token", true)]
+    [InlineData(Token, false)]
+    public async Task Login_SaysWhenItReplacedADifferentStoredToken(string storedToken, bool replaced)
+    {
+        var vault = new MemoryCredentialVault();
+        vault.Write(Organization, storedToken);
+        var writer = new StringWriter();
+
+        int exitCode = await App(vault, new ScriptedTerminalInput(isInputRedirected: false, answer: Token, "2"), writer)
+            .InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(replaced, FirstResult(writer.ToString()).TryGetProperty("replacedStoredToken", out _));
     }
 
     [Fact]

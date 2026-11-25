@@ -34,7 +34,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key, author);
         }
 
         LineAnchor? anchor = lines is null ? null : await AnchorAsync(location, lines, cancellationToken);
@@ -46,7 +46,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, key, comment);
+            return Result(CommentOutcomes.Preview, location, null, null, anchor?.Document, key, author, comment);
         }
 
         GitPullRequestCommentThread created = await AzureDevOpsCall.RunAsync(
@@ -60,6 +60,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             first?.Id,
             anchor?.Document,
             key,
+            author,
             comment,
             markerKept: CommentMarker.Marks(first?.Content, key));
     }
@@ -81,7 +82,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(threads, key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key, author);
         }
 
         ComposedComment comment = await _composer.ComposeAsync(
@@ -92,7 +93,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             cancellationToken);
         if (draft.DryRun)
         {
-            return Result(CommentOutcomes.Preview, location, threadId, null, null, key, comment);
+            return Result(CommentOutcomes.Preview, location, threadId, null, null, key, author, comment);
         }
 
         var reply = new Comment
@@ -111,6 +112,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             created.Id,
             null,
             key,
+            author,
             comment,
             markerKept: CommentMarker.Marks(created.Content, key));
     }
@@ -310,6 +312,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         int? commentId,
         CommentAnchorDocument? anchor,
         string key,
+        Person author,
         ComposedComment? comment = null,
         bool? markerKept = null) =>
         new(
@@ -323,6 +326,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
             comment?.Mentions ?? [],
             comment?.Attachments ?? [],
             key,
+            author.DisplayName,
             markerKept,
             outcome == CommentOutcomes.Preview ? comment?.Text : null);
 

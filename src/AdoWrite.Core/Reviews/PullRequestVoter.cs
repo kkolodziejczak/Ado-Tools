@@ -50,6 +50,7 @@ internal sealed class PullRequestVoter(
             pullRequestId,
             PullRequestVote.NameOf(stored),
             PullRequestVote.NameOf(previous),
-            PullRequestLookup.BrowserUrl(organizationUrl, location));
+            PullRequestLookup.BrowserUrl(organizationUrl, location),
+            voter.DisplayName);
     }
 }
