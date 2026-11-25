@@ -34,4 +34,6 @@ public sealed record CommandServices(
     PrivacyPolicyStore PrivacyPolicies)
 {
     public ToolKind ToolKind { get; init; } = ToolKind.Read;
+
+    public required ITokenOwnerLookup TokenOwners { get; init; }
 }

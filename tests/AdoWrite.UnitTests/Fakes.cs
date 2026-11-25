@@ -1,4 +1,5 @@
 using System.Net;
+using AdoRead.AzureDevOps;
 using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Terminal;
@@ -342,6 +343,15 @@ internal sealed class FakeWriteSessionFactory(FakeWriteSession session) : IAdoWr
         Pat = pat;
         return session;
     }
+}
+
+/// <summary>Says every token belongs to <see cref="DisplayName"/>, without Azure DevOps.</summary>
+internal sealed class FakeTokenOwners : ITokenOwnerLookup
+{
+    public const string DisplayName = "Fabricated Owner";
+
+    public Task<string> FindDisplayNameAsync(Uri organizationUrl, string pat, CancellationToken cancellationToken) =>
+        Task.FromResult(DisplayName);
 }
 
 internal sealed class FixedConfigurationStore : IConfigurationStore

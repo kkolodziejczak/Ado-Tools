@@ -98,7 +98,7 @@ ado-write auth status
 ado-read privacy show
 ```
 
-Both must report a stored token without showing any part of it.
+Both must report a stored token and the same `actingAs` name, the person whose token it is, without showing any part of the token.
 
 ## 5. Scenarios
 

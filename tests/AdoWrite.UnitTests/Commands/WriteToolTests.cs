@@ -262,6 +262,7 @@ public sealed class WriteToolTests
         Assert.Null(_vault.Read($"{CredentialAccount.For(Fabricated.Organization)}#write"));
         JsonElement result = Envelope().GetProperty("results")[0];
         Assert.True(result.GetProperty("tokenStored").GetBoolean());
+        Assert.Equal(FakeTokenOwners.DisplayName, result.GetProperty("actingAs").GetString());
         Assert.False(result.TryGetProperty("privacyConfigured", out _));
     }
 
@@ -284,7 +285,8 @@ public sealed class WriteToolTests
                 new JsonOutput(readOutput),
                 TimeProvider.System,
                 credentialVault: _vault,
-                terminalInput: new ScriptedTerminalInput("read-login-token", "2"))
+                terminalInput: new ScriptedTerminalInput("read-login-token", "2"),
+                tokenOwners: new FakeTokenOwners())
             .CreateUmbrella("ado-read", []);
 
         Assert.Equal(ExitCodes.Success, await read.InvokeAsync(["auth", "login", "--compact"], CancellationToken.None));
@@ -323,7 +325,8 @@ public sealed class WriteToolTests
             TimeProvider.System,
             credentialVault: _vault,
             terminalInput: terminal,
-            toolKind: ToolKind.Write);
+            toolKind: ToolKind.Write,
+            tokenOwners: new FakeTokenOwners());
 
     private JsonElement Envelope() => JsonDocument.Parse(_output.ToString()).RootElement;
 }

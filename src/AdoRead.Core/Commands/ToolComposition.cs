@@ -24,11 +24,13 @@ public sealed class ToolComposition(
     IAdoSessionFactory? sessionFactory = null,
     ICredentialVault? credentialVault = null,
     ITerminalInput? terminalInput = null,
-    ToolKind toolKind = ToolKind.Read)
+    ToolKind toolKind = ToolKind.Read,
+    ITokenOwnerLookup? tokenOwners = null)
 {
     private readonly IAdoSessionFactory _sessionFactory = sessionFactory ?? new AdoSessionFactory();
     private readonly ICredentialVault _credentialVault = credentialVault ?? CredentialVault.ForCurrentPlatform();
     private readonly ITerminalInput _terminalInput = terminalInput ?? new ConsoleTerminalInput();
+    private readonly ITokenOwnerLookup _tokenOwners = tokenOwners ?? new SdkTokenOwnerLookup();
 
     public CommandApplication CreateUmbrella(string executable, IReadOnlyList<CommandModule> modules)
     {
@@ -97,7 +99,8 @@ public sealed class ToolComposition(
             new PrivacyGate(privacyPolicies, names),
             privacyPolicies)
         {
-            ToolKind = toolKind
+            ToolKind = toolKind,
+            TokenOwners = _tokenOwners
         };
     }
 

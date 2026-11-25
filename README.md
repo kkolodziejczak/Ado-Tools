@@ -110,8 +110,8 @@ Create the token in Azure DevOps with only the scopes listed under Requirements.
 
 | Command | What it does |
 | --- | --- |
-| `auth login [--config <path>] [--organization <url>]` | Stores the typed token for every tool. In a read tool, if the organization has no privacy policy, asks for one (see [Privacy](#privacy)). Fails with `interactiveTerminalRequired` (exit 2) when input is redirected, and with `tokenRequired` (exit 2) when the token is blank. The output names the vault and confirms storage, and has `replacedStoredToken: true` when it replaced a different stored token, which every tool then stops using; it never includes the token. |
-| `auth status [--config <path>] [--organization <url>]` | Reports whether a token is stored for the organization and which vault holds it. It never shows any part of the token. |
+| `auth login [--config <path>] [--organization <url>]` | Asks Azure DevOps whose the typed token is, then stores it for every tool. A token Azure DevOps rejects, or cannot check because it cannot be reached, is not stored: the command fails with the error's code, such as `unauthorized` or `networkError` (exit 5), and keeps any token already stored. In a read tool, if the organization has no privacy policy, asks for one (see [Privacy](#privacy)). Fails with `interactiveTerminalRequired` (exit 2) when input is redirected, and with `tokenRequired` (exit 2) when the token is blank. The output names the vault, confirms storage, has `actingAs` with the display name of the token's owner, and has `replacedStoredToken: true` when it replaced a different stored token, which every tool then stops using; it never includes the token. |
+| `auth status [--config <path>] [--organization <url>]` | Reports whether a token is stored for the organization, which vault holds it, and in `actingAs` whose it is. A stored token Azure DevOps rejects, for example because it expired, fails with `unauthorized` (exit 5) and a message naming the `auth login` command that replaces it. It never shows any part of the token. |
 | `auth logout [--config <path>] [--organization <url>]` | Removes the stored token and reports whether one was removed. |
 
 A read command with no stored token fails with `missingPat` (exit 5) and names the login command to run.
@@ -213,7 +213,7 @@ When `people` is not allowed, each person identifier becomes `person-` followed 
 
 ### First run
 
-`auth login` stores the token first. If the organization has no policy, it then asks for a level: `1` minimal, `2` standard, or `3` full. An empty or invalid answer stores no policy. Content then stays withheld, and reads fail with `privacyPolicyRequired` until a person runs `privacy set` in an interactive terminal.
+`auth login` checks and stores the token first. If the organization has no policy, it then asks for a level: `1` minimal, `2` standard, or `3` full. An empty or invalid answer stores no policy. Content then stays withheld, and reads fail with `privacyPolicyRequired` until a person runs `privacy set` in an interactive terminal.
 
 ## Commands
 
