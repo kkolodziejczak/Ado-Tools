@@ -13,7 +13,7 @@ namespace AdoRead.Commands;
 /// <summary>
 /// Composes shared commands and feature modules into one command tree. The umbrella mounts each
 /// module under its group name; a slice mounts its single module directly on the executable.
-/// A write tool uses the write token and shares only <c>config</c> and <c>auth</c>: it returns no
+/// A write tool shares only <c>config</c> and <c>auth</c>, and the token, with the read tools: it returns no
 /// comment, work-item or other Azure DevOps text, so it has no privacy policy or discovery commands.
 /// </summary>
 public sealed class ToolComposition(
@@ -24,7 +24,7 @@ public sealed class ToolComposition(
     IAdoSessionFactory? sessionFactory = null,
     ICredentialVault? credentialVault = null,
     ITerminalInput? terminalInput = null,
-    TokenScope tokenScope = TokenScope.Read)
+    ToolKind toolKind = ToolKind.Read)
 {
     private readonly IAdoSessionFactory _sessionFactory = sessionFactory ?? new AdoSessionFactory();
     private readonly ICredentialVault _credentialVault = credentialVault ?? CredentialVault.ForCurrentPlatform();
@@ -32,7 +32,7 @@ public sealed class ToolComposition(
 
     public CommandApplication CreateUmbrella(string executable, IReadOnlyList<CommandModule> modules)
     {
-        RootCommand rootCommand = NewRootCommand(tokenScope == TokenScope.Write
+        RootCommand rootCommand = NewRootCommand(toolKind == ToolKind.Write
             ? "Post comments to Azure DevOps on your behalf and report them as structured JSON."
             : "Read Azure DevOps context as structured JSON.");
         Option<bool> compactOption = AddCompactOption(rootCommand);
@@ -87,7 +87,7 @@ public sealed class ToolComposition(
         var names = new ToolCommandNames(executable, null);
         return new(
             configurationStore,
-            patProvider ?? new VaultPatProvider(_credentialVault, names.Invocation("auth login"), tokenScope),
+            patProvider ?? new VaultPatProvider(_credentialVault, names.Invocation("auth login")),
             _sessionFactory,
             jsonOutput,
             timeProvider,
@@ -97,7 +97,7 @@ public sealed class ToolComposition(
             new PrivacyGate(privacyPolicies, names),
             privacyPolicies)
         {
-            TokenScope = tokenScope
+            ToolKind = toolKind
         };
     }
 
@@ -109,7 +109,7 @@ public sealed class ToolComposition(
         var kinds = new Dictionary<Command, string>();
         Include(kinds, ConfigCommands.Configure(rootCommand, names, services));
         Include(kinds, AuthCommands.Configure(rootCommand, names, services));
-        if (services.TokenScope == TokenScope.Write)
+        if (services.ToolKind == ToolKind.Write)
         {
             return kinds;
         }

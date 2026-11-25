@@ -17,7 +17,7 @@ internal sealed class WriteException(
         "The Azure DevOps request timed out. The change may still have been made: run the same command again. A comment's key finds the earlier comment instead of posting twice, and an unchanged vote is not sent again. Before naming a build with --evaluation again, check it with pr requeue --dry-run.";
 
     private const string ScopesHint =
-        " The write token needs Work Items (Read & write) for work-item comments, Code (Read & write) for pull-request comments, requeues and votes, and Identity (Read) for mentions.";
+        " For writing, the token needs Work Items (Read & write) for work-item comments, Code (Read & write) for pull-request comments, requeues and votes, and Identity (Read) for mentions.";
 
     public string Scope { get; } = scope;
 

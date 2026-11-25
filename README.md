@@ -15,7 +15,7 @@ This repository ships six read-only .NET tools that retrieve Azure DevOps work-i
 | `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `auth`, `privacy`, `projects`, `teams` |
 | `AdoRead.Pipelines.Tool` | `ado-read-pipelines` | `pr <id-or-url>`, `run <build-url-or-id>`, `tests <build-url-or-id>`, `config`, `auth`, `privacy`, `projects`, `teams` |
 
-The write tools are separate packages, so installing a read tool never gives an agent the ability to post. They share `config` and `auth` and use their own token; they have no `privacy`, `projects` or `teams` commands because they return no Azure DevOps content.
+The write tools are separate packages, so installing a read tool never gives an agent the ability to post. They share `config`, `auth` and the token with the read tools; they have no `privacy`, `projects` or `teams` commands because they return no Azure DevOps content.
 
 | Package ID | Command | Commands |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ In a slice tool the feature command sits directly on the executable, so `ado-rea
 
 - .NET SDK or runtime 10.0.
 - An Azure DevOps personal access token, stored by `auth login` in your operating system's credential vault (see below). Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, **Build (Read)**, **Test Management (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is needed for pull-request lookups, and additionally for `wiki page` when it follows a selected search hit to its exact Wiki-backed Git path. The pipeline commands need **Build (Read)**, **Test Management (Read)**, and **Code (Read)**. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
-- For the write tools, a separate personal access token with **Work Items (Read & write)** for work-item comments, **Code (Read & write)** for pull-request comments, build requeues and votes, and **Identity (Read)** when a comment mentions people by mail address. Store it with `ado-write auth login`; it never replaces the read token.
+- For the write tools, the same token also needs **Work Items (Read & write)** for work-item comments, **Code (Read & write)** for pull-request comments, build requeues and votes, and **Identity (Read)** when a comment mentions people by mail address. Every read and write tool uses one token per organization, so log in once with any of them.
 - One configured Azure DevOps Services organization at `https://dev.azure.com/{organization}`. Azure DevOps Server is not supported.
 
 ## Install
@@ -116,7 +116,7 @@ Create the token in Azure DevOps with only the scopes listed under Requirements.
 
 A read command with no stored token fails with `missingPat` (exit 5) and names the login command to run.
 
-The write tools keep their own token. `ado-write auth login` (or `ado-write-pr auth login`, `ado-write-work-item auth login`) prompts `Personal access token for <organization>#write:` and asks for no privacy level; `auth status` and `auth logout` act on the write token only. All write tools share one write token per organization and read the same configuration file as the read tools.
+All nine tools share one token per organization and the same configuration file, so `auth login` in any of them signs in all of them, and `auth logout` in any of them signs them all out. `ado-write auth login` (or `ado-write-pr auth login`, `ado-write-work-item auth login`) asks for no privacy level, because the write tools return no Azure DevOps content; until a person runs `privacy set`, read commands fail with `privacyPolicyRequired`.
 
 ### Credential vaults
 
@@ -454,7 +454,7 @@ ado-write pr vote 412 --vote approve --confirm --compact
 
 - **Requeue.** Requeues build policies of an active pull request the way its "Re-queue" button does: Azure DevOps queues a new build for the policy. Without `--evaluation` it requeues every expired build; with it, exactly the named evaluations, for example a failed build. A build that is running, or queued and not expired, is never requeued, because Azure DevOps would cancel it; each evaluation is read again right before its requeue, so a build started since the list is left alone. Without `--evaluation`, running the command again after a timeout or a crash is safe. A named evaluation is requeued again once its build has finished, so check it with `--dry-run` before naming it again. A named evaluation that is not a build policy of the pull request fails with `evaluationNotFound` and requeues nothing; a pull request that is not active fails with `pullRequestNotActive`.
 - **Requeue result.** `results` lists every build policy of the pull request, with `evaluationId`, `name`, `status` (after the command), `isExpired`, `isBlocking`, `buildId` and `outcome`: `requeued`, `preview` (dry run), `inProgress`, `notExpired` or `notSelected`. When a requeue fails, the command stops: the envelope's `status` is `partial` (exit code `4`), its error says why, that build is `failed` (Azure DevOps refused it) or `uncertain` (it timed out and may have been requeued), and builds it would still have requeued are `notAttempted`. Take evaluation IDs from a `--dry-run`. `isExpired` and `buildId` come from the evaluation's context, which Microsoft does not document; when Azure DevOps leaves them out, they are `false` and `null`, and only builds that are not queued or running can be requeued, by name.
-- **Vote.** Sets the vote of the person the write token belongs to. Every vote needs `--confirm`, which an agent passes only after that person agreed to the vote; `--dry-run` needs none. The pull request must be active (`pullRequestNotActive` otherwise) and not a draft (`pullRequestIsDraft`). Like the portal, a vote adds that person as a reviewer when they are not one yet. A vote equal to the current one sends nothing and returns `outcome: "unchanged"`; otherwise `voted` or, for a dry run, `preview`. The result has `pullRequestId`, `vote` (as Azure DevOps stored it), `previousVote` and the browser `url`; both votes are read from the pull request at the start of the command. Branch policies still decide whether a vote counts, for example whether authors may approve their own changes.
+- **Vote.** Sets the vote of the person the token belongs to. Every vote needs `--confirm`, which an agent passes only after that person agreed to the vote; `--dry-run` needs none. The pull request must be active (`pullRequestNotActive` otherwise) and not a draft (`pullRequestIsDraft`). Like the portal, a vote adds that person as a reviewer when they are not one yet. A vote equal to the current one sends nothing and returns `outcome: "unchanged"`; otherwise `voted` or, for a dry run, `preview`. The result has `pullRequestId`, `vote` (as Azure DevOps stored it), `previousVote` and the browser `url`; both votes are read from the pull request at the start of the command. Branch policies still decide whether a vote counts, for example whether authors may approve their own changes.
 
 ## JSON contract and exit codes
 

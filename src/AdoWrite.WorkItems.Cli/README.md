@@ -19,14 +19,14 @@ ado-write-work-item config init --organization https://dev.azure.com/example
 ado-write-work-item auth login
 ```
 
-The write tools keep their own token in your operating system's credential vault, separate from the read token. It needs **Work Items (Read & write)**, plus **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so if you already logged in with a read tool, there is nothing more to set up. For writing, the token also needs **Work Items (Read & write)**, plus **Identity (Read)** to mention people by mail address.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
 | `comment <id-or-url> (--body <markdown> \| --body-file <path>) [--agent <name>] [--mention <mail>]... [--attach <path>]... [--key <key>] [--dry-run]` | Posts a comment |
-| `config`, `auth` | Settings and the stored write token |
+| `config`, `auth` | Settings and the stored token |
 
 ```powershell
 ado-write-work-item comment 12345 --body "Which markets does the new limit apply to?" --agent "Claude Opus 5.5" --mention analyst@example.com --compact

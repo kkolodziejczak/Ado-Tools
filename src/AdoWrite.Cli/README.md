@@ -17,7 +17,7 @@ ado-write config init --organization https://dev.azure.com/example
 ado-write auth login
 ```
 
-The write tools keep their own token in your operating system's credential vault, separate from the read token. Give it only what you use: **Code (Read & write)** for pull requests, **Work Items (Read & write)** for work items, and **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so if you already logged in with a read tool, there is nothing more to set up. For writing, the token also needs only what you use: **Code (Read & write)** for pull requests, **Work Items (Read & write)** for work items, and **Identity (Read)** to mention people by mail address.
 
 ## Commands
 
@@ -27,7 +27,7 @@ The write tools keep their own token in your operating system's credential vault
 | `pr requeue` | Requeues build policies | [`AdoWrite.PullRequests.Tool`](https://www.nuget.org/packages/AdoWrite.PullRequests.Tool) (`ado-write-pr`) |
 | `pr vote` | Sets your vote (needs `--confirm`) | [`AdoWrite.PullRequests.Tool`](https://www.nuget.org/packages/AdoWrite.PullRequests.Tool) (`ado-write-pr`) |
 | `work-item comment` | Comments on a work item | [`AdoWrite.WorkItems.Tool`](https://www.nuget.org/packages/AdoWrite.WorkItems.Tool) (`ado-write-work-item`) |
-| `config`, `auth` | Settings and the stored write token | every write tool |
+| `config`, `auth` | Settings and the stored token | every write tool |
 
 Every command accepts `--dry-run`, which shows what would happen without changing anything.
 

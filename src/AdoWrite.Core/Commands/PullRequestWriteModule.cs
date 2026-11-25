@@ -190,7 +190,7 @@ public static class PullRequestWriteModule
             Description = "Show the current and the new vote without voting. Needs no --confirm."
         };
         Option<string?> config = ReadCommandContext.CreateConfigOption();
-        var command = new Command("vote", "Vote on a pull request as the person the write token belongs to.");
+        var command = new Command("vote", "Vote on a pull request as the person the token belongs to.");
         command.Arguments.Add(reference);
         command.Options.Add(vote);
         command.Options.Add(confirm);

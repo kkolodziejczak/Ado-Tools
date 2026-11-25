@@ -11,8 +11,7 @@ namespace AdoWrite.UnitTests.Commands;
 
 public sealed class WriteToolTests
 {
-    private const string ReadToken = "fabricated-read-token";
-    private const string WriteToken = "fabricated-write-token";
+    private const string Token = "fabricated-token";
     private const string Agent = "Claude Opus 5.5";
 
     private readonly FakeWriteSession _session = new();
@@ -23,8 +22,7 @@ public sealed class WriteToolTests
     public WriteToolTests()
     {
         _factory = new FakeWriteSessionFactory(_session);
-        _vault.Write(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Read), ReadToken);
-        _vault.Write(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Write), WriteToken);
+        _vault.Write(CredentialAccount.For(Fabricated.Organization), Token);
     }
 
     public static TheoryData<string, string[]> SliceCommands => new()
@@ -53,14 +51,14 @@ public sealed class WriteToolTests
     }
 
     [Fact]
-    public async Task PullRequestComment_PostsALineCommentWithTheWriteToken()
+    public async Task PullRequestComment_PostsALineCommentWithTheTokenTheReadToolsUse()
     {
         int exitCode = await Umbrella().InvokeAsync(
             ["pr", "comment", "https://dev.azure.com/fabricated/Fabricated%20App/_git/Fabricated.Repo/pullrequest/42", "--file", @"src\App.cs", "--line", "2", "--body", "Why twice?", "--agent", Agent, "--mention", "reviewer@example.com", "--mention", "00000000-0000-0000-0000-00000000c003", "--compact"],
             CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
-        Assert.Equal(WriteToken, _factory.Pat);
+        Assert.Equal(Token, _factory.Pat);
         Assert.True(_session.Disposed);
         JsonElement envelope = Envelope();
         Assert.Equal("pullRequestComment", envelope.GetProperty("kind").GetString());
@@ -146,9 +144,9 @@ public sealed class WriteToolTests
     }
 
     [Fact]
-    public async Task MissingWriteToken_NamesTheWriteLoginEvenWhenAReadTokenIsStored()
+    public async Task MissingToken_NamesTheLoginOfThisTool()
     {
-        _vault.Remove(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Write));
+        _vault.Remove(CredentialAccount.For(Fabricated.Organization));
 
         int exitCode = await Umbrella().InvokeAsync(["work-item", "comment", "7", "--body", "Q", "--agent", Agent, "--compact"], CancellationToken.None);
 
@@ -236,29 +234,28 @@ public sealed class WriteToolTests
     }
 
     [Fact]
-    public async Task AuthLogin_StoresTheWriteTokenSeparatelyAndAsksNoPrivacyLevel()
+    public async Task AuthLogin_StoresTheTokenTheReadToolsUseAndAsksNoPrivacyLevel()
     {
-        var terminal = new ScriptedTerminalInput("new-write-token");
+        var terminal = new ScriptedTerminalInput("new-token");
 
         int exitCode = await Umbrella(terminal).InvokeAsync(["auth", "login", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
-        Assert.Equal("Personal access token for https://dev.azure.com/fabricated#write: ", Assert.Single(terminal.Prompts));
-        Assert.Equal("new-write-token", _vault.Read(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Write)));
-        Assert.Equal(ReadToken, _vault.Read(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Read)));
+        Assert.Equal("Personal access token for https://dev.azure.com/fabricated: ", Assert.Single(terminal.Prompts));
+        Assert.Equal("new-token", _vault.Read(CredentialAccount.For(Fabricated.Organization)));
+        Assert.Null(_vault.Read($"{CredentialAccount.For(Fabricated.Organization)}#write"));
         JsonElement result = Envelope().GetProperty("results")[0];
         Assert.True(result.GetProperty("tokenStored").GetBoolean());
         Assert.False(result.TryGetProperty("privacyConfigured", out _));
     }
 
     [Fact]
-    public async Task AuthLogout_RemovesOnlyTheWriteToken()
+    public async Task AuthLogout_RemovesTheSharedToken()
     {
         int exitCode = await Umbrella().InvokeAsync(["auth", "logout", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
-        Assert.Null(_vault.Read(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Write)));
-        Assert.Equal(ReadToken, _vault.Read(CredentialAccount.ForToken(Fabricated.Organization, TokenScope.Read)));
+        Assert.Null(_vault.Read(CredentialAccount.For(Fabricated.Organization)));
     }
 
     private CommandApplication Umbrella(ScriptedTerminalInput? terminal = null) =>
@@ -273,7 +270,7 @@ public sealed class WriteToolTests
             TimeProvider.System,
             credentialVault: _vault,
             terminalInput: terminal,
-            tokenScope: TokenScope.Write);
+            toolKind: ToolKind.Write);
 
     private JsonElement Envelope() => JsonDocument.Parse(_output.ToString()).RootElement;
 }

@@ -9,9 +9,9 @@ namespace AdoRead.Commands.Shared;
 
 /// <summary>
 /// Stores, checks and removes the personal access token of one organization in the OS credential
-/// vault. No command accepts a token value: login reads it from a masked terminal prompt. Login also
-/// asks a person for the privacy level when the organization has none yet. Write tools store their
-/// own token and ask for no privacy level, because they return no Azure DevOps content.
+/// vault. No command accepts a token value: login reads it from a masked terminal prompt. Read and write
+/// tools share the token. Login in a read tool also asks a person for the privacy level when the
+/// organization has none yet; a write tool asks for none, because it returns no Azure DevOps content.
 /// </summary>
 public static class AuthCommands
 {
@@ -177,7 +177,7 @@ public static class AuthCommands
 
     private static LoginView Login(Uri organizationUrl, ToolCommandNames names, CommandServices services)
     {
-        string account = services.TokenAccount(organizationUrl);
+        string account = CredentialAccount.For(organizationUrl);
         string token = services.TerminalInput.ReadMaskedLine($"Personal access token for {account}: ").Trim();
         if (token.Length == 0)
         {
@@ -185,7 +185,7 @@ public static class AuthCommands
         }
 
         services.CredentialVault.Write(account, token);
-        if (services.TokenScope == TokenScope.Write)
+        if (services.ToolKind == ToolKind.Write)
         {
             return new LoginView(services.CredentialVault.Kind, TokenStored: true, PrivacyConfigured: null, Notice: null);
         }
@@ -241,12 +241,12 @@ public static class AuthCommands
 
     private static TokenStateView ReadTokenState(Uri organizationUrl, CommandServices services)
     {
-        string? token = services.CredentialVault.Read(services.TokenAccount(organizationUrl));
+        string? token = services.CredentialVault.Read(CredentialAccount.For(organizationUrl));
         return new TokenStateView(services.CredentialVault.Kind, TokenStored: !string.IsNullOrEmpty(token));
     }
 
     private static TokenRemovalView RemoveToken(Uri organizationUrl, CommandServices services) =>
-        new(services.CredentialVault.Kind, TokenRemoved: services.CredentialVault.Remove(services.TokenAccount(organizationUrl)));
+        new(services.CredentialVault.Kind, TokenRemoved: services.CredentialVault.Remove(CredentialAccount.For(organizationUrl)));
 
     private static async Task<int> WriteErrorAsync(
         string kind,

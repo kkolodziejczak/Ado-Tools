@@ -1,6 +1,5 @@
 using AdoRead.Commands;
 using AdoRead.Configuration;
-using AdoRead.Credentials;
 using AdoRead.Output;
 using AdoWrite.Commands;
 
@@ -10,7 +9,7 @@ var application = new ToolComposition(
     configurationStore,
     jsonOutput,
     TimeProvider.System,
-    tokenScope: TokenScope.Write).CreateUmbrella(
+    toolKind: ToolKind.Write).CreateUmbrella(
     "ado-write",
     [PullRequestWriteModule.Definition, WorkItemCommentModule.Definition]);
 

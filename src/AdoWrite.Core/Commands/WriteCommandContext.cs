@@ -11,7 +11,7 @@ namespace AdoWrite.Commands;
 
 /// <summary>
 /// Shared plumbing for the write commands: resolve the target and its input, load configuration,
-/// check the organization, read the write token, apply the whole-command timeout, open one session,
+/// check the organization, read the token, apply the whole-command timeout, open one session,
 /// and map every expected failure onto a single JSON envelope and exit code. Nothing reaches Azure
 /// DevOps until the target, the input and the configuration are valid.
 /// </summary>

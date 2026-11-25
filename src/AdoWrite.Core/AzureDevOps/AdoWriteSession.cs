@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Services.WebApi;
 
 namespace AdoWrite.AzureDevOps;
 
-/// <summary>One connection authenticated with the write token, and the clients the write commands use.</summary>
+/// <summary>One connection authenticated with the organization's token, and the clients the write commands use.</summary>
 public interface IAdoWriteSession : IAsyncDisposable
 {
     IPullRequestCommentClient PullRequests { get; }

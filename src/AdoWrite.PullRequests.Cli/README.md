@@ -19,7 +19,7 @@ ado-write-pr config init --organization https://dev.azure.com/example
 ado-write-pr auth login
 ```
 
-The write tools keep their own token in your operating system's credential vault, separate from the read token. It needs **Code (Read & write)**, plus **Identity (Read)** to mention people by mail address.
+Every Ado-Tools read and write tool uses the same token from your operating system's credential vault, so if you already logged in with a read tool, there is nothing more to set up. For writing, the token also needs **Code (Read & write)**, plus **Identity (Read)** to mention people by mail address.
 
 ## Commands
 
@@ -29,7 +29,7 @@ The write tools keep their own token in your operating system's credential vault
 | `reply <id-or-url> --thread <id> --body <markdown> [--agent <name>]` | Replies in an existing thread |
 | `requeue <id-or-url> [--evaluation <id>]...` | Requeues expired build policies, or the ones you name |
 | `vote <id-or-url> --vote <vote> --confirm` | Sets your vote: `approve`, `approve-with-suggestions`, `none`, `wait-for-author` or `reject` |
-| `config`, `auth` | Settings and the stored write token |
+| `config`, `auth` | Settings and the stored token |
 
 Every command accepts `--dry-run`, which shows what would happen without changing anything. Comments also take `--mention`, `--attach` and `--key`.
 
