@@ -49,6 +49,26 @@ public sealed class WorkItemCommenterTests
         Assert.Equal("Example Author", posted.ActingAs);
     }
 
+    [Theory]
+    [InlineData("Q\n\n---\n🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*\n\n<!-- ado-write:q1 -->", "Claude Opus 5.5", false)]
+    [InlineData("Q\n\n<!-- ado-write:q1 -->", "Claude Opus 5.5", true)]
+    [InlineData("Q\n\n---\n🤖 *Posted by Other Model on behalf of Example Author*\n\n<!-- ado-write:q1 -->", "Claude Opus 5.5", true)]
+    [InlineData("Q\n\n---\n🤖 *Posted by Claude Opus 5.5 on behalf of Example Author*\n\n<!-- ado-write:q1 -->", null, true)]
+    [InlineData("Q\n\n<!-- ado-write:q1 -->", null, false)]
+    public async Task CommentAsync_NotesWhenTheEarlierCommentsFooterDiffersFromTheRequestedOne(string earlierText, string? agent, bool differs)
+    {
+        _client.Comments.Add(new WorkItemComment(20, earlierText, false, Fabricated.Author.Id));
+
+        PostedCommentDocument posted = await Commenter().CommentAsync(
+            Fabricated.WorkItemId,
+            CommentDraft.Create("Q", agent, [], "q1", dryRun: false),
+            CancellationToken.None);
+
+        Assert.Equal(CommentOutcomes.Duplicate, posted.Outcome);
+        Assert.Equal(differs, posted.Notice is not null);
+        Assert.Empty(_client.Added);
+    }
+
     [Fact]
     public async Task CommentAsync_DryRunPostsNothing()
     {

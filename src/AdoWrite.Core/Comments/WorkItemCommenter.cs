@@ -26,7 +26,10 @@ internal sealed class WorkItemCommenter(IWorkItemCommentClient client, IPeopleDi
             !comment.IsDeleted && comment.AuthorId == author.Id && CommentMarker.Marks(comment.Text, key));
         if (earlier is not null)
         {
-            return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, key, author);
+            return Result(CommentOutcomes.Duplicate, workItemId, project, earlier.Id, key, author) with
+            {
+                Notice = CommentComposer.DuplicateNotice(draft, author, earlier.Text)
+            };
         }
 
         ComposedComment comment = await _composer.ComposeAsync(

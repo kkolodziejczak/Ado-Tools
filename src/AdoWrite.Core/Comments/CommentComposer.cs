@@ -99,13 +99,31 @@ internal sealed class CommentComposer(IPeopleDirectory people)
 
         if (draft.Agent is not null)
         {
-            text.Append("\n\n---\n");
-            text.Append($"🤖 *Posted by {draft.Agent} on behalf of {onBehalfOf}*");
+            text.Append(Footer(draft.Agent, onBehalfOf));
         }
 
         text.Append("\n\n");
         text.Append(CommentMarker.Render(key));
         return text.ToString();
+    }
+
+    private const string FooterStart = "\n\n---\n🤖 *Posted by ";
+
+    private static string Footer(string agent, string onBehalfOf) => $"{FooterStart}{agent} on behalf of {onBehalfOf}*";
+
+    /// <summary>
+    /// The notice for a duplicate whose earlier comment has another footer than <paramref name="draft"/>
+    /// would add (none where one was asked for, another agent, or one where none was asked for), else null.
+    /// The key leaves the footer out on purpose, so a retry never posts twice.
+    /// </summary>
+    public static string? DuplicateNotice(CommentDraft draft, Person author, string? earlierText)
+    {
+        bool differs = draft.Agent is null
+            ? earlierText?.Contains(FooterStart, StringComparison.Ordinal) == true
+            : earlierText?.Contains(Footer(draft.Agent, author.DisplayName), StringComparison.Ordinal) != true;
+        return differs
+            ? "An earlier comment of yours carries the same key, so nothing was posted. Its footer differs from the one this command asked for with --agent. To post it again with that footer, pass a new --key."
+            : null;
     }
 }
 

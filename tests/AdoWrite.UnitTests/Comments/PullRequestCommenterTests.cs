@@ -57,6 +57,18 @@ public sealed class PullRequestCommenterTests
     }
 
     [Fact]
+    public async Task CommentAsync_NotesWhenAddingAnAgentToAnEarlierCommentWithoutAFooter()
+    {
+        _client.Threads.Add(new GitPullRequestCommentThread { Id = 71, Comments = [Fabricated.CommentBy(3, "Question?\n\n<!-- ado-write:q1 -->")] });
+
+        PostedCommentDocument retry = await Commenter().CommentAsync(Fabricated.PullRequestId, null, Draft("Question?", key: "q1"), CancellationToken.None);
+
+        Assert.Equal(CommentOutcomes.Duplicate, retry.Outcome);
+        Assert.Contains("--key", retry.Notice, StringComparison.Ordinal);
+        Assert.Empty(_client.CreatedThreads);
+    }
+
+    [Fact]
     public async Task CommentAsync_AttachesToNewLinesOfTheLatestIteration()
     {
         var lines = new LineSelection("/src/App.cs", 1, 2, LineSelection.Right);

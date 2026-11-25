@@ -34,7 +34,10 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(await GetThreadsAsync(location, cancellationToken), key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key, author);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.Comment.Id, AnchorOf(earlier.Thread), key, author) with
+            {
+                Notice = CommentComposer.DuplicateNotice(draft, author, earlier.Comment.Content)
+            };
         }
 
         LineAnchor? anchor = lines is null ? null : await AnchorAsync(location, lines, cancellationToken);
@@ -82,7 +85,10 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
         Person author = await _composer.GetAuthorAsync(cancellationToken);
         if (FindMarked(threads, key, author) is { } earlier)
         {
-            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.CommentId, AnchorOf(earlier.Thread), key, author);
+            return Result(CommentOutcomes.Duplicate, location, earlier.Thread.Id, earlier.Comment.Id, AnchorOf(earlier.Thread), key, author) with
+            {
+                Notice = CommentComposer.DuplicateNotice(draft, author, earlier.Comment.Content)
+            };
         }
 
         ComposedComment comment = await _composer.ComposeAsync(
@@ -232,7 +238,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
     }
 
     /// <summary>Only the signed-in user's own comments count, so a person quoting the marker cannot stand in for a post.</summary>
-    private static (GitPullRequestCommentThread Thread, int CommentId)? FindMarked(
+    private static (GitPullRequestCommentThread Thread, Comment Comment)? FindMarked(
         IEnumerable<GitPullRequestCommentThread> threads,
         string key,
         Person author)
@@ -246,7 +252,7 @@ internal sealed class PullRequestCommenter(IPullRequestCommentClient client, IPe
                 && CommentMarker.Marks(comment.Content, key));
             if (marked is not null)
             {
-                return (thread, marked.Id);
+                return (thread, marked);
             }
         }
 
