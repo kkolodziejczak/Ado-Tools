@@ -112,8 +112,13 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("ADO_READ_WIKI_SEARCH_TEXT", liveSmokeContract, StringComparison.Ordinal);
         string workflowContract = await File.ReadAllTextAsync(workflow);
         Assert.Contains("PACKAGE_VERSION: ${{ inputs.version || '1.0.0' }}", workflowContract, StringComparison.Ordinal);
-        Assert.Contains("$version = $env:PACKAGE_VERSION", workflowContract, StringComparison.Ordinal);
-        Assert.Equal(10, workflowContract.Split("\"-p:Version=$env:PACKAGE_VERSION\"").Length - 1);
+        Assert.Contains("./scripts/Invoke-CiChecks.ps1 -Version $env:PACKAGE_VERSION", workflowContract, StringComparison.Ordinal);
+        string checksContract = await File.ReadAllTextAsync(Path.Combine(toolRoot, "scripts", "Invoke-CiChecks.ps1"));
+        Assert.Contains("dotnet build AdoRead.slnx --no-restore --configuration Release \"-p:Version=$Version\" -p:ContinuousIntegrationBuild=true", checksContract, StringComparison.Ordinal);
+        Assert.Contains("dotnet pack $tool.Project --no-build --configuration Release \"-p:Version=$Version\"", checksContract, StringComparison.Ordinal);
+        Assert.Contains("dotnet test AdoRead.slnx --no-build --configuration Release", checksContract, StringComparison.Ordinal);
+        Assert.Contains("./scripts/Test-ToolPackage.ps1", checksContract, StringComparison.Ordinal);
+        Assert.Contains("./scripts/Verify-ReleasePackage.ps1", checksContract, StringComparison.Ordinal);
         string releaseContract = await File.ReadAllTextAsync(releaseWorkflow);
         Assert.Contains("uses: ./.github/workflows/ci.yml", releaseContract, StringComparison.Ordinal);
         Assert.Contains("environment: release", releaseContract, StringComparison.Ordinal);
@@ -128,10 +133,9 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0", prereleaseContract, StringComparison.Ordinal);
         Assert.Contains("uses: ./.github/workflows/sign-packages.yml", prereleaseContract, StringComparison.Ordinal);
         Assert.Contains("name: signed-packages", prereleaseContract, StringComparison.Ordinal);
-        foreach ((string _, string packageId, string command) in Tools)
+        foreach ((string project, string packageId, string _) in Tools)
         {
-            Assert.Contains($"PackageId = '{packageId}'", workflowContract, StringComparison.Ordinal);
-            Assert.Contains($"CommandName = '{command}'", workflowContract, StringComparison.Ordinal);
+            Assert.Contains($"PackageId = '{packageId}'; Project = 'src/{project}/{project}.csproj'", checksContract, StringComparison.Ordinal);
         }
 
         string liveImageContract = await File.ReadAllTextAsync(liveWorkItemSmoke);

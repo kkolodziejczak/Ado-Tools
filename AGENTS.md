@@ -18,6 +18,13 @@ Every new tool, command and option follows this rule. Check a name against it be
 
 Never rename these, because users or stored data depend on them: `~/.ado-read/config.json`, the comment marker `<!-- ado-write:<key> -->`, vault account names, `ADO_READ_*` variables, JSON `kind` values, and project, assembly and namespace names (`AdoRead.PullRequests.Cli`, …; signing selects `AdoRead.*.dll;AdoWrite.*.dll`).
 
+## Before every push
+
+1. Run `./scripts/Invoke-CiChecks.ps1`. It is the CI workflow itself: restore, format, build, test, pack, package validation, package health and the installed-package smoke test of all nine tools. `ci.yml` only calls it. Push only when it ends with "All CI checks passed".
+2. When a check fails, find out which side is wrong. If the code is wrong, fix the code. If the code is right and a test, smoke script or expected list describes the old behaviour, update it in the same commit and say so in the message. Never delete or skip a check to get green.
+3. Create a feature branch with `git switch -c <name> --no-track origin/master` and push it with `git push -u origin <name>:<name>`. Git here may have `push.default=upstream`, so a branch that tracks `origin/master` pushes straight to `master`.
+4. After the push, follow the CI run (`gh run list --branch <name> --limit 1`) and fix a red run before starting other work.
+
 ## Releasing
 
 The packages go to nuget.org in two ways. Both build, test and check every tool with `.github/workflows/ci.yml` first.
