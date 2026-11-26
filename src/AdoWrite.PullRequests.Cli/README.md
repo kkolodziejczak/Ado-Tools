@@ -25,6 +25,7 @@ Every Ado-Tools read and write tool uses the same token from your operating syst
 
 | Command | Does |
 | --- | --- |
+| `create --repository <name-or-id> --source <branch> --title <text> [--target] [--body] [--reviewer] [--work-item] [--draft]` | Opens a pull request, or returns the active one for the same branches |
 | `comment <id-or-url> --body <markdown> [--agent <name>] [--file <path> --line <n>]` | Opens a thread, attached to lines when `--file` is given |
 | `reply <id-or-url> --thread <id> --body <markdown> [--agent <name>]` | Replies in an existing thread |
 | `resolve <id-or-url> --thread <id> [--body <markdown>]` | Marks a thread resolved, after an optional reply |
@@ -36,6 +37,7 @@ Every Ado-Tools read and write tool uses the same token from your operating syst
 Every command accepts `--dry-run`, which shows what would happen without changing anything. Comments also take `--mention`, `--attach` and `--key`.
 
 ```powershell
+ado-write-pr create --project Payments --repository Payments.Api --source feature/retry --title "Retry failed payments once" --agent "Claude Opus 5.5" --compact
 ado-write-pr comment 412 --body "Is this check still needed?" --agent "Claude Opus 5.5" --compact
 ado-write-pr reply 412 --thread 7 --body "Thanks, that answers it." --agent "Claude Opus 5.5" --compact
 ado-write-pr resolve 412 --thread 7 --body "Renamed in the last push." --agent "Claude Opus 5.5" --compact

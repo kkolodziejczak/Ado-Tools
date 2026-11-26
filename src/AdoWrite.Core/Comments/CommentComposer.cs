@@ -24,7 +24,7 @@ internal sealed class CommentComposer(IPeopleDirectory people)
         Func<Task<IReadOnlyList<AttachmentLink>>> uploadAsync,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<MentionDocument> mentions = await ResolveMentionsAsync(draft.Mentions, cancellationToken);
+        IReadOnlyList<MentionDocument> mentions = await ResolvePeopleAsync(people, draft.Mentions, "mention", cancellationToken);
         IReadOnlyList<AttachmentLink> links = draft.DryRun || draft.Attachments.Count == 0
             ? draft.Attachments.Select(file => new AttachmentLink(file, null, Reused: false)).ToArray()
             : await uploadAsync();
@@ -34,36 +34,42 @@ internal sealed class CommentComposer(IPeopleDirectory people)
             links.Select(link => link.ToDocument()).ToArray());
     }
 
-    /// <summary>An identity ID is used as given; anything else must match exactly one active person.</summary>
-    private async Task<IReadOnlyList<MentionDocument>> ResolveMentionsAsync(
+    /// <summary>
+    /// People named by a <paramref name="role"/> option, <c>mention</c> or <c>reviewer</c>: an identity ID
+    /// is used as given; anything else must match exactly one active person.
+    /// </summary>
+    public static async Task<IReadOnlyList<MentionDocument>> ResolvePeopleAsync(
+        IPeopleDirectory people,
         IReadOnlyList<string> inputs,
+        string role,
         CancellationToken cancellationToken)
     {
-        var mentions = new List<MentionDocument>(inputs.Count);
+        var resolved = new List<MentionDocument>(inputs.Count);
         foreach (string input in inputs)
         {
             if (Guid.TryParse(input, out Guid id))
             {
-                mentions.Add(new MentionDocument(input, id));
+                resolved.Add(new MentionDocument(input, id));
                 continue;
             }
 
             IReadOnlyList<Person> matches = await AzureDevOpsCall.RunAsync(
                 () => people.FindAsync(input, cancellationToken),
                 cancellationToken);
-            mentions.Add(matches.Count switch
+            string how = role == "mention" ? "Mention" : $"Name each {role}";
+            resolved.Add(matches.Count switch
             {
                 1 => new MentionDocument(input, matches[0].Id),
                 0 => throw WriteException.Rejected(
-                    "mentionNotFound",
-                    $"No active person matches the mention '{input}'. Mention by mail address or identity ID."),
+                    $"{role}NotFound",
+                    $"No active person matches the {role} '{input}'. {how} by mail address or identity ID."),
                 _ => throw WriteException.Rejected(
-                    "mentionAmbiguous",
-                    $"{matches.Count} people match the mention '{input}'. Mention by mail address or identity ID.")
+                    $"{role}Ambiguous",
+                    $"{matches.Count} people match the {role} '{input}'. {how} by mail address or identity ID.")
             });
         }
 
-        return mentions;
+        return resolved;
     }
 
     private static string Render(
@@ -124,7 +130,7 @@ internal sealed class CommentComposer(IPeopleDirectory people)
     private static string Footer(string agent, string onBehalfOf) =>
         $"{FooterStart}{EscapeEmphasis(agent)} on behalf of {EscapeEmphasis(onBehalfOf)}*";
 
-    private static string EscapeEmphasis(string name) =>
+    internal static string EscapeEmphasis(string name) =>
         name.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("*", "\\*", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
