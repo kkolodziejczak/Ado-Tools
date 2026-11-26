@@ -23,12 +23,12 @@ public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSo
         "System.ChangedDate"
     ];
 
-    public async Task<IReadOnlyList<int>> QueryAsync(string wiql, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<int>> QueryAsync(string wiql, string? project, CancellationToken cancellationToken)
     {
         WorkItemQueryResult result;
         try
         {
-            result = await client.QueryByWiqlAsync(wiql, cancellationToken);
+            result = await client.QueryByWiqlAsync(wiql, project, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

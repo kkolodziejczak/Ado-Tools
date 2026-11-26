@@ -7,8 +7,11 @@ public interface IWorkItemTrackingClient
 {
     Task<WorkItem> GetWorkItemAsync(int id, CancellationToken cancellationToken);
 
-    /// <summary>Runs a WIQL query across the organization and returns the matching references, not their fields.</summary>
-    Task<WorkItemQueryResult> QueryByWiqlAsync(string wiql, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// Runs a WIQL query in a project (name or ID), or across the organization when it is null, and
+    /// returns the matching references, not their fields.
+    /// </summary>
+    Task<WorkItemQueryResult> QueryByWiqlAsync(string wiql, string? project, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
     /// <summary>
@@ -69,15 +72,23 @@ public sealed class SdkWorkItemTrackingClient(WorkItemTrackingHttpClient client)
     /// Azure DevOps refuses a query that matches more than this many items unless a top is given, so the
     /// count reported back is "at least" beyond it.
     /// </summary>
-    private const int MaxQueryResults = 20000;
+    public const int MaxQueryResults = 20000;
 
-    public Task<WorkItemQueryResult> QueryByWiqlAsync(string wiql, CancellationToken cancellationToken) =>
-        client.QueryByWiqlAsync(
-            new Wiql { Query = wiql },
-            timePrecision: null,
-            top: MaxQueryResults,
-            userState: null,
-            cancellationToken);
+    public Task<WorkItemQueryResult> QueryByWiqlAsync(string wiql, string? project, CancellationToken cancellationToken) =>
+        project is null
+            ? client.QueryByWiqlAsync(
+                new Wiql { Query = wiql },
+                timePrecision: null,
+                top: MaxQueryResults,
+                userState: null,
+                cancellationToken)
+            : client.QueryByWiqlAsync(
+                new Wiql { Query = wiql },
+                project,
+                timePrecision: null,
+                top: MaxQueryResults,
+                userState: null,
+                cancellationToken);
 
     public Task<WorkItem> GetWorkItemAsync(int id, CancellationToken cancellationToken) =>
         client.GetWorkItemAsync(

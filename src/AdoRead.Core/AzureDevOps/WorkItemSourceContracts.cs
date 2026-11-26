@@ -6,8 +6,8 @@ public interface IWorkItemSource
 {
     Task<SourceWorkItem?> GetAsync(int id, CancellationToken cancellationToken);
 
-    /// <summary>The IDs a flat WIQL query matches, in the query's order.</summary>
-    Task<IReadOnlyList<int>> QueryAsync(string wiql, CancellationToken cancellationToken) =>
+    /// <summary>The IDs a flat WIQL query matches, in the query's order; run in <paramref name="project"/> when given.</summary>
+    Task<IReadOnlyList<int>> QueryAsync(string wiql, string? project, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
     /// <summary>The fields a work-item list shows, for each ID, in the given order. A deleted or inaccessible ID is left out.</summary>

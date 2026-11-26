@@ -21,16 +21,18 @@ public sealed record WorkItemListEntry(
     DateTimeOffset? ChangedAtUtc,
     Uri? Browser);
 
-/// <summary>
-/// What was asked for. <see cref="Filter"/> is null when the caller gave the WIQL; <see cref="Wiql"/>
-/// is always the query that ran.
-/// </summary>
-public sealed record WorkItemListQuery(Uri OrganizationUrl, WorkItemFilter? Filter, string Wiql, int Top, bool Full);
+/// <summary>What to list: the filters, or null when the caller wrote the WIQL, and the query that runs.</summary>
+public sealed record WorkItemListRequest(WorkItemFilter? Filter, string Wiql, int Top);
 
 /// <summary>
-/// Runs a WIQL query, then reads the first <see cref="WorkItemListQuery.Top"/> matches: as short entries
-/// in one batched call, or with <see cref="WorkItemListQuery.Full"/> as the same documents
-/// <c>work-item show</c> returns, one read each.
+/// The request as the output echoes it. When people are withheld, a named assignee is aliased and the
+/// WIQL is left out, because either can carry a person's name.
+/// </summary>
+public sealed record WorkItemListQuery(Uri OrganizationUrl, WorkItemFilter? Filter, string? Wiql, int Top, bool Full);
+
+/// <summary>
+/// Runs a WIQL query, then reads the first <see cref="WorkItemListRequest.Top"/> matches: as short
+/// entries in one batched call, or as the same documents <c>work-item show</c> returns, one read each.
 /// </summary>
 public sealed class WorkItemListReader(
     IWorkItemSource source,
@@ -46,22 +48,27 @@ public sealed class WorkItemListReader(
 
     private readonly WorkItemMapper _mapper = new(new RichTextNormalizer());
 
-    public async Task<SearchEnvelope<WorkItemListEntry>> ListAsync(WorkItemListQuery query, CancellationToken cancellationToken)
+    public async Task<SearchEnvelope<WorkItemListEntry>> ListAsync(WorkItemListRequest request, CancellationToken cancellationToken)
     {
+        WorkItemListQuery query = Echo(request, full: false);
         try
         {
-            IReadOnlyList<int> matched = await source.QueryAsync(query.Wiql, cancellationToken);
-            int[] selected = matched.Take(query.Top).ToArray();
+            IReadOnlyList<int> matched = await QueryAsync(request, cancellationToken);
+            int[] selected = matched.Take(request.Top).ToArray();
             IReadOnlyList<SourceWorkItem> items = await source.GetManyAsync(selected, cancellationToken);
             WorkItemListEntry[] entries = items.Select(ToEntry).ToArray();
+            SearchError[] errors = selected
+                .Except(entries.Select(entry => entry.Id))
+                .Select(Unreadable)
+                .ToArray();
             return PrivacyEnvelopes.Describe(
-                Envelope(ListKind, "1.0", query, "success", entries, [], matched.Count),
+                Envelope(ListKind, "1.0", query, entries, errors, matched),
                 privacy,
                 ListCategories);
         }
         catch (WorkItemSourceException exception)
         {
-            return Envelope<WorkItemListEntry>(ListKind, "1.0", query, "error", [], [Error(exception)], totalCount: null);
+            return Envelope<WorkItemListEntry>(ListKind, "1.0", query, [], [Error(exception)], matched: null);
         }
     }
 
@@ -82,22 +89,23 @@ public sealed class WorkItemListReader(
             document.Links.Browser);
     }
 
-    public async Task<SearchEnvelope<WorkItemDocument>> ListFullAsync(WorkItemListQuery query, CancellationToken cancellationToken)
+    public async Task<SearchEnvelope<WorkItemDocument>> ListFullAsync(WorkItemListRequest request, CancellationToken cancellationToken)
     {
+        WorkItemListQuery query = Echo(request, full: true);
         IReadOnlyList<int> matched;
         try
         {
-            matched = await source.QueryAsync(query.Wiql, cancellationToken);
+            matched = await QueryAsync(request, cancellationToken);
         }
         catch (WorkItemSourceException exception)
         {
-            return Envelope<WorkItemDocument>(FullKind, "2.0", query, "error", [], [Error(exception)], totalCount: null);
+            return Envelope<WorkItemDocument>(FullKind, "2.0", query, [], [Error(exception)], matched: null);
         }
 
         // Each read is several calls and the whole command shares one timeout, so reads overlap. The
         // results keep the query's order.
         var reader = new WorkItemReader(source, _mapper, organizationUrl, timeProvider, privacy);
-        int[] selected = matched.Take(query.Top).ToArray();
+        int[] selected = matched.Take(request.Top).ToArray();
         var reads = new SearchEnvelope<WorkItemDocument>[selected.Length];
         await Parallel.ForAsync(
             0,
@@ -111,34 +119,63 @@ public sealed class WorkItemListReader(
         {
             documents.AddRange(read.Results);
             errors.AddRange(read.Status == "notFound"
-                ? [new SearchError("azureDevOps", null, "workItemNotFound", $"Work item {id} matched the query but could not be read.", false)]
+                ? [Unreadable(id)]
                 : read.Errors.Select(error => error with { Message = $"Work item {id}: {error.Message}" }));
         }
 
-        string status = errors.Count == 0 ? "success" : documents.Count > 0 ? "partial" : "error";
         return PrivacyEnvelopes.Describe(
-            Envelope(FullKind, "2.0", query, status, documents, errors, matched.Count),
+            Envelope(FullKind, "2.0", query, documents, errors, matched),
             privacy,
             WorkItemPrivacy.Categories);
     }
 
+    private Task<IReadOnlyList<int>> QueryAsync(WorkItemListRequest request, CancellationToken cancellationToken) =>
+        source.QueryAsync(request.Wiql, WorkItemWiql.Clean(request.Filter?.Project), cancellationToken);
+
+    private WorkItemListQuery Echo(WorkItemListRequest request, bool full)
+    {
+        if (privacy.Allows(PrivacyCategory.People))
+        {
+            return new WorkItemListQuery(organizationUrl, request.Filter, request.Wiql, request.Top, full);
+        }
+
+        WorkItemFilter? filter = request.Filter is null
+            ? null
+            : request.Filter with { Assignee = WorkItemWiql.IsMacroAssignee(request.Filter.Assignee) ? request.Filter.Assignee : privacy.Person(request.Filter.Assignee) };
+        return new WorkItemListQuery(organizationUrl, filter, Wiql: null, request.Top, full);
+    }
+
+    /// <summary>
+    /// The page counts what matched, except at the service's cap, where the count is only a lower bound
+    /// and is left out.
+    /// </summary>
     private SearchEnvelope<T> Envelope<T>(
         string kind,
         string schemaVersion,
         WorkItemListQuery query,
-        string status,
         IReadOnlyList<T> results,
         IReadOnlyList<SearchError> errors,
-        int? totalCount) =>
+        IReadOnlyList<int>? matched) =>
         new(
             schemaVersion,
             kind,
-            status,
+            errors.Count == 0 ? "success" : results.Count > 0 ? "partial" : "error",
             query,
             timeProvider.GetUtcNow(),
             results,
             errors,
-            totalCount is null ? null : new PageMetadataDocument(null, query.Top, results.Count, totalCount, null, null));
+            matched is null
+                ? null
+                : new PageMetadataDocument(
+                    null,
+                    query.Top,
+                    results.Count,
+                    matched.Count < SdkWorkItemTrackingClient.MaxQueryResults ? matched.Count : null,
+                    null,
+                    null));
+
+    private static SearchError Unreadable(int id) =>
+        new("azureDevOps", null, "workItemNotFound", $"Work item {id} matched the query but could not be read.", false);
 
     private static SearchError Error(WorkItemSourceException exception) =>
         new("azureDevOps", null, exception.Code, exception.Message, exception.Transient);

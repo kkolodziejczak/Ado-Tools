@@ -20,10 +20,11 @@ public sealed class WorkItemSourceQueryTests
             }
         };
 
-        IReadOnlyList<int> ids = await new WorkItemSource(client).QueryAsync("SELECT [System.Id] FROM WorkItems", CancellationToken.None);
+        IReadOnlyList<int> ids = await new WorkItemSource(client).QueryAsync("SELECT [System.Id] FROM WorkItems", "Payments", CancellationToken.None);
 
         Assert.Equal([9, 2], ids);
         Assert.Equal("SELECT [System.Id] FROM WorkItems", client.Wiql);
+        Assert.Equal("Payments", client.Project);
     }
 
     [Fact]
@@ -35,7 +36,7 @@ public sealed class WorkItemSourceQueryTests
         };
 
         WorkItemSourceException exception = await Assert.ThrowsAsync<WorkItemSourceException>(
-            () => new WorkItemSource(client).QueryAsync("SELECT [System.Id] FROM WorkItemLinks", CancellationToken.None));
+            () => new WorkItemSource(client).QueryAsync("SELECT [System.Id] FROM WorkItemLinks", null, CancellationToken.None));
 
         Assert.Equal("unsupportedWiql", exception.Code);
     }
@@ -49,7 +50,7 @@ public sealed class WorkItemSourceQueryTests
         };
 
         WorkItemSourceException exception = await Assert.ThrowsAsync<WorkItemSourceException>(
-            () => new WorkItemSource(client).QueryAsync("SELECT nonsense", CancellationToken.None));
+            () => new WorkItemSource(client).QueryAsync("SELECT nonsense", null, CancellationToken.None));
 
         Assert.Equal("invalidWiql", exception.Code);
         Assert.DoesNotContain("secret", exception.Message, StringComparison.Ordinal);
@@ -64,7 +65,7 @@ public sealed class WorkItemSourceQueryTests
         };
 
         WorkItemSourceException exception = await Assert.ThrowsAsync<WorkItemSourceException>(
-            () => new WorkItemSource(client).QueryAsync("SELECT [System.Id] FROM WorkItems", CancellationToken.None));
+            () => new WorkItemSource(client).QueryAsync("SELECT [System.Id] FROM WorkItems", "Payments", CancellationToken.None));
 
         Assert.Equal("unauthorized", exception.Code);
     }
@@ -109,9 +110,12 @@ public sealed class WorkItemSourceQueryTests
 
         public IReadOnlyList<string> RequestedFields { get; private set; } = [];
 
-        public Task<WorkItemQueryResult> QueryByWiqlAsync(string wiql, CancellationToken cancellationToken)
+        public string? Project { get; private set; }
+
+        public Task<WorkItemQueryResult> QueryByWiqlAsync(string wiql, string? project, CancellationToken cancellationToken)
         {
             Wiql = wiql;
+            Project = project;
             return Failure is null ? Task.FromResult(Result!) : throw Failure;
         }
 
