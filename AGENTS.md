@@ -35,7 +35,7 @@ Signs a prerelease of all nine tools and pushes it to nuget.org. It runs only fr
 
 1. Run `git fetch origin` and check that `master` has no unpushed commits (`git status -sb` shows no `ahead`). If it has, push them first. The workflow builds what is on origin.
 2. Start it: `gh workflow run prerelease.yml --ref master`.
-3. When the run waits for signing, start the approval for me (see [Starting the approval for the owner](#starting-the-approval-for-the-owner)) with `gh release-signing approve -Workflow prerelease.yml`.
+3. Right away, start the approval for me (see [Starting the approval for the owner](#starting-the-approval-for-the-owner)) with `gh release-signing approve -Workflow prerelease.yml`.
 4. Follow the run (`gh run list --workflow prerelease.yml --limit 1`, then `gh run watch <id> --exit-status`) and report its result, the version from the "Calculate the prerelease version" step, and the install command:
    `dotnet tool update -g <PackageId> --version <version>`.
 
@@ -43,7 +43,7 @@ The version is `<next>-preview.<run>`: `<next>` is the patch after the latest st
 
 ### "Release a stable version"
 
-Only when I ask for a stable release and name the version. Tag a commit of `master` with `v<major>.<minor>.<patch>` and push the tag. `.github/workflows/release.yml` then waits for signing: start the approval for me with `gh release-signing approve -Tag v<major>.<minor>.<patch>` (see below). After signing it waits for my approval of the `release` environment before it stages the packages on nuget.org, where I publish them. Never approve either deployment yourself.
+Only when I ask for a stable release and name the version. Tag a commit of `master` with `v<major>.<minor>.<patch>` and push the tag, then right away start the approval for me with `gh release-signing approve -Tag v<major>.<minor>.<patch>` (see below). After signing it waits for my approval of the `release` environment before it stages the packages on nuget.org, where I publish them. Never approve either deployment yourself.
 
 ### Signing
 
@@ -51,8 +51,10 @@ nuget.org accepts only packages signed with my code-signing certificate. Both wo
 
 ### Starting the approval for the owner
 
-When a run waits for signing, start the approval script for the owner instead of asking them to
-run it. Open it in its own window, from this repository's folder, so the owner can answer it:
+As soon as you start a release run (push the tag or start the workflow), also start the approval
+script for the owner; don't wait for the build, and don't ask them to run it. It follows the run
+and prompts the owner when signing needs them. Open it in its own window, from this repository's
+folder:
 
 ```powershell
 Start-Process powershell.exe -WorkingDirectory (Get-Location) -ArgumentList '-NoExit', '-Command', 'gh release-signing approve -Tag vX.Y.Z'
