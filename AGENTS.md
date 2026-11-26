@@ -1,5 +1,23 @@
 # Ado-Tools agent instructions
 
+## Naming tools and commands
+
+Every new tool, command and option follows this rule. Check a name against it before you write the test for it, and add new commands to the README tables.
+
+1. **Tool name** = `ado-<read|write>[-<resource>]`, lower kebab case. It is both the NuGet package ID (`PackageId`) and the command (`ToolCommandName`). Without a resource it is the umbrella tool.
+2. **Command** = `<resource> [<child>] <verb> [<id-or-url>] [--options]`. A slice tool is the umbrella path with the first space turned into a hyphen: `ado-read pr show 412` = `ado-read-pr show 412`. A module gets this for free: `ToolComposition` mounts it under its name in the umbrella and on the root of its slice.
+3. **Nouns** are singular kebab case: `pr`, `work-item`, `wiki`, `sprint`, `pipeline`, `project`, `team`, plus the setup groups `config`, `auth`, `privacy`. The noun path names the resource the command takes or returns. Add a child noun only for such a resource (`wiki page`, `pipeline run`, `pipeline test`).
+4. **Verbs** come from a closed list, and every command has one.
+   - Read: `show` (one item), `list` (many, filtered by options), `search` (by text).
+   - Write: `create`, `comment`, `reply`, `resolve`, `unresolve`, `vote`, `requeue`.
+   - Setup: `init`, `show`, `set`, `reset`, `login`, `logout`, `status`.
+   A new verb needs the owner's approval. Don't use compound verbs such as `resolve-thread` or `list-for-pr`.
+5. **The positional argument** is `<id-or-url>` of the resource the noun path names (`<url>` where only a URL works). Things inside it, and references to other resources, are options named after them: `--thread`, `--run`, `--pr`, `--wiki`, `--sprint`. `search <text>` and `privacy set <level>` keep their operand.
+6. **Options** reuse the short domain word the README already uses: `--author`, `--reviewer`, `--vote`, `--status`, `--repository`, `--project`, `--assignee`, `--state`, `--tag`, `--area`, `--type`. Use `me` for the token owner. An option that already exists on another command keeps its name and values. A write verb that also posts a comment takes `--body` / `--body-file`, like `reply`.
+7. **Output**: `list` returns compact entries by default, and `--full` returns an array of full `show` payloads. `--compact` only changes JSON indentation.
+
+Never rename these, because users or stored data depend on them: `~/.ado-read/config.json`, the comment marker `<!-- ado-write:<key> -->`, vault account names, `ADO_READ_*` variables, JSON `kind` values, and project, assembly and namespace names (`AdoRead.PullRequests.Cli`, …; signing selects `AdoRead.*.dll;AdoWrite.*.dll`).
+
 ## Releasing
 
 The packages go to nuget.org in two ways. Both build, test and check every tool with `.github/workflows/ci.yml` first.
