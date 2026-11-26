@@ -36,7 +36,8 @@ public sealed class WorkItemListReader(
     IWorkItemSource source,
     Uri organizationUrl,
     TimeProvider timeProvider,
-    EffectivePrivacy privacy)
+    EffectivePrivacy privacy,
+    int maxParallelReads)
 {
     public const string ListKind = "workItemList";
     public const string FullKind = "workItemSearch";
@@ -93,12 +94,21 @@ public sealed class WorkItemListReader(
             return Envelope<WorkItemDocument>(FullKind, "2.0", query, "error", [], [Error(exception)], totalCount: null);
         }
 
+        // Each read is several calls and the whole command shares one timeout, so reads overlap. The
+        // results keep the query's order.
         var reader = new WorkItemReader(source, _mapper, organizationUrl, timeProvider, privacy);
+        int[] selected = matched.Take(query.Top).ToArray();
+        var reads = new SearchEnvelope<WorkItemDocument>[selected.Length];
+        await Parallel.ForAsync(
+            0,
+            selected.Length,
+            new ParallelOptions { MaxDegreeOfParallelism = maxParallelReads, CancellationToken = cancellationToken },
+            async (index, token) => reads[index] = await reader.ReadAsync(selected[index], token));
+
         var documents = new List<WorkItemDocument>();
         var errors = new List<SearchError>();
-        foreach (int id in matched.Take(query.Top))
+        foreach ((int id, SearchEnvelope<WorkItemDocument> read) in selected.Zip(reads))
         {
-            SearchEnvelope<WorkItemDocument> read = await reader.ReadAsync(id, cancellationToken);
             documents.AddRange(read.Results);
             errors.AddRange(read.Status == "notFound"
                 ? [new SearchError("azureDevOps", null, "workItemNotFound", $"Work item {id} matched the query but could not be read.", false)]

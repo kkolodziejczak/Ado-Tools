@@ -39,7 +39,7 @@ public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSo
             // The service message can name fields and values from the query, so it is not passed on.
             throw new WorkItemSourceException(
                 "invalidWiql",
-                "Azure DevOps rejected the WIQL query. Check its syntax, field names and values.",
+                "Azure DevOps rejected the query. Check that the project, area paths and fields it names exist, and the syntax of a --wiql query.",
                 transient: false,
                 exception);
         }

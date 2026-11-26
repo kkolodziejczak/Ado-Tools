@@ -172,7 +172,7 @@ public static class WorkItemModule
                     cancellationToken);
 
             WorkItemListReader Reader(IAdoSession session, AdoReadConfiguration configuration, EffectivePrivacy privacy) =>
-                new(session.WorkItems, configuration.OrganizationUrl, services.TimeProvider, privacy);
+                new(session.WorkItems, configuration.OrganizationUrl, services.TimeProvider, privacy, configuration.MaxParallelProjects);
         });
         return command;
     }

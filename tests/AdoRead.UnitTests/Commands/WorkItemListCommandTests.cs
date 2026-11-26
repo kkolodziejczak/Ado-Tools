@@ -163,8 +163,25 @@ public sealed class WorkItemListCommandTests
         Assert.Equal([7, 3], results.EnumerateArray().Select(item => item.GetProperty("id").GetInt32()));
         Assert.True(results[0].TryGetProperty("comments", out _));
         Assert.True(results[0].TryGetProperty("description", out _));
-        Assert.Equal([7, 3], source.ReadIds);
+        Assert.Equal([3, 7], source.ReadIds.Order());
         Assert.Empty(source.FetchedIds);
+    }
+
+    [Fact]
+    public async Task List_FullReadsSeveralItemsAtOnceUpToTheConfiguredLimitAndKeepsTheQueryOrder()
+    {
+        int[] ids = [6, 5, 4, 3, 2, 1];
+        var source = new FakeWorkItemListSource { QueryIds = ids, ReadDelay = TimeSpan.FromMilliseconds(50) };
+        foreach (int id in ids)
+        {
+            source.Add(Item(id, $"Item {id}"));
+        }
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "work-item", "list", "--full");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(ids, root.GetProperty("results").EnumerateArray().Select(item => item.GetProperty("id").GetInt32()));
+        Assert.InRange(source.MaxConcurrentReads, 2, AdoReadConfiguration.DefaultMaxParallelProjects);
     }
 
     [Fact]
@@ -254,10 +271,32 @@ public sealed class WorkItemListCommandTests
             return Task.FromResult<IReadOnlyList<SourceWorkItem>>(ids.Where(_items.ContainsKey).Select(id => _items[id]).ToArray());
         }
 
-        public Task<SourceWorkItem?> GetAsync(int id, CancellationToken cancellationToken)
+        public TimeSpan ReadDelay { get; init; }
+
+        public int MaxConcurrentReads { get; private set; }
+
+        private int _concurrentReads;
+
+        public async Task<SourceWorkItem?> GetAsync(int id, CancellationToken cancellationToken)
         {
-            ReadIds.Add(id);
-            return Task.FromResult(_items.GetValueOrDefault(id));
+            lock (ReadIds)
+            {
+                ReadIds.Add(id);
+                MaxConcurrentReads = Math.Max(MaxConcurrentReads, ++_concurrentReads);
+            }
+
+            try
+            {
+                await Task.Delay(ReadDelay, cancellationToken);
+                return _items.GetValueOrDefault(id);
+            }
+            finally
+            {
+                lock (ReadIds)
+                {
+                    _concurrentReads--;
+                }
+            }
         }
 
         public Task<IReadOnlyList<WorkItemCommentDocument>> GetAllCommentsAsync(
