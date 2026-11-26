@@ -2,12 +2,92 @@ using System.Net;
 using AdoRead.Output;
 using AdoRead.WorkItems;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models;
+using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 
 namespace AdoRead.AzureDevOps;
 
 public sealed class WorkItemSource(IWorkItemTrackingClient client) : IWorkItemSource
 {
+    /// <summary>What a list entry shows; no rich text is requested.</summary>
+    private static readonly string[] ListFields =
+    [
+        "System.TeamProject",
+        "System.WorkItemType",
+        "System.Title",
+        "System.State",
+        "System.AssignedTo",
+        "System.Tags",
+        "System.AreaPath",
+        "System.IterationPath",
+        "System.ChangedDate"
+    ];
+
+    public async Task<IReadOnlyList<int>> QueryAsync(string wiql, CancellationToken cancellationToken)
+    {
+        WorkItemQueryResult result;
+        try
+        {
+            result = await client.QueryByWiqlAsync(wiql, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (VssServiceException exception) when (IsRejectedQuery(exception))
+        {
+            // The service message can name fields and values from the query, so it is not passed on.
+            throw new WorkItemSourceException(
+                "invalidWiql",
+                "Azure DevOps rejected the WIQL query. Check its syntax, field names and values.",
+                transient: false,
+                exception);
+        }
+        catch (Exception exception) when (AdoReadExceptionTranslator.IsServiceFailure(exception))
+        {
+            throw AdoReadExceptionTranslator.WorkItemFailure(exception);
+        }
+
+        if (result.QueryResultType != QueryResultType.WorkItem)
+        {
+            throw new WorkItemSourceException(
+                "unsupportedWiql",
+                "Only a flat query that selects FROM WorkItems is supported, not a link or tree query.",
+                transient: false);
+        }
+
+        return (result.WorkItems ?? []).Select(reference => reference.Id).ToArray();
+    }
+
+    /// <summary>A bad query arrives as a 400, or as a service exception without an HTTP status.</summary>
+    private static bool IsRejectedQuery(VssServiceException exception) =>
+        exception is not VssServiceResponseException response || response.HttpStatusCode == HttpStatusCode.BadRequest;
+
+    public async Task<IReadOnlyList<SourceWorkItem>> GetManyAsync(IReadOnlyList<int> ids, CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        try
+        {
+            IReadOnlyList<WorkItem> items = await client.GetWorkItemsAsync(ids, ListFields, cancellationToken);
+            Dictionary<int, SourceWorkItem> byId = items
+                .Select(MapWorkItem)
+                .ToDictionary(item => item.Id);
+            return ids.Where(byId.ContainsKey).Select(id => byId[id]).ToArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (AdoReadExceptionTranslator.IsServiceFailure(exception))
+        {
+            throw AdoReadExceptionTranslator.WorkItemFailure(exception);
+        }
+    }
+
     public async Task<SourceWorkItem?> GetAsync(int id, CancellationToken cancellationToken)
     {
         try

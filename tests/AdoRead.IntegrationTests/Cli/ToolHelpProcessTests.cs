@@ -8,7 +8,7 @@ public sealed class ToolHelpProcessTests
     {
         { "AdoRead.Cli", ["config", "auth", "privacy", "project", "team", "pr", "work-item", "wiki", "sprint", "pipeline"] },
         { "AdoRead.PullRequests.Cli", ["config", "auth", "privacy", "project", "team", "show"] },
-        { "AdoRead.WorkItems.Cli", ["config", "auth", "privacy", "project", "team", "show"] },
+        { "AdoRead.WorkItems.Cli", ["config", "auth", "privacy", "project", "team", "show", "list"] },
         { "AdoRead.Wiki.Cli", ["config", "auth", "privacy", "project", "team", "list", "page"] },
         { "AdoRead.Sprints.Cli", ["config", "auth", "privacy", "project", "team", "list", "show"] },
         { "AdoRead.Pipelines.Cli", ["config", "auth", "privacy", "project", "team", "run", "test"] },

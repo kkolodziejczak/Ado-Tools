@@ -10,9 +10,9 @@ Every tool's package ID is also its command, so `dotnet tool install --global ad
 
 | Package ID and command | Commands |
 | --- | --- |
-| `ado-read` | `config`, `auth`, `privacy`, `project list`, `team list`, `pr show <id-or-url>`, `work-item show <id-or-url>`, `wiki list`, `wiki page list\|show\|search`, `sprint list\|show`, `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` |
+| `ado-read` | `config`, `auth`, `privacy`, `project list`, `team list`, `pr show <id-or-url>`, `work-item show <id-or-url>`, `work-item list`, `wiki list`, `wiki page list\|show\|search`, `sprint list\|show`, `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` |
 | `ado-read-pr` | `show <id-or-url>`, `config`, `auth`, `privacy`, `project list`, `team list` |
-| `ado-read-work-item` | `show <id-or-url> [--download-images]`, `config`, `auth`, `privacy`, `project list`, `team list` |
+| `ado-read-work-item` | `show <id-or-url> [--download-images]`, `list [filters \| --wiql]`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-wiki` | `list`, `page list\|show\|search`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-sprint` | `list`, `show`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-pipeline` | `run list --pr <id-or-url>`, `run show <id-or-url>`, `test list --run <id-or-url>`, `config`, `auth`, `privacy`, `project list`, `team list` |
@@ -233,6 +233,8 @@ ado-read privacy show [--organization <url>] [--config <path>] [--compact]
 ado-read privacy set <minimal|standard|full> [--allow <category>]... [--deny <category>]... [--organization <url>] [--config <path>] [--compact]
 ado-read privacy reset [--organization <url>] [--config <path>] [--compact]
 ado-read work-item show <id-or-url> [--download-images <empty-directory>] [--config <path>] [--compact]
+ado-read work-item list [--project <name>] [--tag <tag>]... [--assignee me|none|<name>] [--state <state>]... [--area <path>]... [--type <type>]... [--top <1..200>] [--full] [--config <path>] [--compact]
+ado-read work-item list --wiql <query> [--top <1..200>] [--full] [--config <path>] [--compact]
 ado-read pr show <id-or-url> [--config <path>] [--compact]
 ado-read project list [--config <path>] [--compact]
 ado-read team list [--project <name>] [--all] [--config <path>] [--compact]
@@ -255,6 +257,23 @@ ado-read work-item show 12345 --download-images "C:\agent-temp\ado-read-12345" -
 ```
 
 The input can be a positive ID, a work-item browser URL, or a work-item REST URL. Canonical `dev.azure.com` and legacy `*.visualstudio.com` HTTPS URLs are accepted. Work-item IDs are organization scoped, so the command does not scan projects. A result includes normalized core and custom fields, rich-text raw/format/plain-text values, nullable person unique names, relations, comments and comment pages, deletion metadata, reactions, and browser/REST links. A custom field that Azure DevOps defines as rich text (HTML), such as Repro Steps or a `Custom.*` rich-text field, has the same `{ format, plainText, raw }` shape in `customFields` as the description; other custom fields keep their value as returned. Telling the two apart takes one extra call per read, for the project's field definitions. By default, attachments remain references and bytes are not downloaded. `--download-images` is the explicit opt-in for supported raster images and changes this command to the additive schema `2.1` contract.
+
+#### Listing and querying work items
+
+```powershell
+ado-read work-item list --tag needs-refinement --compact
+ado-read work-item list --assignee me --state Active --state New --project Payments --compact
+ado-read work-item list --type Bug --area "Payments\Checkout" --top 20 --full --compact
+ado-read work-item list --wiql "SELECT [System.Id] FROM WorkItems WHERE [System.ChangedDate] >= @Today - 7" --compact
+```
+
+`work-item list` finds work items the way a work-item query does and returns them newest change first. Every filter you give must match. `--tag` can repeat, and then an item needs all the tags. `--state`, `--area` and `--type` can repeat, and then an item needs any one of the values. `--area` includes the paths under it. `--assignee` takes `me` for the token's owner, `none` for unassigned items, or a name or e-mail. `--project` limits the search to one project; without it every project is searched. Without any filter the command lists every work item you can read, newest change first.
+
+`--wiql` runs your own flat query (`SELECT [System.Id] FROM WorkItems …`) instead of the filters, and can't be combined with them. A link or tree query (`FROM WorkItemLinks`) is refused with `unsupportedWiql`, and a query Azure DevOps rejects comes back as `invalidWiql`, without the service's message.
+
+By default the result has kind `workItemList` (schema `1.0`), with one short entry per match: `id`, `type`, `title`, `state`, `assignedToUniqueName`, `tags`, `project`, `areaPath`, `iterationPath`, `changedAtUtc` and `browser`. These come from one batched call, so read an item in full with `work-item show <id>`. With `--full`, the result has kind `workItemSearch` (schema `2.0`) and holds the same document `work-item show` returns for each match, comments included. This takes one read per item, and a match that can't be read makes the result `partial` (exit `4`) with an error naming its ID. `query.wiql` is always the query that ran. `page.totalCount` is how many items matched, and `page.returnedCount` is how many came back. `--top` (default 50, at most 200) limits what is returned. Azure DevOps stops counting at 20,000 matches.
+
+An agent that refines tagged work, for example, runs `work-item list --tag needs-refinement --compact`, then `work-item show <id> --compact` for each entry.
 
 #### Work-item image download
 
@@ -471,7 +490,7 @@ ado-write pr vote 412 --vote approve --confirm --compact
 
 ## JSON contract and exit codes
 
-Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads, and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `projectSearch`, `teamSearch`, `iterationSearch`, `sprintSearch`, the pipeline kinds `pipelinePullRequest`, `pipelineRun`, and `pipelineTests`, and the write kinds `pullRequestComment`, `pullRequestReply`, `workItemComment`, `pullRequestRequeue`, and `pullRequestVote`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
+Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads (including `work-item list --full`), and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `workItemList`, `projectSearch`, `teamSearch`, `iterationSearch`, `sprintSearch`, the pipeline kinds `pipelinePullRequest`, `pipelineRun`, and `pipelineTests`, and the write kinds `pullRequestComment`, `pullRequestReply`, `workItemComment`, `pullRequestRequeue`, and `pullRequestVote`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
 
 | Exit code | Status | Meaning |
 | ---: | --- | --- |

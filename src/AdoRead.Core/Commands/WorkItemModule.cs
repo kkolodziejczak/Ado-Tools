@@ -54,7 +54,142 @@ public static class WorkItemModule
             services.JsonOutput,
             services.TimeProvider,
             cancellationToken));
-        return new Dictionary<Command, string> { [command] = "workItemSearch" };
+        Command list = CreateListCommand(names, services);
+        target.Subcommands.Add(list);
+        return new Dictionary<Command, string>
+        {
+            [command] = "workItemSearch",
+            [list] = WorkItemListReader.ListKind
+        };
+    }
+
+    private const int DefaultTop = 50;
+
+    /// <summary>One batched read of at most 200 items, the most Azure DevOps returns per call.</summary>
+    private const int MaxTop = 200;
+
+    private static Command CreateListCommand(ToolCommandNames names, CommandServices services)
+    {
+        var context = new ReadCommandContext(services, names.Root);
+        Option<string?> configOption = ReadCommandContext.CreateConfigOption();
+        var projectOption = new Option<string?>("--project")
+        {
+            Description = "Only work items in this project. Omit to search every project."
+        };
+        var tagOption = new Option<string[]>("--tag")
+        {
+            Description = "Only work items with this tag. Repeat to require several tags.",
+            AllowMultipleArgumentsPerToken = true
+        };
+        var assigneeOption = new Option<string?>("--assignee")
+        {
+            Description = "Only work items assigned to this person: 'me' for the token owner, 'none' for unassigned, or a name or e-mail."
+        };
+        var stateOption = new Option<string[]>("--state")
+        {
+            Description = "Only work items in one of these states, for example --state New --state Active.",
+            AllowMultipleArgumentsPerToken = true
+        };
+        var areaOption = new Option<string[]>("--area")
+        {
+            Description = @"Only work items under one of these area paths, for example --area 'Payments\Checkout'.",
+            AllowMultipleArgumentsPerToken = true
+        };
+        var typeOption = new Option<string[]>("--type")
+        {
+            Description = "Only work items of one of these types, for example --type Bug --type 'User Story'.",
+            AllowMultipleArgumentsPerToken = true
+        };
+        var wiqlOption = new Option<string?>("--wiql")
+        {
+            Description = "Run this flat WIQL query (SELECT [System.Id] FROM WorkItems WHERE …) instead of the filter options."
+        };
+        var topOption = new Option<int>("--top")
+        {
+            Description = $"Return at most this many matches, 1 to {MaxTop}. Default {DefaultTop}.",
+            DefaultValueFactory = _ => DefaultTop
+        };
+        var fullOption = new Option<bool>("--full")
+        {
+            Description = $"Return every match as '{names.Invocation("show")}' would, with comments, instead of a short entry."
+        };
+        var privacyOptions = new PrivacyRequestOptions();
+        var command = new Command(
+            "list",
+            $"List the work items that match filters or a WIQL query, newest change first. Read one with '{names.Invocation("show")}'.");
+        foreach (Option option in new Option[] { configOption, projectOption, tagOption, assigneeOption, stateOption, areaOption, typeOption, wiqlOption, topOption, fullOption })
+        {
+            command.Options.Add(option);
+        }
+
+        privacyOptions.AddTo(command);
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            bool compact = parseResult.GetValue(services.CompactOption);
+            bool full = parseResult.GetValue(fullOption);
+            int top = parseResult.GetValue(topOption);
+            string? wiql = parseResult.GetValue(wiqlOption);
+            var filter = new WorkItemFilter(
+                parseResult.GetValue(projectOption),
+                parseResult.GetValue(tagOption) ?? [],
+                parseResult.GetValue(assigneeOption),
+                parseResult.GetValue(stateOption) ?? [],
+                parseResult.GetValue(areaOption) ?? [],
+                parseResult.GetValue(typeOption) ?? []);
+            if (top is < 1 or > MaxTop)
+            {
+                return await WriteListErrorAsync(services, "invalidTop", $"--top must be between 1 and {MaxTop}.", compact, cancellationToken);
+            }
+
+            if (!string.IsNullOrWhiteSpace(wiql) && !filter.IsEmpty)
+            {
+                return await WriteListErrorAsync(
+                    services,
+                    "conflictingOptions",
+                    "Pass either --wiql or the filter options (--project, --tag, --assignee, --state, --area, --type), not both.",
+                    compact,
+                    cancellationToken);
+            }
+
+            bool ownQuery = !string.IsNullOrWhiteSpace(wiql);
+            string query = ownQuery ? wiql!.Trim() : WorkItemWiql.Build(filter);
+            return full
+                ? await context.RunAsync(
+                    WorkItemListReader.FullKind,
+                    parseResult.GetValue(configOption),
+                    compact,
+                    privacyOptions.Read(parseResult),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy)
+                        .ListFullAsync(new WorkItemListQuery(configuration.OrganizationUrl, ownQuery ? null : filter, query, top, true), token),
+                    cancellationToken)
+                : await context.RunAsync(
+                    WorkItemListReader.ListKind,
+                    parseResult.GetValue(configOption),
+                    compact,
+                    privacyOptions.Read(parseResult),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy)
+                        .ListAsync(new WorkItemListQuery(configuration.OrganizationUrl, ownQuery ? null : filter, query, top, false), token),
+                    cancellationToken);
+
+            WorkItemListReader Reader(IAdoSession session, AdoReadConfiguration configuration, EffectivePrivacy privacy) =>
+                new(session.WorkItems, configuration.OrganizationUrl, services.TimeProvider, privacy);
+        });
+        return command;
+    }
+
+    private static async Task<int> WriteListErrorAsync(
+        CommandServices services,
+        string code,
+        string message,
+        bool compact,
+        CancellationToken cancellationToken)
+    {
+        SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
+            WorkItemListReader.ListKind,
+            [new SearchError("command", null, code, message, false)],
+            services.TimeProvider.GetUtcNow());
+        await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
+        return ExitCodes.InvalidInputOrConfiguration;
     }
 
     private static async Task<int> ReadAsync(
