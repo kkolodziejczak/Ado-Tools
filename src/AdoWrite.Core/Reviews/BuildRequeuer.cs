@@ -1,9 +1,8 @@
-using System.Text.Json;
+using AdoRead.AzureDevOps;
 using AdoWrite.AzureDevOps;
 using AdoRead.Output;
 using AdoWrite.Comments;
 using Microsoft.TeamFoundation.Policy.WebApi;
-using Newtonsoft.Json.Linq;
 
 namespace AdoWrite.Reviews;
 
@@ -17,7 +16,7 @@ namespace AdoWrite.Reviews;
 internal sealed class BuildRequeuer(IPullRequestCommentClient pullRequests, IPullRequestReviewClient reviews)
 {
     /// <summary>The policy type ID of "Build" (build validation) policies.</summary>
-    public static readonly Guid BuildPolicyType = Guid.Parse("0609b952-1397-4640-95ec-e00a01b2c241");
+    public static readonly Guid BuildPolicyType = PolicyEvaluations.BuildPolicyType;
 
     public async Task<RequeueReport> RequeueAsync(
         int pullRequestId,
@@ -109,7 +108,7 @@ internal sealed class BuildRequeuer(IPullRequestCommentClient pullRequests, IPul
 
     private static string Decide(PolicyEvaluationRecord build, IReadOnlySet<Guid> selected)
     {
-        bool expired = IsExpired(build);
+        bool expired = PolicyEvaluations.IsExpired(build);
         if (selected.Count > 0 && !selected.Contains(build.EvaluationId))
         {
             return RequeueOutcomes.NotSelected;
@@ -127,19 +126,10 @@ internal sealed class BuildRequeuer(IPullRequestCommentClient pullRequests, IPul
     private static RequeuedBuildDocument Document(PolicyEvaluationRecord build, PolicyEvaluationRecord current, string outcome) =>
         new(
             build.EvaluationId,
-            NameOf(build),
-            current.Status is { } status ? JsonNamingPolicy.CamelCase.ConvertName(status.ToString()) : "unknown",
-            IsExpired(current),
+            PolicyEvaluations.NameOf(build),
+            PolicyEvaluations.StatusOf(current),
+            PolicyEvaluations.IsExpired(current),
             build.Configuration?.IsBlocking ?? false,
-            current.Context?["buildId"] is { Type: JTokenType.Integer } buildId ? buildId.Value<int>() : null,
+            PolicyEvaluations.BuildIdOf(current),
             outcome);
-
-    /// <summary>The policy's own display name, else the policy type's name.</summary>
-    private static string NameOf(PolicyEvaluationRecord build) =>
-        build.Configuration?.Settings?["displayName"] is { Type: JTokenType.String } name && !string.IsNullOrWhiteSpace(name.Value<string>())
-            ? name.Value<string>()!
-            : build.Configuration?.Type?.DisplayName ?? "Build";
-
-    private static bool IsExpired(PolicyEvaluationRecord build) =>
-        build.Context?["isExpired"] is { Type: JTokenType.Boolean } expired && expired.Value<bool>();
 }

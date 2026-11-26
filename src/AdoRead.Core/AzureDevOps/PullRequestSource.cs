@@ -163,6 +163,60 @@ public sealed class PullRequestSource(IPullRequestGitClient client, Uri organiza
         }
     }
 
+    public async Task<PullRequestActivityDocument> GetActivityAsync(
+        PullRequestDocument pullRequest,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<GitPullRequestCommentThread> threads = await client.GetThreadsAsync(
+                pullRequest.Project.Id,
+                pullRequest.Repository.Id,
+                pullRequest.Id,
+                cancellationToken);
+            IReadOnlyList<Microsoft.TeamFoundation.Policy.WebApi.PolicyEvaluationRecord> evaluations =
+                await client.GetPolicyEvaluationsAsync(pullRequest.Project.Id, pullRequest.Id, cancellationToken);
+            return new PullRequestActivityDocument(
+                evaluations
+                    .Select(evaluation => new PullRequestCheckDocument(
+                        evaluation.EvaluationId,
+                        PolicyEvaluations.NameOf(evaluation),
+                        evaluation.Configuration?.Type?.Id,
+                        evaluation.Configuration?.Type?.DisplayName ?? "unknown",
+                        PolicyEvaluations.StatusOf(evaluation),
+                        PolicyEvaluations.IsExpired(evaluation),
+                        evaluation.Configuration?.IsBlocking ?? false,
+                        PolicyEvaluations.BuildIdOf(evaluation)))
+                    .OrderBy(check => check.Name, StringComparer.Ordinal)
+                    .ThenBy(check => check.EvaluationId)
+                    .ToArray(),
+                threads
+                    .Where(thread => thread.IsDeleted != true)
+                    .Select(thread => (thread, comments: (thread.Comments ?? [])
+                        .Where(comment => comment.IsDeleted != true && comment.CommentType != CommentType.System)
+                        .ToArray()))
+                    // A thread of only system comments (a vote, a push, a policy) is no conversation.
+                    .Where(entry => entry.comments.Length > 0)
+                    .Select(entry => new PullRequestThreadActivityDocument(
+                        entry.thread.Id,
+                        StableEnum(entry.thread.Status),
+                        entry.comments.Length,
+                        entry.comments.Max(comment => (int)comment.Id),
+                        ToUtc(entry.thread.LastUpdatedDate),
+                        entry.comments.Select(comment => ToUtc(comment.LastContentUpdatedDate)).Max()))
+                    .OrderBy(thread => thread.Id)
+                    .ToArray());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (AdoReadExceptionTranslator.IsServiceFailure(exception))
+        {
+            throw AdoReadExceptionTranslator.PullRequestFailure(exception);
+        }
+    }
+
     private static PullRequestPerson MapPerson(IdentityRef? identity) =>
         new(Guid.TryParse(identity?.Id, out Guid id) ? id : null, identity?.UniqueName, identity?.DisplayName);
 

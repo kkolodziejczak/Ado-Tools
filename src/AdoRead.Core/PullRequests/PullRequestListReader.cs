@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AdoRead.AzureDevOps;
 using AdoRead.Output;
 using AdoRead.Privacy;
@@ -56,11 +57,16 @@ public sealed record PullRequestFilter(
               || string.Equals(person.DisplayName, who, StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>One row of <c>pr list</c>: enough to choose which pull requests to read with <c>pr show</c>.</summary>
+/// <summary>
+/// One row of <c>pr list</c>: enough to choose which pull requests to read with <c>pr show</c>. With
+/// <c>--activity</c> it also carries <see cref="Checks"/> and <see cref="Threads"/>, so an agent that
+/// polls can tell what changed since it last looked.
+/// </summary>
 public sealed record PullRequestListEntry(
     int Id,
     string? Title,
     string? Status,
+    string? MergeStatus,
     bool IsDraft,
     DateTimeOffset? CreatedAtUtc,
     string? CreatorUniqueName,
@@ -68,8 +74,11 @@ public sealed record PullRequestListEntry(
     string Repository,
     string? SourceRefName,
     string? TargetRefName,
+    string? SourceCommitId,
     IReadOnlyList<PullRequestReviewerDocument> Reviewers,
-    Uri? Browser);
+    Uri? Browser,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PullRequestCheckDocument>? Checks = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PullRequestThreadActivityDocument>? Threads = null);
 
 /// <summary>The request as the output echoes it; a named author or reviewer is aliased when people are withheld.</summary>
 public sealed record PullRequestListQuery(
@@ -105,6 +114,7 @@ public sealed class PullRequestListReader(
     public async Task<SearchEnvelope<PullRequestListEntry>> ListAsync(
         PullRequestFilter filter,
         int top,
+        bool activity,
         CancellationToken cancellationToken)
     {
         PullRequestListQuery query = Echo(filter, top, full: false);
@@ -112,7 +122,49 @@ public sealed class PullRequestListReader(
         PullRequestListEntry[] entries = found.Documents
             .Select(document => ToEntry(PullRequestPrivacy.Apply(document, privacy)))
             .ToArray();
-        return Envelope(ListKind, "1.0", query, entries, found.Errors, [PrivacyCategory.People]);
+        if (!activity)
+        {
+            return Envelope(ListKind, "1.0", query, entries, found.Errors, [PrivacyCategory.People]);
+        }
+
+        // Two calls per pull request, read up to maxParallelProjects at a time. Checks and threads carry no
+        // text and no people, so every privacy level shows them.
+        // When the command's time runs out, the rows already read are kept and the rest say so, because a
+        // poller needs the snapshot it can get more than an all-or-nothing answer.
+        var activityErrors = new SearchError?[entries.Length];
+        await Parallel.ForAsync(
+            0,
+            entries.Length,
+            new ParallelOptions { MaxDegreeOfParallelism = maxParallelProjects },
+            async (index, _) =>
+            {
+                PullRequestDocument document = found.Documents[index];
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PullRequestActivityDocument read = await source.GetActivityAsync(document, cancellationToken);
+                    entries[index] = entries[index] with { Checks = read.Checks, Threads = read.Threads };
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    activityErrors[index] = new SearchError(
+                        "azureDevOps",
+                        document.Project.Name,
+                        "timeout",
+                        $"Pull request {document.Id}: the request timeout ran out before its checks and threads were read.",
+                        true);
+                }
+                catch (PullRequestSourceException exception)
+                {
+                    activityErrors[index] = new SearchError(
+                        "azureDevOps",
+                        document.Project.Name,
+                        exception.Code,
+                        $"Pull request {document.Id}: its checks and threads could not be read. {exception.Message}",
+                        exception.Transient);
+                }
+            });
+        return Envelope(ListKind, "1.0", query, entries, [.. found.Errors, .. activityErrors.OfType<SearchError>()], [PrivacyCategory.People]);
     }
 
     private static PullRequestListEntry ToEntry(PullRequestDocument document) =>
@@ -120,6 +172,7 @@ public sealed class PullRequestListReader(
             document.Id,
             document.Title,
             document.Status,
+            document.MergeStatus,
             document.IsDraft,
             document.CreatedAtUtc,
             document.CreatorUniqueName,
@@ -127,6 +180,7 @@ public sealed class PullRequestListReader(
             document.Repository.Name,
             document.SourceRefName,
             document.TargetRefName,
+            document.SourceCommitId,
             document.Reviewers,
             document.Links.Browser);
 

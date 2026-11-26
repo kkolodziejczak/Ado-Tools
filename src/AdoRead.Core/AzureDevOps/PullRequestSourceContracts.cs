@@ -28,6 +28,11 @@ public interface IPullRequestSource
         PullRequestDocument pullRequest,
         CancellationToken cancellationToken);
 
+    /// <summary>The checks and thread activity of one listed pull request.</summary>
+    Task<PullRequestActivityDocument> GetActivityAsync(
+        PullRequestDocument pullRequest,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     /// <summary>One page of a project's pull requests, newest first, filtered by Azure DevOps on <paramref name="search"/>.</summary>
     Task<IReadOnlyList<PullRequestCandidate>> ListAsync(
         AdoProject project,

@@ -1,3 +1,4 @@
+using Microsoft.TeamFoundation.Policy.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
 using Microsoft.VisualStudio.Services.WebApi;
 
@@ -31,6 +32,11 @@ public interface IPullRequestGitClient
         int pullRequestId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<PolicyEvaluationRecord>> GetPolicyEvaluationsAsync(
+        Guid projectId,
+        int pullRequestId,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     Task<IReadOnlyList<GitPullRequest>> GetPullRequestsAsync(
         Guid projectId,
         GitPullRequestSearchCriteria criteria,
@@ -39,8 +45,14 @@ public interface IPullRequestGitClient
         CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
-public sealed class SdkPullRequestGitClient(GitHttpClient client) : IPullRequestGitClient
+public sealed class SdkPullRequestGitClient(GitHttpClient client, PolicyHttpClient policies) : IPullRequestGitClient
 {
+    public Task<IReadOnlyList<PolicyEvaluationRecord>> GetPolicyEvaluationsAsync(
+        Guid projectId,
+        int pullRequestId,
+        CancellationToken cancellationToken) =>
+        PolicyEvaluations.GetAllAsync(policies, projectId, pullRequestId, cancellationToken);
+
     public async Task<IReadOnlyList<GitPullRequest>> GetPullRequestsAsync(
         Guid projectId,
         GitPullRequestSearchCriteria criteria,

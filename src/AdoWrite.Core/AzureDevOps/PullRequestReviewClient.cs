@@ -1,3 +1,4 @@
+using AdoRead.AzureDevOps;
 using Microsoft.TeamFoundation.Policy.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
 
@@ -32,31 +33,10 @@ public interface IPullRequestReviewClient
 
 public sealed class SdkPullRequestReviewClient(PolicyHttpClient policies, GitHttpClient git) : IPullRequestReviewClient
 {
-    private const int EvaluationPageSize = 100;
-
-    public async Task<IReadOnlyList<PolicyEvaluationRecord>> GetPolicyEvaluationsAsync(
+    public Task<IReadOnlyList<PolicyEvaluationRecord>> GetPolicyEvaluationsAsync(
         PullRequestLocation location,
-        CancellationToken cancellationToken)
-    {
-        string artifactId = $"vstfs:///CodeReview/CodeReviewId/{location.ProjectId}/{location.PullRequestId}";
-        var evaluations = new List<PolicyEvaluationRecord>();
-        while (true)
-        {
-            List<PolicyEvaluationRecord> page = await policies.GetPolicyEvaluationsAsync(
-                location.ProjectId,
-                artifactId,
-                includeNotApplicable: false,
-                top: EvaluationPageSize,
-                skip: evaluations.Count,
-                userState: null,
-                cancellationToken);
-            evaluations.AddRange(page);
-            if (page.Count < EvaluationPageSize)
-            {
-                return evaluations;
-            }
-        }
-    }
+        CancellationToken cancellationToken) =>
+        PolicyEvaluations.GetAllAsync(policies, location.ProjectId, location.PullRequestId, cancellationToken);
 
     public Task<PolicyEvaluationRecord> GetPolicyEvaluationAsync(
         PullRequestLocation location,

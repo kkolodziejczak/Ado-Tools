@@ -61,3 +61,39 @@ public sealed record PullRequestCommentDocument(
 public sealed record PullRequestLinksDocument(Uri? Rest, Uri? Browser);
 
 public sealed record PullRequestQuery(int Id, Uri OrganizationUrl);
+
+/// <summary>
+/// What changed on a pull request since an agent last looked, without any text: its branch-policy
+/// checks and, per thread with comments from people, the status, comment count and last update.
+/// </summary>
+public sealed record PullRequestActivityDocument(
+    IReadOnlyList<PullRequestCheckDocument> Checks,
+    IReadOnlyList<PullRequestThreadActivityDocument> Threads);
+
+/// <summary>
+/// One branch-policy evaluation. <see cref="TypeId"/> tells build validation (PolicyEvaluations.BuildPolicyType)
+/// from other policies. <see cref="IsExpired"/> and <see cref="BuildId"/> are false and null when Azure DevOps
+/// leaves them out.
+/// </summary>
+public sealed record PullRequestCheckDocument(
+    Guid EvaluationId,
+    string Name,
+    Guid? TypeId,
+    string Type,
+    string Status,
+    bool IsExpired,
+    bool IsBlocking,
+    int? BuildId);
+
+/// <summary>
+/// A thread with comments from people. A higher <see cref="LatestCommentId"/> than before means a new comment, and
+/// a later <see cref="LatestContentChangeAtUtc"/> an edited one. <see cref="LastUpdatedAtUtc"/> also moves when a
+/// comment is deleted or the status changes, so it is a hint to look, not proof of a new comment.
+/// </summary>
+public sealed record PullRequestThreadActivityDocument(
+    int Id,
+    string? Status,
+    int CommentCount,
+    int? LatestCommentId,
+    DateTimeOffset? LastUpdatedAtUtc,
+    DateTimeOffset? LatestContentChangeAtUtc);
