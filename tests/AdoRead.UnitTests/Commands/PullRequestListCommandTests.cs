@@ -225,7 +225,28 @@ public sealed class PullRequestListCommandTests
         Assert.Equal(7, thread.GetProperty("id").GetInt32());
         Assert.Equal("active", thread.GetProperty("status").GetString());
         Assert.Equal(2, thread.GetProperty("commentCount").GetInt32());
+        Assert.Equal(31, thread.GetProperty("latestCommentId").GetInt32());
+        Assert.True(thread.TryGetProperty("latestContentChangeAtUtc", out _));
+        Assert.Equal(PolicyEvaluations.BuildPolicyType, check.GetProperty("typeId").GetGuid());
+        Assert.Equal("source-commit-10", entry.GetProperty("sourceCommitId").GetString());
         Assert.Equal([10], source.ActivityReads);
+    }
+
+    [Fact]
+    public async Task List_ActivityKeepsTheRowsItReadWhenTheTimeRunsOut()
+    {
+        var source = new FakeListSource { HangingActivityId = 11, RequestTimeoutSeconds = 1 };
+        source.Add(Payments, Pr(Payments, 10, created: Day(1)));
+        source.Add(Payments, Pr(Payments, 11, created: Day(2)));
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "pr", "list", "--activity");
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        Assert.Equal([11, 10], Ids(root));
+        Assert.True(root.GetProperty("results")[1].TryGetProperty("checks", out _));
+        JsonElement error = root.GetProperty("errors")[0];
+        Assert.Equal("timeout", error.GetProperty("code").GetString());
+        Assert.Contains("11", error.GetProperty("message").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -376,6 +397,7 @@ public sealed class PullRequestListCommandTests
         PullRequestDocument document = TestPullRequests.Create(project, id, repository) with
         {
             CreatedAtUtc = created ?? Day(0),
+            SourceCommitId = $"source-commit-{id}",
             CreatorUniqueName = creator.UniqueName,
             Reviewers = reviewers
                 .Select(reviewer => new PullRequestReviewerDocument(reviewer.Person.UniqueName, reviewer.Vote, "noVote", false, false, null))
@@ -401,7 +423,7 @@ public sealed class PullRequestListCommandTests
     {
         var writer = new StringWriter();
         CommandApplication application = TestTool.Umbrella(
-            new ConfiguredStore(),
+            new ConfiguredStore(source.RequestTimeoutSeconds),
             new JsonOutput(writer),
             TimeProvider.System,
             new FakePatProvider(),
@@ -469,20 +491,30 @@ public sealed class PullRequestListCommandTests
 
         public int? BrokenActivityId { get; init; }
 
+        /// <summary>A pull request whose activity read never finishes, so the command's time runs out on it.</summary>
+        public int? HangingActivityId { get; init; }
+
+        public int RequestTimeoutSeconds { get; init; } = AdoReadConfiguration.DefaultRequestTimeoutSeconds;
+
         public List<int> ActivityReads { get; } = [];
 
-        public Task<PullRequestActivityDocument> GetActivityAsync(PullRequestDocument pullRequest, CancellationToken cancellationToken)
+        public async Task<PullRequestActivityDocument> GetActivityAsync(PullRequestDocument pullRequest, CancellationToken cancellationToken)
         {
             lock (ActivityReads)
             {
                 ActivityReads.Add(pullRequest.Id);
             }
 
+            if (pullRequest.Id == HangingActivityId)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
             return pullRequest.Id == BrokenActivityId
                 ? throw new PullRequestSourceException("forbidden", "Cannot read the policies.", false)
-                : Task.FromResult(new PullRequestActivityDocument(
-                    [new PullRequestCheckDocument(Guid.NewGuid(), "CI", "Build", "approved", IsExpired: true, IsBlocking: true, BuildId: 501)],
-                    [new PullRequestThreadActivityDocument(7, "active", 2, Day(5))]));
+                : new PullRequestActivityDocument(
+                    [new PullRequestCheckDocument(Guid.NewGuid(), "CI", PolicyEvaluations.BuildPolicyType, "Build", "approved", IsExpired: true, IsBlocking: true, BuildId: 501)],
+                    [new PullRequestThreadActivityDocument(7, "active", 2, 31, Day(5), Day(4))]);
         }
 
         public Task<PullRequestDocument> GetAllDetailsAsync(PullRequestDocument pullRequest, CancellationToken cancellationToken) =>
@@ -502,12 +534,12 @@ public sealed class PullRequestListCommandTests
         }
     }
 
-    private sealed class ConfiguredStore : IConfigurationStore
+    private sealed class ConfiguredStore(int requestTimeoutSeconds = AdoReadConfiguration.DefaultRequestTimeoutSeconds) : IConfigurationStore
     {
         public string DefaultPath => "unused";
 
         public Task<AdoReadConfiguration> LoadAsync(string? overridePath, CancellationToken cancellationToken) =>
-            Task.FromResult(AdoReadConfiguration.Create(new Uri("https://dev.azure.com/example")));
+            Task.FromResult(AdoReadConfiguration.Create(new Uri("https://dev.azure.com/example"), requestTimeoutSeconds));
 
         public Task SaveAsync(
             string? overridePath,

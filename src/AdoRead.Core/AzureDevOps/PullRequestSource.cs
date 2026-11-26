@@ -181,6 +181,7 @@ public sealed class PullRequestSource(IPullRequestGitClient client, Uri organiza
                     .Select(evaluation => new PullRequestCheckDocument(
                         evaluation.EvaluationId,
                         PolicyEvaluations.NameOf(evaluation),
+                        evaluation.Configuration?.Type?.Id,
                         evaluation.Configuration?.Type?.DisplayName ?? "unknown",
                         PolicyEvaluations.StatusOf(evaluation),
                         PolicyEvaluations.IsExpired(evaluation),
@@ -191,15 +192,18 @@ public sealed class PullRequestSource(IPullRequestGitClient client, Uri organiza
                     .ToArray(),
                 threads
                     .Where(thread => thread.IsDeleted != true)
-                    .Select(thread => (thread, count: (thread.Comments ?? [])
-                        .Count(comment => comment.IsDeleted != true && comment.CommentType != CommentType.System)))
+                    .Select(thread => (thread, comments: (thread.Comments ?? [])
+                        .Where(comment => comment.IsDeleted != true && comment.CommentType != CommentType.System)
+                        .ToArray()))
                     // A thread of only system comments (a vote, a push, a policy) is no conversation.
-                    .Where(entry => entry.count > 0)
+                    .Where(entry => entry.comments.Length > 0)
                     .Select(entry => new PullRequestThreadActivityDocument(
                         entry.thread.Id,
                         StableEnum(entry.thread.Status),
-                        entry.count,
-                        ToUtc(entry.thread.LastUpdatedDate)))
+                        entry.comments.Length,
+                        entry.comments.Max(comment => (int)comment.Id),
+                        ToUtc(entry.thread.LastUpdatedDate),
+                        entry.comments.Select(comment => ToUtc(comment.LastContentUpdatedDate)).Max()))
                     .OrderBy(thread => thread.Id)
                     .ToArray());
         }

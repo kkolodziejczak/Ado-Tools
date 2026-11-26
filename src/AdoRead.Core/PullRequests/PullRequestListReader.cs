@@ -74,6 +74,7 @@ public sealed record PullRequestListEntry(
     string Repository,
     string? SourceRefName,
     string? TargetRefName,
+    string? SourceCommitId,
     IReadOnlyList<PullRequestReviewerDocument> Reviewers,
     Uri? Browser,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PullRequestCheckDocument>? Checks = null,
@@ -128,18 +129,30 @@ public sealed class PullRequestListReader(
 
         // Two calls per pull request, read up to maxParallelProjects at a time. Checks and threads carry no
         // text and no people, so every privacy level shows them.
+        // When the command's time runs out, the rows already read are kept and the rest say so, because a
+        // poller needs the snapshot it can get more than an all-or-nothing answer.
         var activityErrors = new SearchError?[entries.Length];
         await Parallel.ForAsync(
             0,
             entries.Length,
-            new ParallelOptions { MaxDegreeOfParallelism = maxParallelProjects, CancellationToken = cancellationToken },
-            async (index, token) =>
+            new ParallelOptions { MaxDegreeOfParallelism = maxParallelProjects },
+            async (index, _) =>
             {
                 PullRequestDocument document = found.Documents[index];
                 try
                 {
-                    PullRequestActivityDocument read = await source.GetActivityAsync(document, token);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PullRequestActivityDocument read = await source.GetActivityAsync(document, cancellationToken);
                     entries[index] = entries[index] with { Checks = read.Checks, Threads = read.Threads };
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    activityErrors[index] = new SearchError(
+                        "azureDevOps",
+                        document.Project.Name,
+                        "timeout",
+                        $"Pull request {document.Id}: the request timeout ran out before its checks and threads were read.",
+                        true);
                 }
                 catch (PullRequestSourceException exception)
                 {
@@ -167,6 +180,7 @@ public sealed class PullRequestListReader(
             document.Repository.Name,
             document.SourceRefName,
             document.TargetRefName,
+            document.SourceCommitId,
             document.Reviewers,
             document.Links.Browser);
 

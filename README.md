@@ -321,18 +321,20 @@ By default the result has kind `pullRequestList` (schema `1.0`), with one short 
 flowchart TD
     A["Agent loop"] --> B["pr list --author me --activity"]
     B --> C{"Different from the last snapshot?"}
-    C -->|"new thread or more comments"| D["pr show id: read the new comments"]
-    C -->|"check expired or rejected"| E["ado-write pr requeue id"]
-    C -->|"vote or status changed"| F["react, or stop tracking a merged PR"]
+    C -->|"new thread or higher latestCommentId"| D["pr show id: read the new comments"]
+    C -->|"build check isExpired"| E["ado-write pr requeue id"]
+    C -->|"build check rejected"| F["ado-write pr requeue id --evaluation evaluationId"]
+    C -->|"new sourceCommitId"| G["new push: review it"]
+    C -->|"vote, status or mergeStatus changed"| H["react, or stop tracking a merged PR"]
     C -->|"nothing"| A
 ```
 
-`--activity` adds two lists to each short entry, so an agent that polls all day can see what changed without reading any text:
+`--activity` adds two lists to each short entry, so an agent that polls all day can see what changed without reading any comment text. Every entry also carries `mergeStatus` and `sourceCommitId`, the source commit Azure DevOps last merged, which changes with each push.
 
-- `checks`: each branch-policy evaluation, such as build validation or required reviewers, with `evaluationId`, `name`, `type`, `status` (`approved`, `rejected`, `running`, `queued`, `notApplicable` or `broken`), `isExpired`, `isBlocking` and `buildId`. An expired or rejected build is what `ado-write pr requeue` runs again.
-- `threads`: each thread with comments from people (threads of only system comments, such as votes or pushes, are left out), with `id`, `status`, `commentCount` and `lastUpdatedAtUtc`. A new thread `id`, a higher `commentCount` or a later `lastUpdatedAtUtc` than in the last snapshot means new comments to read with `pr show`.
+- `checks`: each applicable branch-policy evaluation, such as build validation or required reviewers, with `evaluationId`, `name`, `typeId`, `type`, `status` (`approved`, `rejected`, `running`, `queued`, `notApplicable` or `broken`), `isExpired`, `isBlocking` and `buildId`. A build check has `typeId` `0609b952-1397-4640-95ec-e00a01b2c241`. `ado-write pr requeue <id>` runs every expired build again; a build that failed (`rejected`, not expired) is run again only by naming it, `ado-write pr requeue <id> --evaluation <evaluationId>`.
+- `threads`: each thread with comments from people (threads of only system comments, such as votes or pushes, are left out), with `id`, `status`, `commentCount`, `latestCommentId`, `lastUpdatedAtUtc` and `latestContentChangeAtUtc`. A thread `id` you haven't seen, or a higher `latestCommentId`, means a new comment; a later `latestContentChangeAtUtc` means an edited one. `lastUpdatedAtUtc` also moves when a comment is deleted or the status changes, so it says only that something happened in the thread. Read the comments with `pr show`.
 
-Together with `status`, `mergeStatus` and the reviewers' votes, that covers a new comment, an expired or failed build, an approval, and a merge or abandon. To also notice a pull request that completed since the last snapshot, list with `--status all`. `--activity` costs two more calls per pull request, read up to `maxParallelProjects` at a time, and a pull request whose activity can't be read makes the result `partial` with its error. It can't be combined with `--full`, which already returns every thread. Checks and thread counts hold no text or people, so every privacy level shows them. Reading checks may need the token to read branch policies; this was not verified with a token that only has **Code (Read)**.
+Together with the reviewers' votes and `status`, that covers a new or edited comment, an expired or failed build, a push, an approval, and a merge or abandon. A snapshot covers only the pull requests the list returns: with `--status all` and the default `--top 50`, a pull request drops out once 50 newer ones exist, so keep `--top` above the number of pull requests being watched, or read a known one with `pr show`. `--activity` costs at least two more calls per pull request, read up to `maxParallelProjects` at a time. A pull request whose activity can't be read, or isn't read before the request timeout, keeps its row without `checks` and `threads`, and the result is `partial` with its error. `--activity` can't be combined with `--full`, which already returns every thread. Checks and thread counts hold no comment text or people, so every privacy level shows them; a policy's `name` is shown like other metadata, such as project and repository names. Reading checks is documented to need **Code (Read)**; this was not tried against a live organization.
 
 ### Pipelines
 

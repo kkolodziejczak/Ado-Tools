@@ -22,17 +22,34 @@ public sealed class PullRequestSourceActivityTests
                 Thread(3, CommentThreadStatus.Fixed, updated, Text(1), Text(2), Text(3, deleted: true)),
                 Thread(4, CommentThreadStatus.Active, updated, System(1)),
                 Deleted(Thread(5, CommentThreadStatus.Active, updated, Text(1))),
-                Thread(6, CommentThreadStatus.Active, updated, Text(1))
+                Thread(6, CommentThreadStatus.Active, updated, Text(1)),
+                Thread(9, CommentThreadStatus.Active, updated, System(1), Text(2))
             ]
         };
 
         PullRequestActivityDocument activity = await Source(client).GetActivityAsync(TestPullRequests.Create(Project, 42), CancellationToken.None);
 
         Assert.Equal(
-            [(3, "fixed", 2), (6, "active", 1)],
-            activity.Threads.Select(thread => (thread.Id, thread.Status, thread.CommentCount)));
+            [(3, "fixed", 2, 2), (6, "active", 1, 1), (9, "active", 1, 2)],
+            activity.Threads.Select(thread => (thread.Id, thread.Status, thread.CommentCount, thread.LatestCommentId)));
         Assert.Equal(new DateTimeOffset(updated), activity.Threads[0].LastUpdatedAtUtc);
         Assert.Equal((Project.Id, 42), client.EvaluationsAskedFor);
+    }
+
+    [Fact]
+    public async Task GetActivityAsync_TakesTheLatestContentChangeOfPeoplesComments()
+    {
+        var posted = new DateTime(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        var edited = new DateTime(2026, 11, 21, 10, 0, 0, DateTimeKind.Utc);
+        Comment first = Text(1);
+        first.LastContentUpdatedDate = edited;
+        Comment second = Text(2);
+        second.LastContentUpdatedDate = posted;
+        var client = new ActivityClient { Threads = [Thread(3, CommentThreadStatus.Active, posted, first, second)] };
+
+        PullRequestActivityDocument activity = await Source(client).GetActivityAsync(TestPullRequests.Create(Project, 42), CancellationToken.None);
+
+        Assert.Equal(new DateTimeOffset(edited), Assert.Single(activity.Threads).LatestContentChangeAtUtc);
     }
 
     [Fact]
@@ -61,7 +78,7 @@ public sealed class PullRequestSourceActivityTests
         PullRequestActivityDocument activity = await Source(client).GetActivityAsync(TestPullRequests.Create(Project, 42), CancellationToken.None);
 
         Assert.Equal(
-            new PullRequestCheckDocument(evaluationId, "CI", "Build", "rejected", IsExpired: true, IsBlocking: true, BuildId: 501),
+            new PullRequestCheckDocument(evaluationId, "CI", PolicyEvaluations.BuildPolicyType, "Build", "rejected", IsExpired: true, IsBlocking: true, BuildId: 501),
             Assert.Single(activity.Checks));
     }
 

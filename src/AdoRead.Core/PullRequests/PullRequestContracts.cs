@@ -70,14 +70,30 @@ public sealed record PullRequestActivityDocument(
     IReadOnlyList<PullRequestCheckDocument> Checks,
     IReadOnlyList<PullRequestThreadActivityDocument> Threads);
 
-/// <summary>One branch-policy evaluation. <see cref="IsExpired"/> and <see cref="BuildId"/> are false and null when Azure DevOps leaves them out.</summary>
+/// <summary>
+/// One branch-policy evaluation. <see cref="TypeId"/> tells build validation (PolicyEvaluations.BuildPolicyType)
+/// from other policies. <see cref="IsExpired"/> and <see cref="BuildId"/> are false and null when Azure DevOps
+/// leaves them out.
+/// </summary>
 public sealed record PullRequestCheckDocument(
     Guid EvaluationId,
     string Name,
+    Guid? TypeId,
     string Type,
     string Status,
     bool IsExpired,
     bool IsBlocking,
     int? BuildId);
 
-public sealed record PullRequestThreadActivityDocument(int Id, string? Status, int CommentCount, DateTimeOffset? LastUpdatedAtUtc);
+/// <summary>
+/// A thread with comments from people. A higher <see cref="LatestCommentId"/> than before means a new comment, and
+/// a later <see cref="LatestContentChangeAtUtc"/> an edited one. <see cref="LastUpdatedAtUtc"/> also moves when a
+/// comment is deleted or the status changes, so it is a hint to look, not proof of a new comment.
+/// </summary>
+public sealed record PullRequestThreadActivityDocument(
+    int Id,
+    string? Status,
+    int CommentCount,
+    int? LatestCommentId,
+    DateTimeOffset? LastUpdatedAtUtc,
+    DateTimeOffset? LatestContentChangeAtUtc);
