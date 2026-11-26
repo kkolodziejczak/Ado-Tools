@@ -28,6 +28,9 @@ public static class ThreadOutcomes
 
     /// <summary>The reply was handled, but Azure DevOps refused the status; the envelope's error says why.</summary>
     public const string Failed = "failed";
+
+    /// <summary>The reply was handled, and the status change timed out, so it may or may not have been made.</summary>
+    public const string Uncertain = "uncertain";
 }
 
 public static class ThreadKinds
@@ -48,7 +51,7 @@ internal sealed class ThreadStatusChanger(IPullRequestCommentClient client, IPeo
     /// changes nothing, and only a resolved thread can be made active.
     /// </summary>
     private static bool IsResolved(CommentThreadStatus status) =>
-        status is not (CommentThreadStatus.Active or CommentThreadStatus.Pending or CommentThreadStatus.Unknown);
+        status is CommentThreadStatus.Fixed or CommentThreadStatus.WontFix or CommentThreadStatus.Closed or CommentThreadStatus.ByDesign;
 
     public async Task<WriteOutcome<ThreadStatusDocument>> ChangeAsync(
         int pullRequestId,
@@ -59,10 +62,23 @@ internal sealed class ThreadStatusChanger(IPullRequestCommentClient client, IPeo
         CancellationToken cancellationToken)
     {
         (_, PullRequestLocation location) = await PullRequestLookup.FindAsync(client, pullRequestId, cancellationToken);
+        // Runs on one thread take turns, so two of them never both decide from the same old status.
+        using IDisposable statusLock = await PostLock.AcquireAsync(organizationUrl, $"thread-status:{pullRequestId}:{threadId}", cancellationToken);
         GitPullRequestCommentThread thread = await FindThreadAsync(location, threadId, cancellationToken);
-        PostedCommentDocument? comment = reply is null
-            ? null
-            : await new PullRequestCommenter(client, people, organizationUrl).ReplyAsync(pullRequestId, threadId, reply, cancellationToken);
+        PostedCommentDocument? comment = null;
+        if (reply is not null)
+        {
+            comment = await new PullRequestCommenter(client, people, organizationUrl).ReplyAsync(pullRequestId, threadId, reply, cancellationToken);
+            if (comment.ThreadId != threadId)
+            {
+                throw WriteException.Rejected(
+                    "keyUsedInOtherThread",
+                    $"Your reply with this key is in thread {comment.ThreadId}, so nothing was posted and thread {threadId} was left as it is. Pass another --key.");
+            }
+
+            // Someone may have changed the status while the reply was posted; decide from what it is now.
+            thread = await FindThreadAsync(location, threadId, cancellationToken);
+        }
 
         CommentThreadStatus previous = thread.Status;
         CommentThreadStatus wanted = resolve ? CommentThreadStatus.Fixed : CommentThreadStatus.Active;
@@ -89,8 +105,15 @@ internal sealed class ThreadStatusChanger(IPullRequestCommentClient client, IPeo
         }
         catch (WriteException exception) when (comment is not null)
         {
-            // The reply is already posted; say so, with the reason the status was not set.
-            return new([Document(ThreadOutcomes.Failed, previous)], exception.ToError());
+            // The reply is already handled; say so, with the reason the status may not be set.
+            return new([Document(exception.Transient ? ThreadOutcomes.Uncertain : ThreadOutcomes.Failed, previous)], exception.ToError());
+        }
+        catch (OperationCanceledException) when (comment is not null)
+        {
+            // The whole command's time ran out during the status change, which may still have reached Azure DevOps.
+            return new(
+                [Document(ThreadOutcomes.Uncertain, previous)],
+                new SearchError("azureDevOps", null, "timeout", WriteException.TimeoutMessage, true));
         }
 
         return new([Document(ThreadOutcomes.Changed, wanted)]);

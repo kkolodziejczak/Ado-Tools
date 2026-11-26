@@ -195,8 +195,18 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         return Task.FromResult(created);
     }
 
+    public Exception? CreateCommentFailure { get; set; }
+
+    /// <summary>Runs after a reply is stored, for example another reviewer closing the thread meanwhile.</summary>
+    public Action? AfterCreateComment { get; set; }
+
     public Task<Comment> CreateCommentAsync(PullRequestLocation location, int threadId, Comment comment, CancellationToken cancellationToken)
     {
+        if (CreateCommentFailure is not null)
+        {
+            throw CreateCommentFailure;
+        }
+
         Comment created = Fabricated.CommentBy(5, comment.Content, parentId: comment.ParentCommentId);
         lock (Threads)
         {
@@ -207,7 +217,19 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
             }
         }
 
+        AfterCreateComment?.Invoke();
         return Task.FromResult(created);
+    }
+
+    /// <summary>Replaces a thread with a new object of another status, so a snapshot read earlier keeps the old one.</summary>
+    public void ChangeStatusElsewhere(int threadId, CommentThreadStatus status)
+    {
+        lock (Threads)
+        {
+            int index = Threads.FindIndex(thread => thread.Id == threadId);
+            GitPullRequestCommentThread old = Threads[index];
+            Threads[index] = new GitPullRequestCommentThread { Id = old.Id, Status = status, Comments = old.Comments };
+        }
     }
 
     public List<(int ThreadId, CommentThreadStatus Status)> StatusUpdates { get; } = [];
