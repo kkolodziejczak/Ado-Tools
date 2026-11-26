@@ -154,6 +154,7 @@ public sealed class WorkItemListCommandTests
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("workItemSearch", root.GetProperty("kind").GetString());
+        Assert.Equal("2.0", root.GetProperty("schemaVersion").GetString());
     }
 
     [Fact]

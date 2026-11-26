@@ -7,7 +7,7 @@ public sealed class ToolHelpProcessTests
     public static TheoryData<string, string[]> Tools => new()
     {
         { "AdoRead.Cli", ["config", "auth", "privacy", "project", "team", "pr", "work-item", "wiki", "sprint", "pipeline"] },
-        { "AdoRead.PullRequests.Cli", ["config", "auth", "privacy", "project", "team", "show"] },
+        { "AdoRead.PullRequests.Cli", ["config", "auth", "privacy", "project", "team", "show", "list"] },
         { "AdoRead.WorkItems.Cli", ["config", "auth", "privacy", "project", "team", "show", "list"] },
         { "AdoRead.Wiki.Cli", ["config", "auth", "privacy", "project", "team", "list", "page"] },
         { "AdoRead.Sprints.Cli", ["config", "auth", "privacy", "project", "team", "list", "show"] },

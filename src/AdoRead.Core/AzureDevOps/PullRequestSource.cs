@@ -118,6 +118,54 @@ public sealed class PullRequestSource(IPullRequestGitClient client, Uri organiza
         }
     }
 
+    public async Task<IReadOnlyList<PullRequestCandidate>> ListAsync(
+        AdoProject project,
+        PullRequestSearch search,
+        int skip,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        var criteria = new GitPullRequestSearchCriteria
+        {
+            Status = search.Status switch
+            {
+                "completed" => PullRequestStatus.Completed,
+                "abandoned" => PullRequestStatus.Abandoned,
+                "all" => PullRequestStatus.All,
+                _ => PullRequestStatus.Active
+            },
+            CreatorId = search.CreatorId,
+            ReviewerId = search.ReviewerId
+        };
+        try
+        {
+            IReadOnlyList<GitPullRequest> page = await client.GetPullRequestsAsync(project.Id, criteria, skip, top, cancellationToken);
+            return page
+                .Select(pullRequest => new PullRequestCandidate(
+                    MapPullRequest(project, pullRequest),
+                    MapPerson(pullRequest.CreatedBy),
+                    (pullRequest.Reviewers ?? [])
+                        .Select(reviewer => new PullRequestReviewerVote(MapPerson(reviewer), reviewer.Vote))
+                        .ToArray()))
+                .ToArray();
+        }
+        catch (PullRequestSourceException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (AdoReadExceptionTranslator.IsServiceFailure(exception))
+        {
+            throw AdoReadExceptionTranslator.PullRequestFailure(exception);
+        }
+    }
+
+    private static PullRequestPerson MapPerson(IdentityRef? identity) =>
+        new(Guid.TryParse(identity?.Id, out Guid id) ? id : null, identity?.UniqueName, identity?.DisplayName);
+
     private PullRequestDocument MapPullRequest(AdoProject project, GitPullRequest source)
     {
         GitRepository repository = source.Repository

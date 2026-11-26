@@ -19,7 +19,8 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
         bool compact,
         PrivacyRequest privacyRequest,
         Func<IAdoSession, AdoReadConfiguration, EffectivePrivacy, CancellationToken, Task<SearchEnvelope<T>>> readAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string errorSchemaVersion = "1.0")
     {
         try
         {
@@ -41,7 +42,8 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
                 new SearchError("configuration", null, exception.Code, exception.Message, false),
                 ExitCodes.InvalidInputOrConfiguration,
                 compact,
-                cancellationToken);
+                cancellationToken,
+                errorSchemaVersion);
         }
         catch (PrivacyException exception)
         {
@@ -50,7 +52,8 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
                 new SearchError("privacy", null, exception.Code, exception.Message, false),
                 ExitCodes.InvalidInputOrConfiguration,
                 compact,
-                cancellationToken);
+                cancellationToken,
+                errorSchemaVersion);
         }
         catch (CredentialException exception)
         {
@@ -59,7 +62,8 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
                 new SearchError("authentication", null, exception.Code, exception.Message, false),
                 ExitCodes.Error,
                 compact,
-                cancellationToken);
+                cancellationToken,
+                errorSchemaVersion);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -68,7 +72,8 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
                 new SearchError("azureDevOps", null, "timeout", "The Azure DevOps request timed out.", true),
                 ExitCodes.Error,
                 compact,
-                CancellationToken.None);
+                CancellationToken.None,
+                errorSchemaVersion);
         }
     }
 
@@ -94,15 +99,27 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
         SearchError error,
         int exitCode,
         bool compact,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string schemaVersion = "1.0")
     {
         SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
             kind,
             [error],
-            services.TimeProvider.GetUtcNow());
+            services.TimeProvider.GetUtcNow()) with
+        { SchemaVersion = schemaVersion };
         await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
         return exitCode;
     }
+
+    /// <summary>Rejects the command's input before any configuration or Azure DevOps access.</summary>
+    public Task<int> RejectAsync(string kind, string code, string message, bool compact, CancellationToken cancellationToken, string schemaVersion = "1.0") =>
+        WriteErrorAsync(
+            kind,
+            new SearchError("command", null, code, message, false),
+            ExitCodes.InvalidInputOrConfiguration,
+            compact,
+            cancellationToken,
+            schemaVersion);
 
     public static Option<string?> CreateConfigOption() => new("--config")
     {
