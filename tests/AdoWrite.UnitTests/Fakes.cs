@@ -381,6 +381,75 @@ internal sealed class FakePullRequestReviewClient : IPullRequestReviewClient
     }
 }
 
+/// <summary>The fabricated repository, whose default branch is main, and the pull requests created in it.</summary>
+internal sealed class FakePullRequestCreateClient : IPullRequestCreateClient
+{
+    public const int CreatedId = 900;
+
+    public List<(string? Project, string Repository)> RepositoryLookups { get; } = [];
+
+    public Exception? RepositoryFailure { get; set; }
+
+    public List<GitPullRequest> Active { get; } = [];
+
+    public List<GitPullRequest> Created { get; } = [];
+
+    public Exception? CreateFailure { get; set; }
+
+    /// <summary>The pull request another run opened just before this one tried, so Azure DevOps refuses the create.</summary>
+    public GitPullRequest? AppearsOnConflict { get; set; }
+
+    public Task<GitRepository> GetRepositoryAsync(string? project, string repository, CancellationToken cancellationToken)
+    {
+        RepositoryLookups.Add((project, repository));
+        return RepositoryFailure is not null
+            ? throw RepositoryFailure
+            : Task.FromResult(new GitRepository
+            {
+                Id = Fabricated.RepositoryId,
+                Name = Fabricated.Repository,
+                DefaultBranch = "refs/heads/main",
+                ProjectReference = new Microsoft.TeamFoundation.Core.WebApi.TeamProjectReference
+                {
+                    Id = Fabricated.ProjectId,
+                    Name = Fabricated.Project
+                }
+            });
+    }
+
+    public Task<IReadOnlyList<GitPullRequest>> GetActivePullRequestsAsync(
+        GitRepository repository,
+        string sourceRefName,
+        string targetRefName,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GitPullRequest>>(Active
+            .Where(pullRequest => pullRequest.SourceRefName == sourceRefName && pullRequest.TargetRefName == targetRefName)
+            .ToArray());
+
+    public Task<GitPullRequest> CreatePullRequestAsync(GitRepository repository, GitPullRequest pullRequest, CancellationToken cancellationToken)
+    {
+        if (CreateFailure is not null)
+        {
+            if (AppearsOnConflict is not null)
+            {
+                Active.Add(AppearsOnConflict);
+            }
+
+            throw CreateFailure;
+        }
+
+        Created.Add(pullRequest);
+        return Task.FromResult(new GitPullRequest
+        {
+            PullRequestId = CreatedId,
+            Title = pullRequest.Title,
+            SourceRefName = pullRequest.SourceRefName,
+            TargetRefName = pullRequest.TargetRefName,
+            IsDraft = pullRequest.IsDraft
+        });
+    }
+}
+
 internal sealed class FakeWriteSession : IAdoWriteSession
 {
     public FakePullRequestCommentClient FakePullRequests { get; } = new();
@@ -398,6 +467,10 @@ internal sealed class FakeWriteSession : IAdoWriteSession
     public IWorkItemCommentClient WorkItems => FakeWorkItems;
 
     public IPeopleDirectory People => FakePeople;
+
+    public FakePullRequestCreateClient FakeCreation { get; } = new();
+
+    public IPullRequestCreateClient PullRequestCreation => FakeCreation;
 
     public bool Disposed { get; private set; }
 
