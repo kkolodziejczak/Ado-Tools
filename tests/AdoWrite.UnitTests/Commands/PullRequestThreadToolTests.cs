@@ -104,6 +104,72 @@ public sealed class PullRequestThreadToolTests
     }
 
     [Fact]
+    public async Task Resolve_ChangesNoStatusWhenTheReplyFails()
+    {
+        _session.FakePullRequests.CreateCommentFailure = new VssServiceResponseException(HttpStatusCode.Forbidden, "Forbidden.", null);
+
+        int exitCode = await Run("pr", "resolve", "42", "--thread", "7", "--body", "Fixed.");
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        Assert.Empty(_session.FakePullRequests.StatusUpdates);
+    }
+
+    [Fact]
+    public async Task Resolve_LeavesAThreadSomeoneElseClosedWhileTheReplyWasPosted()
+    {
+        _session.FakePullRequests.AfterCreateComment = () => _session.FakePullRequests.ChangeStatusElsewhere(7, CommentThreadStatus.WontFix);
+
+        int exitCode = await Run("pr", "resolve", "42", "--thread", "7", "--body", "Fixed.");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Empty(_session.FakePullRequests.StatusUpdates);
+        Assert.Equal("unchanged", Result().GetProperty("outcome").GetString());
+        Assert.Equal("wontFix", Result().GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Resolve_RefusesAKeyWhoseReplyIsInAnotherThread()
+    {
+        AddThread(8, CommentThreadStatus.Active);
+        await Run("pr", "reply", "42", "--thread", "8", "--body", "Answer.", "--key", "round-1");
+        _output.GetStringBuilder().Clear();
+
+        int exitCode = await Run("pr", "resolve", "42", "--thread", "7", "--body", "Fixed.", "--key", "round-1");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("keyUsedInOtherThread", Envelope().GetProperty("errors")[0].GetProperty("code").GetString());
+        Assert.Empty(_session.FakePullRequests.StatusUpdates);
+    }
+
+    [Fact]
+    public async Task Resolve_KeepsThePostedReplyWhenTheStatusChangeMayNotHaveFinished()
+    {
+        _session.FakePullRequests.UpdateThreadFailure = new OperationCanceledException();
+
+        int exitCode = await Run("pr", "resolve", "42", "--thread", "7", "--body", "Fixed.");
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        Assert.Equal("uncertain", Result().GetProperty("outcome").GetString());
+        Assert.Equal("created", Result().GetProperty("comment").GetProperty("outcome").GetString());
+        Assert.Equal("timeout", Envelope().GetProperty("errors")[0].GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData(CommentThreadStatus.Pending, "resolve", true)]
+    [InlineData(CommentThreadStatus.Unknown, "resolve", true)]
+    [InlineData(CommentThreadStatus.Pending, "unresolve", false)]
+    [InlineData(CommentThreadStatus.Unknown, "unresolve", false)]
+    public async Task PendingAndUnknownThreadsCountAsOpen(CommentThreadStatus status, string verb, bool changes)
+    {
+        AddThread(8, status);
+
+        int exitCode = await Run("pr", verb, "42", "--thread", "8");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(changes, _session.FakePullRequests.StatusUpdates.Count == 1);
+    }
+
+    [Fact]
     public async Task Unresolve_MakesAResolvedThreadActiveAgain()
     {
         AddThread(8, CommentThreadStatus.Fixed);
