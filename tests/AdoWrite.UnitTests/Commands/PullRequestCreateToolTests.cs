@@ -174,6 +174,20 @@ public sealed class PullRequestCreateToolTests
     }
 
     [Fact]
+    public async Task Create_SaysWhyAzureDevOpsRefusedThePullRequest()
+    {
+        Creation.CreateFailure = new VssServiceResponseException(HttpStatusCode.BadRequest, "TF401398: The source branch no longer exists.", null);
+
+        int exitCode = await Run("pr", "create", "--project", Fabricated.Project, "--repository", Fabricated.Repository, "--source", "feature/gone", "--title", "T");
+
+        Assert.Equal(ExitCodes.Error, exitCode);
+        JsonElement error = Envelope().GetProperty("errors")[0];
+        Assert.Equal("pullRequestRefused", error.GetProperty("code").GetString());
+        Assert.Contains("branch", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("TF401398", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Create_ReportsAReviewerNobodyMatchesAndCreatesNothing()
     {
         int exitCode = await Run("pr", "create", "--project", Fabricated.Project, "--repository", Fabricated.Repository, "--source", "feature/x", "--title", "T", "--reviewer", "ghost@example.com");

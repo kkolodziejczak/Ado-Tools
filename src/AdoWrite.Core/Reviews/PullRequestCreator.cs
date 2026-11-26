@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text.Json.Serialization;
+using AdoRead.Output;
 using AdoWrite.AzureDevOps;
 using AdoWrite.Comments;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
@@ -122,6 +123,16 @@ internal sealed class PullRequestCreator(IPullRequestCreateClient client, IPeopl
             }
 
             throw;
+        }
+        catch (WriteException exception) when (exception.InnerException is VssServiceResponseException { HttpStatusCode: HttpStatusCode.BadRequest })
+        {
+            // The service message can quote branch and repository names, so a fixed one is given instead.
+            throw new WriteException(
+                "azureDevOps",
+                "pullRequestRefused",
+                "Azure DevOps refused the pull request. Check that both branches exist, that the source has commits the target lacks, and the title and reviewers.",
+                ExitCodes.Error,
+                innerException: exception);
         }
 
         return Document(
