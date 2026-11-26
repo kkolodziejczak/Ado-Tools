@@ -61,3 +61,23 @@ public sealed record PullRequestCommentDocument(
 public sealed record PullRequestLinksDocument(Uri? Rest, Uri? Browser);
 
 public sealed record PullRequestQuery(int Id, Uri OrganizationUrl);
+
+/// <summary>
+/// What changed on a pull request since an agent last looked, without any text: its branch-policy
+/// checks and, per thread with comments from people, the status, comment count and last update.
+/// </summary>
+public sealed record PullRequestActivityDocument(
+    IReadOnlyList<PullRequestCheckDocument> Checks,
+    IReadOnlyList<PullRequestThreadActivityDocument> Threads);
+
+/// <summary>One branch-policy evaluation. <see cref="IsExpired"/> and <see cref="BuildId"/> are false and null when Azure DevOps leaves them out.</summary>
+public sealed record PullRequestCheckDocument(
+    Guid EvaluationId,
+    string Name,
+    string Type,
+    string Status,
+    bool IsExpired,
+    bool IsBlocking,
+    int? BuildId);
+
+public sealed record PullRequestThreadActivityDocument(int Id, string? Status, int CommentCount, DateTimeOffset? LastUpdatedAtUtc);

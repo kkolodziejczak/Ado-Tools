@@ -1,5 +1,6 @@
 using Microsoft.TeamFoundation.Build.WebApi;
 using Microsoft.TeamFoundation.Core.WebApi;
+using Microsoft.TeamFoundation.Policy.WebApi;
 using Microsoft.TeamFoundation.SourceControl.WebApi;
 using Microsoft.TeamFoundation.TestManagement.WebApi;
 using Microsoft.TeamFoundation.Work.WebApi;
@@ -73,6 +74,7 @@ internal sealed class AdoSession : IAdoSession
     private readonly BuildHttpClient _buildClient;
     private readonly TestManagementHttpClient _testManagementClient;
     private readonly TestResultsHttpClient _testResultsClient;
+    private readonly PolicyHttpClient _policyClient;
 
     public AdoSession(VssConnection connection, Uri organizationUrl, string pat)
     {
@@ -86,10 +88,11 @@ internal sealed class AdoSession : IAdoSession
         _buildClient = connection.GetClient<BuildHttpClient>();
         _testManagementClient = connection.GetClient<TestManagementHttpClient>();
         _testResultsClient = connection.GetClient<TestResultsHttpClient>();
+        _policyClient = connection.GetClient<PolicyHttpClient>();
         _wikiRestClient = new WikiRestClient(organizationUrl, pat);
         var sdkWorkItemClient = new SdkWorkItemTrackingClient(_workItemClient);
         Projects = new ProjectCatalog(new SdkProjectClient(_projectClient));
-        PullRequests = new PullRequestSource(new SdkPullRequestGitClient(_gitClient), organizationUrl);
+        PullRequests = new PullRequestSource(new SdkPullRequestGitClient(_gitClient, _policyClient), organizationUrl);
         WorkItems = new WorkItemSource(sdkWorkItemClient);
         Sprints = new SprintSource(new SdkWorkClient(_workClient), sdkWorkItemClient, organizationUrl);
         Teams = new SdkTeamClient(_teamClient);
@@ -142,6 +145,7 @@ internal sealed class AdoSession : IAdoSession
         _buildClient.Dispose();
         _testManagementClient.Dispose();
         _testResultsClient.Dispose();
+        _policyClient.Dispose();
         _wikiRestClient.Dispose();
         _connection.Dispose();
         return ValueTask.CompletedTask;

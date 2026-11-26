@@ -206,6 +206,69 @@ public sealed class PullRequestListCommandTests
     }
 
     [Fact]
+    public async Task List_ActivityAddsChecksAndThreadsToEachEntry()
+    {
+        var source = new FakeListSource();
+        source.Add(Payments, Pr(Payments, 10));
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "pr", "list", "--activity");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal("pullRequestList", root.GetProperty("kind").GetString());
+        JsonElement entry = root.GetProperty("results")[0];
+        Assert.Equal("succeeded", entry.GetProperty("mergeStatus").GetString());
+        JsonElement check = entry.GetProperty("checks")[0];
+        Assert.Equal("CI", check.GetProperty("name").GetString());
+        Assert.Equal("approved", check.GetProperty("status").GetString());
+        Assert.True(check.GetProperty("isExpired").GetBoolean());
+        JsonElement thread = entry.GetProperty("threads")[0];
+        Assert.Equal(7, thread.GetProperty("id").GetInt32());
+        Assert.Equal("active", thread.GetProperty("status").GetString());
+        Assert.Equal(2, thread.GetProperty("commentCount").GetInt32());
+        Assert.Equal([10], source.ActivityReads);
+    }
+
+    [Fact]
+    public async Task List_WithoutActivityReadsNoChecksOrThreads()
+    {
+        var source = new FakeListSource();
+        source.Add(Payments, Pr(Payments, 10));
+
+        (_, JsonElement root) = await RunAsync(source, "pr", "list");
+
+        Assert.Empty(source.ActivityReads);
+        Assert.False(root.GetProperty("results")[0].TryGetProperty("checks", out _));
+        Assert.False(root.GetProperty("results")[0].TryGetProperty("threads", out _));
+    }
+
+    [Fact]
+    public async Task List_ActivityIsPartialWhenOnePullRequestsActivityCannotBeRead()
+    {
+        var source = new FakeListSource { BrokenActivityId = 11 };
+        source.Add(Payments, Pr(Payments, 10, created: Day(1)));
+        source.Add(Payments, Pr(Payments, 11, created: Day(2)));
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "pr", "list", "--activity");
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        Assert.Equal([11, 10], Ids(root));
+        Assert.False(root.GetProperty("results")[0].TryGetProperty("checks", out _));
+        Assert.True(root.GetProperty("results")[1].TryGetProperty("checks", out _));
+        Assert.Contains("11", root.GetProperty("errors")[0].GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task List_RejectsActivityWithFull()
+    {
+        var source = new FakeListSource();
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "pr", "list", "--activity", "--full");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("conflictingOptions", root.GetProperty("errors")[0].GetProperty("code").GetString());
+    }
+
+    [Fact]
     public async Task List_FullReturnsTheShowDocumentOfEveryMatch()
     {
         var source = new FakeListSource();
@@ -402,6 +465,24 @@ public sealed class PullRequestListCommandTests
                 .Where(candidate => search.ReviewerId is null || candidate.Reviewers.Any(reviewer => reviewer.Reviewer.Id == search.ReviewerId))
                 .OrderByDescending(candidate => candidate.Document.Id);
             return Task.FromResult<IReadOnlyList<PullRequestCandidate>>(matches.Skip(skip).Take(top).ToArray());
+        }
+
+        public int? BrokenActivityId { get; init; }
+
+        public List<int> ActivityReads { get; } = [];
+
+        public Task<PullRequestActivityDocument> GetActivityAsync(PullRequestDocument pullRequest, CancellationToken cancellationToken)
+        {
+            lock (ActivityReads)
+            {
+                ActivityReads.Add(pullRequest.Id);
+            }
+
+            return pullRequest.Id == BrokenActivityId
+                ? throw new PullRequestSourceException("forbidden", "Cannot read the policies.", false)
+                : Task.FromResult(new PullRequestActivityDocument(
+                    [new PullRequestCheckDocument(Guid.NewGuid(), "CI", "Build", "approved", IsExpired: true, IsBlocking: true, BuildId: 501)],
+                    [new PullRequestThreadActivityDocument(7, "active", 2, Day(5))]));
         }
 
         public Task<PullRequestDocument> GetAllDetailsAsync(PullRequestDocument pullRequest, CancellationToken cancellationToken) =>

@@ -97,11 +97,15 @@ public static class PullRequestModule
         {
             Description = $"Return every match as '{names.Invocation("show")}' would, with threads and work items, instead of a short entry."
         };
+        var activityOption = new Option<bool>("--activity")
+        {
+            Description = "Add each pull request's checks (build and other branch policies, with expired builds) and its threads' status, comment count and last update, to notice what changed since the last call."
+        };
         var privacyOptions = new PrivacyRequestOptions();
         var command = new Command(
             "list",
             $"List pull requests by author, reviewer, vote, status or repository, newest first. Read one with '{names.Invocation("show")}'.");
-        foreach (Option option in new Option[] { configOption, projectOption, repositoryOption, authorOption, reviewerOption, voteOption, statusOption, topOption, fullOption })
+        foreach (Option option in new Option[] { configOption, projectOption, repositoryOption, authorOption, reviewerOption, voteOption, statusOption, topOption, fullOption, activityOption })
         {
             command.Options.Add(option);
         }
@@ -120,8 +124,10 @@ public static class PullRequestModule
             string? reviewer = Clean(parseResult.GetValue(reviewerOption));
             Option<string?>? blank = filterOptions.FirstOrDefault(option =>
                 parseResult.GetResult(option) is not null && Clean(parseResult.GetValue(option)) is null);
+            bool activity = parseResult.GetValue(activityOption);
             (string Code, string Message)? invalid =
                 blank is not null ? ("emptyFilter", $"{blank.Name} needs a value.")
+                : full && activity ? ("conflictingOptions", "--activity adds to the short entries; --full already returns every thread.")
                 : top is < 1 or > MaxTop ? ("invalidTop", $"--top must be between 1 and {MaxTop}.")
                 : !PullRequestFilter.Statuses.Contains(status) ? ("invalidStatus", $"--status must be one of {string.Join(", ", PullRequestFilter.Statuses)}.")
                 : vote is not null && !PullRequestFilter.Votes.ContainsKey(vote) ? ("invalidVote", $"--vote must be one of {string.Join(", ", PullRequestFilter.Votes.Keys)}.")
@@ -153,7 +159,7 @@ public static class PullRequestModule
                     parseResult.GetValue(configOption),
                     compact,
                     privacyOptions.Read(parseResult),
-                    (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListAsync(filter, top, token),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListAsync(filter, top, activity, token),
                     cancellationToken);
 
             PullRequestListReader Reader(IAdoSession session, AdoReadConfiguration configuration, EffectivePrivacy privacy) =>

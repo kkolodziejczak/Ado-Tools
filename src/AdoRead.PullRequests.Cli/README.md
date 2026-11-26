@@ -38,7 +38,7 @@ Withheld fields come back as `null` or empty. `privacy show` shows what is allow
 | Command | Returns |
 | --- | --- |
 | `show <id-or-url>` | The pull request and its review threads |
-| `list [--author me\|<name>] [--reviewer me\|<name> [--vote <vote>]] [--status] [--repository] [--project] [--top] [--full]` | Pull requests newest first: short entries, or with `--full` the `show` document of each |
+| `list [--author me\|<name>] [--reviewer me\|<name> [--vote <vote>]] [--status] [--repository] [--project] [--top] [--full \| --activity]` | Pull requests newest first: short entries, with `--activity` also their checks and thread activity, or with `--full` the `show` document of each |
 | `project list`, `team list` | The projects and teams you can access |
 | `config`, `auth`, `privacy` | Settings, the stored token, and the content policy |
 
@@ -47,6 +47,7 @@ ado-read-pr show 412 --compact
 ado-read-pr show https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
 ado-read-pr list --reviewer me --vote none --compact
 ado-read-pr list --author me --compact
+ado-read-pr list --author me --activity --compact
 ```
 
 Each thread includes its file path, line range and commit IDs, so you can look at the change in your local Git repository. The tool never reads file contents from the repository. To post comments or vote, use [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr).
