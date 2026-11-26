@@ -28,7 +28,7 @@ $toolContracts = @{
     }
     'ado-read-pr' = @{
         Command = 'ado-read-pr'
-        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'show')
+        Commands = @('config', 'auth', 'privacy', 'project', 'team', 'show', 'list')
         Foreign = @('wiki', 'list')
     }
     'ado-read-work-item' = @{

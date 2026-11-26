@@ -29,6 +29,10 @@ public interface IAdoSession : IAsyncDisposable
     IWikiSource Wikis => throw new NotSupportedException();
 
     IPipelineSource Pipelines => throw new NotSupportedException();
+
+    /// <summary>The identity ID of the token's owner, which <c>me</c> stands for.</summary>
+    /// <exception cref="PullRequestSourceException">Azure DevOps could not be asked.</exception>
+    Task<Guid> GetTokenOwnerIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 public interface IAdoSessionFactory
@@ -106,6 +110,26 @@ internal sealed class AdoSession : IAdoSession
     public IWikiSource Wikis { get; }
 
     public IPipelineSource Pipelines { get; }
+
+    public async Task<Guid> GetTokenOwnerIdAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _connection.ConnectAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (AdoReadExceptionTranslator.IsServiceFailure(exception))
+        {
+            throw AdoReadExceptionTranslator.PullRequestFailure(exception);
+        }
+
+        return _connection.AuthorizedIdentity?.Id is { } id && id != Guid.Empty
+            ? id
+            : throw new PullRequestSourceException("unauthorized", "The PAT was rejected by Azure DevOps.", transient: false);
+    }
 
     public ValueTask DisposeAsync()
     {
