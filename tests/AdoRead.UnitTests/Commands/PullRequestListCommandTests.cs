@@ -221,11 +221,72 @@ public sealed class PullRequestListCommandTests
     }
 
     [Fact]
-    public async Task List_FullKeepsItsKindWhenTheInputIsInvalid()
+    public async Task List_FullKeepsItsKindAndSchemaWhenTheInputIsInvalid()
     {
         (_, JsonElement root) = await RunAsync(new FakeListSource(), "pr", "list", "--full", "--top", "0");
 
         Assert.Equal("pullRequestSearch", root.GetProperty("kind").GetString());
+        Assert.Equal("2.0", root.GetProperty("schemaVersion").GetString());
+    }
+
+    [Fact]
+    public async Task List_FullReadsEachPullRequestWholeNotTheShortenedListCopy()
+    {
+        var source = new FakeListSource();
+        source.Add(Payments, Pr(Payments, 10) with { Document = Pr(Payments, 10).Document with { Description = "The whole de" } });
+
+        (_, JsonElement root) = await RunAsync(source, "pr", "list", "--full");
+
+        Assert.Equal("The whole description.", root.GetProperty("results")[0].GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public async Task List_NeverReturnsAPullRequestTwiceWhenOneOpensBetweenPages()
+    {
+        var source = new FakeListSource { OpenedBetweenPages = Pr(Payments, 1000, created: Day(1000)) };
+        for (int id = 150; id >= 1; id--)
+        {
+            source.Add(Payments, Pr(Payments, id, created: Day(id)));
+        }
+
+        (_, JsonElement root) = await RunAsync(source, "pr", "list", "--project", "Payments", "--top", "101");
+
+        int[] ids = Ids(root);
+        Assert.Equal(101, ids.Length);
+        Assert.Equal(ids.Length, ids.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task List_IsPartialNotAnErrorWhenTheScanStoppedBeforeAnyMatch()
+    {
+        var source = new FakeListSource();
+        for (int id = 1001; id >= 1; id--)
+        {
+            source.Add(Payments, Pr(Payments, id, creator: Bob));
+        }
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "pr", "list", "--author", "ana@example.com");
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        Assert.Equal("partial", root.GetProperty("status").GetString());
+        Assert.DoesNotContain("--repository", root.GetProperty("errors")[0].GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("--vote")]
+    [InlineData("--author")]
+    [InlineData("--reviewer")]
+    [InlineData("--repository")]
+    [InlineData("--project")]
+    public async Task List_RejectsABlankFilterInsteadOfDroppingIt(string option)
+    {
+        var source = new FakeListSource();
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "pr", "list", option, " ");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("emptyFilter", root.GetProperty("errors")[0].GetProperty("code").GetString());
+        Assert.Empty(source.Criteria);
     }
 
     private static readonly Person Me = new(Owner, "me@example.com", "Me Myself");
@@ -294,6 +355,8 @@ public sealed class PullRequestListCommandTests
 
         public AdoProject? BrokenProject { get; init; }
 
+        public PullRequestCandidate? OpenedBetweenPages { get; set; }
+
         public List<RecordedCriteria> Criteria { get; } = [];
 
         public void Add(AdoProject project, PullRequestCandidate candidate)
@@ -326,6 +389,13 @@ public sealed class PullRequestListCommandTests
                 throw new PullRequestSourceException("forbidden", "Cannot read this project.", false);
             }
 
+            // A pull request opened between two page reads shifts every later page by one.
+            if (skip > 0 && OpenedBetweenPages is { } opened)
+            {
+                Add(project, opened);
+                OpenedBetweenPages = null;
+            }
+
             // Azure DevOps applies the creator and reviewer IDs itself and returns the newest first.
             IEnumerable<PullRequestCandidate> matches = _byProject.GetValueOrDefault(project.Id, [])
                 .Where(candidate => search.CreatorId is null || candidate.Creator.Id == search.CreatorId)
@@ -343,8 +413,12 @@ public sealed class PullRequestListCommandTests
         public Task<PullRequestDocument?> TryGetByIdAsync(int id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<PullRequestDocument?> TryGetAsync(AdoProject project, int id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        /// <summary>The single-PR read; unlike a listed page it carries the whole description.</summary>
+        public Task<PullRequestDocument?> TryGetAsync(AdoProject project, int id, CancellationToken cancellationToken)
+        {
+            PullRequestCandidate? candidate = _byProject.GetValueOrDefault(project.Id, []).FirstOrDefault(item => item.Document.Id == id);
+            return Task.FromResult(candidate is null ? null : candidate.Document with { Description = "The whole description." });
+        }
     }
 
     private sealed class ConfiguredStore : IConfigurationStore

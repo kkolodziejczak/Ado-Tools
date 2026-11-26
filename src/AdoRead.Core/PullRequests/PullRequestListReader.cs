@@ -148,7 +148,11 @@ public sealed class PullRequestListReader(
                 PullRequestDocument summary = found.Documents[index];
                 try
                 {
-                    details[index] = PullRequestPrivacy.Apply(await source.GetAllDetailsAsync(summary, token), privacy);
+                    // A listed page shortens the description, so each match is read again on its own, as pr show does.
+                    var project = new AdoProject(summary.Project.Id, summary.Project.Name, summary.Project.Rest);
+                    PullRequestDocument whole = await source.TryGetAsync(project, summary.Id, token)
+                        ?? throw new PullRequestSourceException("pullRequestNotFound", "It matched the list but could not be read.", false);
+                    details[index] = PullRequestPrivacy.Apply(await source.GetAllDetailsAsync(whole, token), privacy);
                 }
                 catch (PullRequestSourceException exception)
                 {
@@ -231,13 +235,17 @@ public sealed class PullRequestListReader(
     {
         await concurrency.WaitAsync(cancellationToken);
         var matches = new List<PullRequestDocument>();
+        var seen = new HashSet<int>();
         try
         {
             PullRequestSearch search = filter.ToSearch(owner);
             for (int skip = 0; ; skip += PageSize)
             {
                 IReadOnlyList<PullRequestCandidate> page = await source.ListAsync(project, search, skip, PageSize, cancellationToken);
-                matches.AddRange(page.Where(candidate => filter.Matches(candidate, owner)).Select(candidate => candidate.Document));
+                // Pages are offsets, so a pull request opened meanwhile pushes one already read onto the next page.
+                matches.AddRange(page
+                    .Where(candidate => seen.Add(candidate.Document.Id) && filter.Matches(candidate, owner))
+                    .Select(candidate => candidate.Document));
                 if (page.Count < PageSize || matches.Count >= top)
                 {
                     return new ProjectScan(matches, null);
@@ -250,7 +258,7 @@ public sealed class PullRequestListReader(
                         project.Name,
                         "scanLimitReached",
                         $"Only the newest {MaxScannedPerProject} pull requests of this project were checked. "
-                        + "Narrow the list with --repository, --status, or --author me / --reviewer me, which Azure DevOps filters itself.",
+                        + "Narrow the list with --status, or --author me / --reviewer me, which Azure DevOps filters itself.",
                         false));
                 }
             }
@@ -290,7 +298,7 @@ public sealed class PullRequestListReader(
             new SearchEnvelope<T>(
                 schemaVersion,
                 kind,
-                errors.Count == 0 ? "success" : results.Count > 0 ? "partial" : "error",
+                Status(results.Count, errors),
                 query,
                 timeProvider.GetUtcNow(),
                 results,
@@ -298,6 +306,12 @@ public sealed class PullRequestListReader(
                 new PageMetadataDocument(null, query.Top, results.Count, null, null, null)),
             privacy,
             categories);
+
+    /// <summary>A scan cut short read everything it was asked to, so it is partial, not an error, even without a match.</summary>
+    private static string Status(int resultCount, IReadOnlyList<SearchError> errors) =>
+        errors.Count == 0 ? "success"
+        : resultCount > 0 || errors.All(error => error.Code == "scanLimitReached") ? "partial"
+        : "error";
 
     private sealed record ProjectScan(IReadOnlyList<PullRequestDocument> Matches, SearchError? Error);
 

@@ -107,29 +107,29 @@ public static class PullRequestModule
         }
 
         privacyOptions.AddTo(command);
+        Option<string?>[] filterOptions = [projectOption, repositoryOption, authorOption, reviewerOption, voteOption];
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             bool compact = parseResult.GetValue(services.CompactOption);
             bool full = parseResult.GetValue(fullOption);
             string kind = full ? PullRequestListReader.FullKind : PullRequestListReader.ListKind;
+            string schemaVersion = full ? "2.0" : "1.0";
             int top = parseResult.GetValue(topOption);
             string status = (parseResult.GetValue(statusOption) ?? string.Empty).Trim().ToLowerInvariant();
             string? vote = Clean(parseResult.GetValue(voteOption))?.ToLowerInvariant();
             string? reviewer = Clean(parseResult.GetValue(reviewerOption));
+            Option<string?>? blank = filterOptions.FirstOrDefault(option =>
+                parseResult.GetResult(option) is not null && Clean(parseResult.GetValue(option)) is null);
             (string Code, string Message)? invalid =
-                top is < 1 or > MaxTop ? ("invalidTop", $"--top must be between 1 and {MaxTop}.")
+                blank is not null ? ("emptyFilter", $"{blank.Name} needs a value.")
+                : top is < 1 or > MaxTop ? ("invalidTop", $"--top must be between 1 and {MaxTop}.")
                 : !PullRequestFilter.Statuses.Contains(status) ? ("invalidStatus", $"--status must be one of {string.Join(", ", PullRequestFilter.Statuses)}.")
                 : vote is not null && !PullRequestFilter.Votes.ContainsKey(vote) ? ("invalidVote", $"--vote must be one of {string.Join(", ", PullRequestFilter.Votes.Keys)}.")
                 : vote is not null && reviewer is null ? ("conflictingOptions", "--vote needs --reviewer: it filters on that reviewer's vote.")
                 : null;
             if (invalid is { } error)
             {
-                SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
-                    kind,
-                    [new SearchError("command", null, error.Code, error.Message, false)],
-                    services.TimeProvider.GetUtcNow());
-                await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
-                return ExitCodes.InvalidInputOrConfiguration;
+                return await context.RejectAsync(kind, error.Code, error.Message, compact, cancellationToken, schemaVersion);
             }
 
             var filter = new PullRequestFilter(
@@ -146,7 +146,8 @@ public static class PullRequestModule
                     compact,
                     privacyOptions.Read(parseResult),
                     (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListFullAsync(filter, top, token),
-                    cancellationToken)
+                    cancellationToken,
+                    schemaVersion)
                 : await context.RunAsync(
                     kind,
                     parseResult.GetValue(configOption),
