@@ -23,7 +23,7 @@ public sealed class WorkItemListCommandTests
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Equal(
-            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = 'Payments'"
+            "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
             + " AND [System.Tags] CONTAINS 'needs-refinement' AND [System.AssignedTo] = @Me"
             + " AND [System.State] IN ('New', 'Active') AND ([System.AreaPath] UNDER 'Payments\\Checkout')"
             + " AND [System.WorkItemType] IN ('Bug') ORDER BY [System.ChangedDate] DESC",
@@ -43,6 +43,130 @@ public sealed class WorkItemListCommandTests
         Assert.False(bug.TryGetProperty("description", out _));
         Assert.Equal(2, root.GetProperty("page").GetProperty("returnedCount").GetInt32());
         Assert.Equal(2, root.GetProperty("page").GetProperty("totalCount").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("Payments")]
+    [InlineData("6f1e2c1a-4c1d-4a7e-9f43-0d3c2b1a9e88")]
+    public async Task List_RunsTheQueryInTheGivenProjectByNameOrId(string project)
+    {
+        var source = new FakeWorkItemListSource { QueryIds = [] };
+
+        (int exitCode, _) = await RunAsync(source, "work-item", "list", "--project", project);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(project, source.Project);
+        Assert.Contains("[System.TeamProject] = @project", source.Wiql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task List_WithoutAProjectSearchesTheWholeOrganization()
+    {
+        var source = new FakeWorkItemListSource { QueryIds = [] };
+
+        await RunAsync(source, "work-item", "list", "--tag", "x");
+
+        Assert.Null(source.Project);
+    }
+
+    [Fact]
+    public async Task List_KeepsNamedPeopleOutOfTheQueryEchoWhenPeopleAreWithheld()
+    {
+        var source = new FakeWorkItemListSource { QueryIds = [] };
+
+        (string json, int exitCode) = await RunRawAsync(source, "work-item", "list", "--assignee", "ana@example.com", "--withhold", "people");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Contains("ana@example.com", source.Wiql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ana@example.com", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task List_KeepsAGivenWiqlOutOfTheEchoWhenPeopleAreWithheld()
+    {
+        var source = new FakeWorkItemListSource { QueryFailure = new WorkItemSourceException("invalidWiql", "rejected", transient: false) };
+
+        (string json, _) = await RunRawAsync(
+            source,
+            "work-item", "list", "--wiql", "SELECT [System.Id] FROM WorkItems WHERE [System.CreatedBy] = 'ana@example.com'", "--withhold", "people");
+
+        Assert.DoesNotContain("ana@example.com", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("me")]
+    [InlineData("none")]
+    public async Task List_EchoesMeAndNoneEvenWhenPeopleAreWithheld(string assignee)
+    {
+        var source = new FakeWorkItemListSource { QueryIds = [] };
+
+        (int _, JsonElement root) = await RunAsync(source, "work-item", "list", "--assignee", assignee, "--withhold", "people");
+
+        Assert.Equal(assignee, root.GetProperty("query").GetProperty("filter").GetProperty("assignee").GetString());
+    }
+
+    [Fact]
+    public async Task List_RejectsABlankWiqlInsteadOfListingEverything()
+    {
+        var source = new FakeWorkItemListSource();
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "work-item", "list", "--wiql", " ");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("invalidWiql", root.GetProperty("errors")[0].GetProperty("code").GetString());
+        Assert.Null(source.Wiql);
+    }
+
+    [Fact]
+    public async Task List_RejectsWiqlWithAFilterEvenWhenTheFilterIsBlank()
+    {
+        var source = new FakeWorkItemListSource();
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "work-item", "list", "--wiql", "SELECT [System.Id] FROM WorkItems", "--tag", " ");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("conflictingOptions", root.GetProperty("errors")[0].GetProperty("code").GetString());
+        Assert.Null(source.Wiql);
+    }
+
+    [Fact]
+    public async Task List_IsPartialWhenAMatchCannotBeRead()
+    {
+        var source = new FakeWorkItemListSource { QueryIds = [7, 3] };
+        source.Add(Item(7, "Pay an invoice"));
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "work-item", "list");
+
+        Assert.Equal(ExitCodes.Partial, exitCode);
+        Assert.Equal("partial", root.GetProperty("status").GetString());
+        Assert.Equal(7, root.GetProperty("results")[0].GetProperty("id").GetInt32());
+        JsonElement error = root.GetProperty("errors")[0];
+        Assert.Equal("workItemNotFound", error.GetProperty("code").GetString());
+        Assert.Contains("3", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task List_FullKeepsItsKindWhenTheInputIsInvalid()
+    {
+        var source = new FakeWorkItemListSource();
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "work-item", "list", "--full", "--top", "0");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("workItemSearch", root.GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task List_LeavesTheTotalOutWhenAzureDevOpsStoppedCounting()
+    {
+        var source = new FakeWorkItemListSource { QueryIds = Enumerable.Range(1, SdkWorkItemTrackingClient.MaxQueryResults).ToArray() };
+        source.Add(Item(1, "One"));
+
+        (int _, JsonElement root) = await RunAsync(source, "work-item", "list", "--top", "1");
+
+        JsonElement page = root.GetProperty("page");
+        Assert.False(page.TryGetProperty("totalCount", out _));
+        Assert.Equal(1, page.GetProperty("returnedCount").GetInt32());
     }
 
     [Fact]
@@ -163,8 +287,25 @@ public sealed class WorkItemListCommandTests
         Assert.Equal([7, 3], results.EnumerateArray().Select(item => item.GetProperty("id").GetInt32()));
         Assert.True(results[0].TryGetProperty("comments", out _));
         Assert.True(results[0].TryGetProperty("description", out _));
-        Assert.Equal([7, 3], source.ReadIds);
+        Assert.Equal([3, 7], source.ReadIds.Order());
         Assert.Empty(source.FetchedIds);
+    }
+
+    [Fact]
+    public async Task List_FullReadsSeveralItemsAtOnceUpToTheConfiguredLimitAndKeepsTheQueryOrder()
+    {
+        int[] ids = [6, 5, 4, 3, 2, 1];
+        var source = new FakeWorkItemListSource { QueryIds = ids, ReadDelay = TimeSpan.FromMilliseconds(50) };
+        foreach (int id in ids)
+        {
+            source.Add(Item(id, $"Item {id}"));
+        }
+
+        (int exitCode, JsonElement root) = await RunAsync(source, "work-item", "list", "--full");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal(ids, root.GetProperty("results").EnumerateArray().Select(item => item.GetProperty("id").GetInt32()));
+        Assert.InRange(source.MaxConcurrentReads, 2, AdoReadConfiguration.DefaultMaxParallelProjects);
     }
 
     [Fact]
@@ -185,6 +326,13 @@ public sealed class WorkItemListCommandTests
 
     private static async Task<(int ExitCode, JsonElement Root)> RunAsync(FakeWorkItemListSource source, params string[] args)
     {
+        (string json, int exitCode) = await RunRawAsync(source, args);
+        using JsonDocument document = JsonDocument.Parse(json);
+        return (exitCode, document.RootElement.Clone());
+    }
+
+    private static async Task<(string Json, int ExitCode)> RunRawAsync(FakeWorkItemListSource source, params string[] args)
+    {
         var writer = new StringWriter();
         CommandApplication application = TestTool.Umbrella(
             new ConfiguredStore(),
@@ -193,8 +341,7 @@ public sealed class WorkItemListCommandTests
             new FakePatProvider(),
             new FakeSessionFactory(source));
         int exitCode = await application.InvokeAsync([.. args, "--compact"], CancellationToken.None);
-        using JsonDocument document = JsonDocument.Parse(writer.ToString());
-        return (exitCode, document.RootElement.Clone());
+        return (writer.ToString(), exitCode);
     }
 
     private static SourceWorkItem Item(
@@ -242,9 +389,12 @@ public sealed class WorkItemListCommandTests
 
         public void Add(SourceWorkItem item) => _items[item.Id] = item;
 
-        public Task<IReadOnlyList<int>> QueryAsync(string wiql, CancellationToken cancellationToken)
+        public string? Project { get; private set; }
+
+        public Task<IReadOnlyList<int>> QueryAsync(string wiql, string? project, CancellationToken cancellationToken)
         {
             Wiql = wiql;
+            Project = project;
             return QueryFailure is null ? Task.FromResult(QueryIds) : throw QueryFailure;
         }
 
@@ -254,10 +404,32 @@ public sealed class WorkItemListCommandTests
             return Task.FromResult<IReadOnlyList<SourceWorkItem>>(ids.Where(_items.ContainsKey).Select(id => _items[id]).ToArray());
         }
 
-        public Task<SourceWorkItem?> GetAsync(int id, CancellationToken cancellationToken)
+        public TimeSpan ReadDelay { get; init; }
+
+        public int MaxConcurrentReads { get; private set; }
+
+        private int _concurrentReads;
+
+        public async Task<SourceWorkItem?> GetAsync(int id, CancellationToken cancellationToken)
         {
-            ReadIds.Add(id);
-            return Task.FromResult(_items.GetValueOrDefault(id));
+            lock (ReadIds)
+            {
+                ReadIds.Add(id);
+                MaxConcurrentReads = Math.Max(MaxConcurrentReads, ++_concurrentReads);
+            }
+
+            try
+            {
+                await Task.Delay(ReadDelay, cancellationToken);
+                return _items.GetValueOrDefault(id);
+            }
+            finally
+            {
+                lock (ReadIds)
+                {
+                    _concurrentReads--;
+                }
+            }
         }
 
         public Task<IReadOnlyList<WorkItemCommentDocument>> GetAllCommentsAsync(

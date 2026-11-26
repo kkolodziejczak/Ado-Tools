@@ -123,69 +123,81 @@ public static class WorkItemModule
         }
 
         privacyOptions.AddTo(command);
+        Option[] filterOptions = [projectOption, tagOption, assigneeOption, stateOption, areaOption, typeOption];
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             bool compact = parseResult.GetValue(services.CompactOption);
             bool full = parseResult.GetValue(fullOption);
+            string kind = full ? WorkItemListReader.FullKind : WorkItemListReader.ListKind;
             int top = parseResult.GetValue(topOption);
-            string? wiql = parseResult.GetValue(wiqlOption);
-            var filter = new WorkItemFilter(
-                parseResult.GetValue(projectOption),
-                parseResult.GetValue(tagOption) ?? [],
-                parseResult.GetValue(assigneeOption),
-                parseResult.GetValue(stateOption) ?? [],
-                parseResult.GetValue(areaOption) ?? [],
-                parseResult.GetValue(typeOption) ?? []);
             if (top is < 1 or > MaxTop)
             {
-                return await WriteListErrorAsync(services, "invalidTop", $"--top must be between 1 and {MaxTop}.", compact, cancellationToken);
+                return await WriteListErrorAsync(services, kind, "invalidTop", $"--top must be between 1 and {MaxTop}.", compact, cancellationToken);
             }
 
-            if (!string.IsNullOrWhiteSpace(wiql) && !filter.IsEmpty)
+            WorkItemListRequest request;
+            if (parseResult.GetResult(wiqlOption) is null)
+            {
+                var filter = new WorkItemFilter(
+                    parseResult.GetValue(projectOption),
+                    parseResult.GetValue(tagOption) ?? [],
+                    parseResult.GetValue(assigneeOption),
+                    parseResult.GetValue(stateOption) ?? [],
+                    parseResult.GetValue(areaOption) ?? [],
+                    parseResult.GetValue(typeOption) ?? []);
+                request = new WorkItemListRequest(filter, WorkItemWiql.Build(filter), top);
+            }
+            else if (filterOptions.Any(option => parseResult.GetResult(option) is not null))
             {
                 return await WriteListErrorAsync(
                     services,
+                    kind,
                     "conflictingOptions",
                     "Pass either --wiql or the filter options (--project, --tag, --assignee, --state, --area, --type), not both.",
                     compact,
                     cancellationToken);
             }
+            else if (WorkItemWiql.Clean(parseResult.GetValue(wiqlOption)) is { } wiql)
+            {
+                request = new WorkItemListRequest(null, wiql, top);
+            }
+            else
+            {
+                return await WriteListErrorAsync(services, kind, "invalidWiql", "--wiql needs a query.", compact, cancellationToken);
+            }
 
-            bool ownQuery = !string.IsNullOrWhiteSpace(wiql);
-            string query = ownQuery ? wiql!.Trim() : WorkItemWiql.Build(filter);
             return full
                 ? await context.RunAsync(
-                    WorkItemListReader.FullKind,
+                    kind,
                     parseResult.GetValue(configOption),
                     compact,
                     privacyOptions.Read(parseResult),
-                    (session, configuration, privacy, token) => Reader(session, configuration, privacy)
-                        .ListFullAsync(new WorkItemListQuery(configuration.OrganizationUrl, ownQuery ? null : filter, query, top, true), token),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListFullAsync(request, token),
                     cancellationToken)
                 : await context.RunAsync(
-                    WorkItemListReader.ListKind,
+                    kind,
                     parseResult.GetValue(configOption),
                     compact,
                     privacyOptions.Read(parseResult),
-                    (session, configuration, privacy, token) => Reader(session, configuration, privacy)
-                        .ListAsync(new WorkItemListQuery(configuration.OrganizationUrl, ownQuery ? null : filter, query, top, false), token),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListAsync(request, token),
                     cancellationToken);
 
             WorkItemListReader Reader(IAdoSession session, AdoReadConfiguration configuration, EffectivePrivacy privacy) =>
-                new(session.WorkItems, configuration.OrganizationUrl, services.TimeProvider, privacy);
+                new(session.WorkItems, configuration.OrganizationUrl, services.TimeProvider, privacy, configuration.MaxParallelProjects);
         });
         return command;
     }
 
     private static async Task<int> WriteListErrorAsync(
         CommandServices services,
+        string kind,
         string code,
         string message,
         bool compact,
         CancellationToken cancellationToken)
     {
         SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
-            WorkItemListReader.ListKind,
+            kind,
             [new SearchError("command", null, code, message, false)],
             services.TimeProvider.GetUtcNow());
         await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);

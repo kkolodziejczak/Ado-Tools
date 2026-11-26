@@ -28,7 +28,7 @@ public sealed class WorkItemWiqlTests
 
         Assert.Equal(
             Select
-            + " WHERE [System.TeamProject] = 'Payments'"
+            + " WHERE [System.TeamProject] = @project"
             + " AND [System.Tags] CONTAINS 'needs-refinement'"
             + " AND [System.Tags] CONTAINS 'backend'"
             + " AND [System.AssignedTo] = @Me"

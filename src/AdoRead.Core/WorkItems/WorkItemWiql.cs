@@ -10,27 +10,22 @@ public sealed record WorkItemFilter(
     IReadOnlyList<string> Types)
 {
     public static WorkItemFilter None { get; } = new(null, [], null, [], [], []);
-
-    public bool IsEmpty => WorkItemWiql.Clean(Project) is null
-        && WorkItemWiql.Clean(Assignee) is null
-        && !WorkItemWiql.Clean(Tags).Any()
-        && !WorkItemWiql.Clean(States).Any()
-        && !WorkItemWiql.Clean(Areas).Any()
-        && !WorkItemWiql.Clean(Types).Any();
 }
 
 /// <summary>
 /// Turns a <see cref="WorkItemFilter"/> into a flat WIQL query, newest change first. Every value is a
 /// quoted WIQL string with its quotes doubled, so a value can never end its string and add clauses.
+/// A project filter becomes <c>@project</c>; the caller runs the query in that project.
 /// </summary>
 public static class WorkItemWiql
 {
     public static string Build(WorkItemFilter filter)
     {
         var clauses = new List<string>();
-        if (Clean(filter.Project) is { } project)
+        // The query runs in the project's context, so --project takes a name or an ID like elsewhere.
+        if (Clean(filter.Project) is not null)
         {
-            clauses.Add($"[System.TeamProject] = {Quote(project)}");
+            clauses.Add("[System.TeamProject] = @project");
         }
 
         clauses.AddRange(Clean(filter.Tags).Select(tag => $"[System.Tags] CONTAINS {Quote(tag)}"));
@@ -58,6 +53,10 @@ public static class WorkItemWiql
         "none" => "''",
         _ => Quote(assignee)
     };
+
+    /// <summary>True for <c>me</c> and <c>none</c>, which name no person.</summary>
+    public static bool IsMacroAssignee(string? assignee) =>
+        Clean(assignee)?.ToLowerInvariant() is "me" or "none";
 
     private static void AddIn(List<string> clauses, string field, IReadOnlyList<string> values)
     {
