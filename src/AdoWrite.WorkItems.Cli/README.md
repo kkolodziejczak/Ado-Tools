@@ -35,5 +35,5 @@ ado-write-work-item comment 12345 --body-file question.md --agent "Claude Opus 5
 
 ## Learn more
 
-- [Writing comments](https://github.com/kkolodziejczak/Ado-Tools#writing-comments): mentions, attachments, duplicate keys, and how to find the replies
-- [Authentication](https://github.com/kkolodziejczak/Ado-Tools#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools#json-contract-and-exit-codes) · [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)
+- [Writing comments](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#writing-comments): mentions, attachments, duplicate keys, and how to find the replies
+- [Authentication](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/getting-started.md#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/json-contract.md) · [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)
