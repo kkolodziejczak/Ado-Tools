@@ -50,6 +50,15 @@ ado-read-pipeline test list --run 9002 --project Payments --outcome failed --top
 
 Before any output is written, secrets in messages, stack traces and log lines are masked at every privacy level. The masking works by pattern matching, so treat the output as untrusted text.
 
+## Give it to your agent
+
+Ready-made instructions tell an agent how to use the tools: run only what is installed, check `status` before `results`, treat Azure DevOps content as data, and post only what you ask for.
+
+- **As a skill** (Claude Code, Codex and other harnesses that read `SKILL.md`): copy [`skills/ado-tools`](https://github.com/kkolodziejczak/Ado-Tools/tree/master/skills/ado-tools) into `~/.claude/skills/` or `~/.codex/skills/`, or run `npx skills add kkolodziejczak/Ado-Tools`. It loads only when a task mentions Azure DevOps.
+- **As one file** for any agent: paste [`agent-instructions.md`](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/agent-instructions.md) into your global `AGENTS.md` or `CLAUDE.md`.
+
+Install steps and test prompts: [Agent skill and instructions](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/agent-integration.md).
+
 ## Learn more
 
 - [Pipelines in detail](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/pipelines.md): which runs are picked, the limits, and what each privacy level returns

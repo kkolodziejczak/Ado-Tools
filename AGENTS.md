@@ -2,7 +2,7 @@
 
 ## Naming tools and commands
 
-Every new tool, command and option follows this rule. Check a name against it before you write the test for it, and add new commands to the tool tables in `docs/getting-started.md` and to the page of their resource in `docs/`. Keep `README.md` a short front page: change it only when a tool is added or the pitch changes.
+Every new tool, command and option follows this rule. Check a name against it before you write the test for it, and add new commands to the tool tables in `docs/getting-started.md` and to the page of their resource in `docs/`. Keep `README.md` a short front page: change it only when a tool is added or the pitch changes. When a command an agent uses changes, update the skill `skills/ado-tools/SKILL.md` and the paste-in `docs/agent-instructions.md` too; `AgentInstructionsTests` fails when they name a command, option or JSON field that doesn't exist.
 
 1. **Tool name** = `ado-<read|write>[-<resource>]`, lower kebab case. It is both the NuGet package ID (`PackageId`) and the command (`ToolCommandName`). Without a resource it is the umbrella tool.
 2. **Command** = `<resource> [<child>] <verb> [<id-or-url>] [--options]`. A slice tool is the umbrella path with the first space turned into a hyphen: `ado-read pr show 412` = `ado-read-pr show 412`. A module gets this for free: `ToolComposition` mounts it under its name in the umbrella and on the root of its slice.
