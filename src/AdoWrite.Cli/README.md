@@ -44,5 +44,5 @@ To read pull requests and work items, and the answers to a comment, install [`ad
 
 ## Learn more
 
-- [Writing comments](https://github.com/kkolodziejczak/Ado-Tools#writing-comments) · [Requeueing builds and voting](https://github.com/kkolodziejczak/Ado-Tools#requeueing-builds-and-voting)
-- [Authentication](https://github.com/kkolodziejczak/Ado-Tools#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools#json-contract-and-exit-codes) · [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)
+- [Writing comments](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#writing-comments) · [Requeueing builds and voting](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#requeueing-builds-and-voting)
+- [Authentication](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/getting-started.md#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/json-contract.md) · [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)

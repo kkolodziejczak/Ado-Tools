@@ -54,6 +54,6 @@ Each thread includes its file path, line range and commit IDs, so you can look a
 
 ## Learn more
 
-- [Pull requests in detail](https://github.com/kkolodziejczak/Ado-Tools#pull-requests): how the pull request is found, and the thread fields; [listing pull requests](https://github.com/kkolodziejczak/Ado-Tools#listing-pull-requests)
-- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools#privacy) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools#json-contract-and-exit-codes)
+- [Pull requests in detail](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/pull-requests.md): how the pull request is found, and the thread fields; [listing pull requests](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/pull-requests.md#listing-pull-requests)
+- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/privacy.md) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/getting-started.md#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/json-contract.md)
 - [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)

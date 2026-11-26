@@ -79,7 +79,9 @@ public sealed class ReleasePackageValidationTests
         Assert.Contains("wiki page search authentication", smokeContract, StringComparison.Ordinal);
         Assert.Contains("'pipeline', 'run', 'list', '--pr'", smokeContract, StringComparison.Ordinal);
         Assert.Contains("Test-WriteSmoke", smokeContract, StringComparison.Ordinal);
-        string readmeContract = await File.ReadAllTextAsync(readme);
+        // The README is the front page; the details it links to live in docs/.
+        string[] documentation = [readme, .. Directory.GetFiles(Path.Combine(toolRoot, "docs"), "*.md").Order(StringComparer.Ordinal)];
+        string readmeContract = string.Join("\n", await Task.WhenAll(documentation.Select(path => File.ReadAllTextAsync(path))));
         Assert.Contains("--version 1.0.0", readmeContract, StringComparison.Ordinal);
         Assert.Contains("ado-read-pipeline", readmeContract, StringComparison.Ordinal);
         Assert.Contains("ado-write-pr", readmeContract, StringComparison.Ordinal);

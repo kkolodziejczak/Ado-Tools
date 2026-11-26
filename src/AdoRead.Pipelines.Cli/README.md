@@ -52,6 +52,6 @@ Before any output is written, secrets in messages, stack traces and log lines ar
 
 ## Learn more
 
-- [Pipelines in detail](https://github.com/kkolodziejczak/Ado-Tools#pipelines): which runs are picked, the limits, and what each privacy level returns
-- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools#privacy) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools#json-contract-and-exit-codes)
+- [Pipelines in detail](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/pipelines.md): which runs are picked, the limits, and what each privacy level returns
+- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/privacy.md) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/getting-started.md#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/json-contract.md)
 - [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)

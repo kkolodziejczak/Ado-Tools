@@ -53,6 +53,6 @@ Pass each `next.arguments` element as a separate process argument, and never joi
 
 ## Learn more
 
-- [Wiki in detail](https://github.com/kkolodziejczak/Ado-Tools#wiki-discovery-search-and-selected-reads): the discovery flow, paging, and search limits
-- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools#privacy) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools#json-contract-and-exit-codes)
+- [Wiki in detail](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/wiki.md): the discovery flow, paging, and search limits
+- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/privacy.md) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/getting-started.md#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/json-contract.md)
 - [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)

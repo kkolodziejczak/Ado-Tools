@@ -51,6 +51,6 @@ ado-read-sprint show --sprint "Sprint 42" --state Done --state Closed --compact
 
 ## Learn more
 
-- [Sprints in detail](https://github.com/kkolodziejczak/Ado-Tools#sprints)
-- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools#privacy) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools#json-contract-and-exit-codes)
+- [Sprints in detail](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/sprints.md)
+- [Privacy levels](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/privacy.md) · [Authentication](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/getting-started.md#configure-authentication-and-the-organization) · [JSON contract and exit codes](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/json-contract.md)
 - [All tools](https://github.com/kkolodziejczak/Ado-Tools#tools)
