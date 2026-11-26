@@ -195,10 +195,65 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
         return Task.FromResult(created);
     }
 
+    public Exception? CreateCommentFailure { get; set; }
+
+    /// <summary>Runs after a reply is stored, for example another reviewer closing the thread meanwhile.</summary>
+    public Action? AfterCreateComment { get; set; }
+
     public Task<Comment> CreateCommentAsync(PullRequestLocation location, int threadId, Comment comment, CancellationToken cancellationToken)
     {
-        CreatedComments.Add((threadId, comment));
-        return Task.FromResult(Fabricated.CommentBy(5, comment.Content, parentId: comment.ParentCommentId));
+        if (CreateCommentFailure is not null)
+        {
+            throw CreateCommentFailure;
+        }
+
+        Comment created = Fabricated.CommentBy(5, comment.Content, parentId: comment.ParentCommentId);
+        lock (Threads)
+        {
+            CreatedComments.Add((threadId, comment));
+            if (KeepsCreated && Threads.FirstOrDefault(thread => thread.Id == threadId) is { } thread)
+            {
+                thread.Comments = [.. thread.Comments ?? [], created];
+            }
+        }
+
+        AfterCreateComment?.Invoke();
+        return Task.FromResult(created);
+    }
+
+    /// <summary>Replaces a thread with a new object of another status, so a snapshot read earlier keeps the old one.</summary>
+    public void ChangeStatusElsewhere(int threadId, CommentThreadStatus status)
+    {
+        lock (Threads)
+        {
+            int index = Threads.FindIndex(thread => thread.Id == threadId);
+            GitPullRequestCommentThread old = Threads[index];
+            Threads[index] = new GitPullRequestCommentThread { Id = old.Id, Status = status, Comments = old.Comments };
+        }
+    }
+
+    public List<(int ThreadId, CommentThreadStatus Status)> StatusUpdates { get; } = [];
+
+    public Exception? UpdateThreadFailure { get; set; }
+
+    public Task<GitPullRequestCommentThread> UpdateThreadStatusAsync(
+        PullRequestLocation location,
+        int threadId,
+        CommentThreadStatus status,
+        CancellationToken cancellationToken)
+    {
+        if (UpdateThreadFailure is not null)
+        {
+            throw UpdateThreadFailure;
+        }
+
+        lock (Threads)
+        {
+            StatusUpdates.Add((threadId, status));
+            GitPullRequestCommentThread thread = Threads.Single(candidate => candidate.Id == threadId);
+            thread.Status = status;
+            return Task.FromResult(thread);
+        }
     }
 }
 

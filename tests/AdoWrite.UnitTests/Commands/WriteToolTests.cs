@@ -29,7 +29,7 @@ public sealed class WriteToolTests
 
     public static TheoryData<string, string[]> SliceCommands => new()
     {
-        { "pr", ["auth", "comment", "config", "reply", "requeue", "vote"] },
+        { "pr", ["auth", "comment", "config", "reply", "requeue", "resolve", "unresolve", "vote"] },
         { "work-item", ["auth", "comment", "config"] },
     };
 

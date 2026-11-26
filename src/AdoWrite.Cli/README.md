@@ -24,6 +24,7 @@ Every Ado-Tools read and write tool uses the same token from your operating syst
 | Command | Does | Also available on its own |
 | --- | --- | --- |
 | `pr comment\|reply` | Comments on a pull request or replies in a thread | [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr) |
+| `pr resolve\|unresolve` | Resolves a thread or makes it active again, after an optional reply | [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr) |
 | `pr requeue` | Requeues build policies | [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr) |
 | `pr vote` | Sets your vote (needs `--confirm`) | [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr) |
 | `work-item comment` | Comments on a work item | [`ado-write-work-item`](https://www.nuget.org/packages/ado-write-work-item) |
