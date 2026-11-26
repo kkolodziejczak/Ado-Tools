@@ -76,14 +76,14 @@ internal sealed class ReadCommandContext(CommandServices services, ToolCommandNa
         Require(
             value ?? configuration.DefaultProject,
             "projectRequired",
-            $"No project given and none configured. Run '{names.Invocation("projects")}' to list them, then pass "
+            $"No project given and none configured. Run '{names.Invocation("project list")}' to list them, then pass "
             + $"--project or store one with '{names.Invocation("config init --project <name> --force")}'.");
 
     public string RequireTeam(string? value, AdoReadConfiguration configuration) =>
         Require(
             value ?? configuration.DefaultTeam,
             "teamRequired",
-            $"No team given and none configured. Run '{names.Invocation("teams")}' to list them, then pass "
+            $"No team given and none configured. Run '{names.Invocation("team list")}' to list them, then pass "
             + $"--team or store one with '{names.Invocation("config init --team <name> --force")}'.");
 
     private static string Require(string? value, string code, string message) =>

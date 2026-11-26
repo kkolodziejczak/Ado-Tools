@@ -25,7 +25,7 @@ public sealed class WikiCatalogReader(IWikiSource source, Uri organizationUrl, T
         catch (WikiSourceException exception) { return new("2.0", "wikiPageCatalog", "error", new WikiPageCatalogQuery(project, wiki, version), timeProvider.GetUtcNow(), [], [new SearchError("azureDevOps", project, exception.Code, exception.Message, exception.Transient)], new PageMetadataDocument(null, top, 0, null, null, null)); }
     }
 
-    private WikiCatalogDocument MapWiki(SourceWiki wiki) => new(wiki.Id, wiki.Name, wiki.Type, wiki.ProjectId, wiki.MappedPath, wiki.Versions.OrderBy(version => version.Value, StringComparer.Ordinal).Select(version => new WikiCatalogVersionDocument(version.Value, version.Type, new CommandHintDocument(commands.Path("pages"), VersionArguments(wiki, version)))).ToArray(), new WikiPageLinksDocument(wiki.RestUrl, wiki.BrowserUrl));
+    private WikiCatalogDocument MapWiki(SourceWiki wiki) => new(wiki.Id, wiki.Name, wiki.Type, wiki.ProjectId, wiki.MappedPath, wiki.Versions.OrderBy(version => version.Value, StringComparer.Ordinal).Select(version => new WikiCatalogVersionDocument(version.Value, version.Type, new CommandHintDocument(commands.Path("page list"), VersionArguments(wiki, version)))).ToArray(), new WikiPageLinksDocument(wiki.RestUrl, wiki.BrowserUrl));
 
     private static IReadOnlyList<string> VersionArguments(SourceWiki wiki, SourceWikiVersion version) => string.IsNullOrEmpty(version.Type)
         ? ["--project", wiki.ProjectId.ToString(), "--wiki", wiki.Id.ToString(), "--version", version.Value]
@@ -36,6 +36,6 @@ public sealed class WikiCatalogReader(IWikiSource source, Uri organizationUrl, T
         if (string.IsNullOrEmpty(path)) throw new WikiSourceException("invalidAzureDevOpsResponse", "Azure DevOps returned a Wiki page without a path.", false);
         var arguments = new List<string> { "--project", project, "--wiki", wiki, "--path", path };
         if (version is not null) { arguments.Add("--version"); arguments.Add(version.Value); if (!string.IsNullOrEmpty(version.Type)) { arguments.Add("--version-type"); arguments.Add(version.Type); } }
-        return new CommandHintDocument(commands.Path("page"), arguments);
+        return new CommandHintDocument(commands.Path("page show"), arguments);
     }
 }

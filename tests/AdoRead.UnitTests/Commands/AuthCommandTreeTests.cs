@@ -14,8 +14,8 @@ public sealed class AuthCommandTreeTests
         "ado-read-pr",
         "ado-read-work-item",
         "ado-read-wiki",
-        "ado-read-sprints",
-        "ado-read-pipelines",
+        "ado-read-sprint",
+        "ado-read-pipeline",
     };
 
     [Theory]
@@ -75,8 +75,8 @@ public sealed class AuthCommandTreeTests
             "ado-read-pr" => composition.CreateSlice(executable, PullRequestModule.Definition),
             "ado-read-work-item" => composition.CreateSlice(executable, WorkItemModule.Definition),
             "ado-read-wiki" => composition.CreateSlice(executable, WikiModule.Definition),
-            "ado-read-sprints" => composition.CreateSlice(executable, SprintModule.Definition),
-            "ado-read-pipelines" => composition.CreateSlice(executable, PipelineModule.Definition),
+            "ado-read-sprint" => composition.CreateSlice(executable, SprintModule.Definition),
+            "ado-read-pipeline" => composition.CreateSlice(executable, PipelineModule.Definition),
             _ => throw new ArgumentOutOfRangeException(nameof(executable), executable, null)
         };
     }

@@ -15,8 +15,8 @@ public sealed class PipelineProcessTests
         ProcessResult result = await RunAsync(
             toolRoot,
             FindFakeHostAssembly(toolRoot),
-            "pipelines",
-            "pr",
+            "pipeline",
+            "run", "list", "--pr",
             "126",
             "--project",
             "Fabricated.Alpha",
@@ -39,8 +39,8 @@ public sealed class PipelineProcessTests
         ProcessResult result = await RunAsync(
             toolRoot,
             FindFakeHostAssembly(toolRoot),
-            "pipelines",
-            "pr",
+            "pipeline",
+            "run", "list", "--pr",
             "126",
             "--project",
             "Fabricated.Alpha",
@@ -60,8 +60,8 @@ public sealed class PipelineProcessTests
         ProcessResult result = await RunAsync(
             toolRoot,
             FindFakeHostAssembly(toolRoot),
-            "pipelines",
-            "run",
+            "pipeline",
+            "run", "show",
             "8991",
             "--project",
             "Fabricated.Alpha",
@@ -82,8 +82,8 @@ public sealed class PipelineProcessTests
         ProcessResult result = await RunAsync(
             toolRoot,
             FindFakeHostAssembly(toolRoot),
-            "pipelines",
-            "tests",
+            "pipeline",
+            "test", "list", "--run",
             "9002",
             "--project",
             "Fabricated.Alpha",
@@ -101,7 +101,7 @@ public sealed class PipelineProcessTests
     public async Task PipelineRun_UnknownBuildExitsThreeAsNotFound()
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pipelines", "run", "404", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pipeline", "run", "show", "404", "--compact");
 
         Assert.Equal(3, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -114,7 +114,7 @@ public sealed class PipelineProcessTests
         string toolRoot = FindToolRoot();
         string assemblyPath = Path.Combine(AppContext.BaseDirectory, "AdoRead.Pipelines.Cli.dll");
 
-        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "pr", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "run", "list", "--compact");
 
         Assert.Equal(2, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -146,7 +146,9 @@ public sealed class PipelineProcessTests
             ProcessResult result = await RunAsync(
                 toolRoot,
                 assemblyPath,
-                "pr",
+                "run",
+                "list",
+                "--pr",
                 "126",
                 "--project",
                 "Fabricated.Alpha",

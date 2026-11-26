@@ -10,13 +10,13 @@ namespace AdoRead.Commands;
 
 public static class WikiCatalogCommands
 {
-    public static IReadOnlyDictionary<Command, string> Configure(Command target, ToolCommandNames names, CommandServices services)
+    public static IReadOnlyDictionary<Command, string> Configure(Command target, Command page, ToolCommandNames names, CommandServices services)
     {
         var (store, pat, sessions, output, clock, compact, _, _, gate, _) = services;
         var wikisPrivacy = new PrivacyRequestOptions();
         var pagesPrivacy = new PrivacyRequestOptions();
         var wikis = new Command("list", "List the Wikis in a project.");
-        var wikiPages = new Command("pages", "List the pages of one Wiki, with paging.");
+        var wikiPages = new Command("list", "List the pages of one Wiki, with paging.");
         var project = new Option<string?>("--project");
         var config = new Option<string?>("--config");
         wikis.Options.Add(project);
@@ -38,7 +38,7 @@ public static class WikiCatalogCommands
             token,
             "projectRequired",
             "No project given and none configured.",
-            new CommandHintDocument(names.Root.Path("projects"), []),
+            new CommandHintDocument(names.Root.Path("project list"), []),
             (session, configuration, value, cancellation) => new WikiCatalogReader(session.Wikis, configuration.OrganizationUrl, clock, names).ReadWikisAsync(value, cancellation)));
         var pageProject = new Option<string?>("--project");
         var wiki = new Option<string?>("--wiki");
@@ -51,7 +51,7 @@ public static class WikiCatalogCommands
         pagesPrivacy.AddTo(wikiPages);
         wikiPages.SetAction((result, token) => RunPagesAsync(names, result.GetValue(pageProject), result.GetValue(wiki), result.GetValue(version), result.GetValue(versionType), result.GetValue(top), result.GetValue(continuation), result.GetValue(pageConfig), result.GetValue(compact), pagesPrivacy.Read(result), gate, store, pat, sessions, output, clock, token));
         target.Subcommands.Add(wikis);
-        target.Subcommands.Add(wikiPages);
+        page.Subcommands.Add(wikiPages);
         return new Dictionary<Command, string> { [wikis] = "wikiCatalog", [wikiPages] = "wikiPageCatalog" };
     }
 
@@ -63,7 +63,7 @@ public static class WikiCatalogCommands
         if (!string.IsNullOrWhiteSpace(versionType) && string.IsNullOrWhiteSpace(version)) return await Error("wikiPageCatalog", "invalidWikiReference", "A version type requires a version.", null, output, clock, compact, token, "command");
         int requestedTop = top ?? 50;
         if (requestedTop is < 1 or > 100) return await Error("wikiPageCatalog", "invalidTop", "The page limit must be between 1 and 100.", null, output, clock, compact, token, "command");
-        return await RunAsync("wikiPageCatalog", names, project, config, compact, privacyRequest, gate, store, pat, sessions, output, clock, token, "projectRequired", "No project given and none configured.", new CommandHintDocument(names.Root.Path("projects"), []), async (session, configuration, value, cancellation) =>
+        return await RunAsync("wikiPageCatalog", names, project, config, compact, privacyRequest, gate, store, pat, sessions, output, clock, token, "projectRequired", "No project given and none configured.", new CommandHintDocument(names.Root.Path("project list"), []), async (session, configuration, value, cancellation) =>
         {
             WikiVersionDocument? selectedVersion = await ResolveVersionAsync(session.Wikis, value, wiki, version, versionType, cancellation);
             return await new WikiCatalogReader(session.Wikis, configuration.OrganizationUrl, clock, names).ReadPagesAsync(value, wiki, selectedVersion, requestedTop, continuation, cancellation);

@@ -10,14 +10,14 @@ namespace AdoRead.Commands;
 
 /// <summary>
 /// Sprint reading. Sprints are team scoped, so a caller who does not yet know the project or team
-/// walks the shared <c>projects</c> and <c>teams</c> commands, then <c>list</c> and <c>show</c>, or
+/// walks the shared <c>project list</c> and <c>team list</c> commands, then <c>list</c> and <c>show</c>, or
 /// stores defaults once with <c>config init --project --team</c>. Every "I need more input" answer
 /// is a structured error naming the next command to run.
 /// </summary>
 public static class SprintModule
 {
     public static CommandModule Definition { get; } = new(
-        "sprints",
+        "sprint",
         "Read a team's sprints and the work items in them.",
         Configure);
 

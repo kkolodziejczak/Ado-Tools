@@ -2,12 +2,12 @@
 
 Lets an AI agent work on an Azure DevOps pull request on your behalf. It can post comments (general ones or ones attached to lines), reply in threads, requeue build policies, and set your vote. With `--agent`, a comment ends with a visible footer naming the agent; without it, no footer is added. Retrying the same command never posts twice. It never edits or deletes comments, resolves threads, or completes pull requests.
 
-Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on work items, use `AdoWrite.Tool` (`ado-write`). To read pull requests, use [`AdoRead.PullRequests.Tool`](https://www.nuget.org/packages/AdoRead.PullRequests.Tool) (`ado-read-pr`).
+Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on work items, use `ado-write`. To read pull requests, use [`ado-read-pr`](https://www.nuget.org/packages/ado-read-pr).
 
 ## Install
 
 ```powershell
-dotnet tool install --global AdoWrite.PullRequests.Tool
+dotnet tool install --global ado-write-pr
 ```
 
 Needs .NET 10.

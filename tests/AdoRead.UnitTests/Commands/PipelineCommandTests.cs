@@ -21,7 +21,7 @@ public sealed class PipelineCommandTests
     [InlineData("0", "invalidPullRequestId")]
     public async Task Pr_InvalidReferenceExitsTwoWithoutOpeningASession(string reference, string code)
     {
-        var (exitCode, output, factory) = await InvokeAsync(["pipelines", "pr", reference, "--project", "Payments", "--compact"]);
+        var (exitCode, output, factory) = await InvokeAsync(["pipeline", "run", "list", "--pr", reference, "--project", "Payments", "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal(code, FirstError(output).GetProperty("code").GetString());
@@ -32,7 +32,7 @@ public sealed class PipelineCommandTests
     public async Task Pr_UrlFromAnotherOrganizationIsRejectedBeforeASession()
     {
         var (exitCode, output, factory) = await InvokeAsync(
-            ["pipelines", "pr", "https://dev.azure.com/fabricated/Payments/_git/Repo/pullrequest/42", "--compact"]);
+            ["pipeline", "run", "list", "--pr", "https://dev.azure.com/fabricated/Payments/_git/Repo/pullrequest/42", "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("organizationMismatch", FirstError(output).GetProperty("code").GetString());
@@ -45,7 +45,7 @@ public sealed class PipelineCommandTests
     public async Task Pr_LogLinesOutsideOneToFiveHundredAreRejected(string logLines)
     {
         var (exitCode, output, _) = await InvokeAsync(
-            ["pipelines", "pr", "42", "--project", "Payments", "--log-lines", logLines, "--compact"]);
+            ["pipeline", "run", "list", "--pr", "42", "--project", "Payments", "--log-lines", logLines, "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("invalidLogLines", FirstError(output).GetProperty("code").GetString());
@@ -55,7 +55,7 @@ public sealed class PipelineCommandTests
     public async Task Pr_UrlProjectThatDiffersFromTheProjectOptionIsRejected()
     {
         var (exitCode, output, factory) = await InvokeAsync(
-            ["pipelines", "pr", "https://dev.azure.com/example/Payments/_git/Repo/pullrequest/42", "--project", "Other", "--compact"]);
+            ["pipeline", "run", "list", "--pr", "https://dev.azure.com/example/Payments/_git/Repo/pullrequest/42", "--project", "Other", "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("projectMismatch", FirstError(output).GetProperty("code").GetString());
@@ -66,7 +66,7 @@ public sealed class PipelineCommandTests
     public async Task Run_BuildReferenceWithoutABuildIdIsRejected()
     {
         var (exitCode, output, _) = await InvokeAsync(
-            ["pipelines", "run", "https://dev.azure.com/example/Payments/_build/results", "--compact"]);
+            ["pipeline", "run", "show", "https://dev.azure.com/example/Payments/_build/results", "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("invalidBuildId", FirstError(output).GetProperty("code").GetString());
@@ -81,7 +81,7 @@ public sealed class PipelineCommandTests
         };
 
         var (exitCode, output, factory) = await InvokeAsync(
-            ["pipelines", "run", "https://dev.azure.com/example/Payments/_build/results?buildId=300", "--compact"],
+            ["pipeline", "run", "show", "https://dev.azure.com/example/Payments/_build/results?buildId=300", "--compact"],
             pipelines);
 
         Assert.Equal(ExitCodes.Success, exitCode);
@@ -97,7 +97,7 @@ public sealed class PipelineCommandTests
     public async Task Tests_OutcomeOtherThanFailedOrAllIsRejected(string outcome)
     {
         var (exitCode, output, _) = await InvokeAsync(
-            ["pipelines", "tests", "300", "--project", "Payments", "--outcome", outcome, "--compact"]);
+            ["pipeline", "test", "list", "--run", "300", "--project", "Payments", "--outcome", outcome, "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("invalidOutcome", FirstError(output).GetProperty("code").GetString());
@@ -109,7 +109,7 @@ public sealed class PipelineCommandTests
     public async Task Tests_TopOutsideOneToAThousandIsRejected(string top)
     {
         var (exitCode, output, _) = await InvokeAsync(
-            ["pipelines", "tests", "300", "--project", "Payments", "--top", top, "--compact"]);
+            ["pipeline", "test", "list", "--run", "300", "--project", "Payments", "--top", top, "--compact"]);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("invalidTop", FirstError(output).GetProperty("code").GetString());
@@ -119,7 +119,7 @@ public sealed class PipelineCommandTests
     public async Task Run_WithoutAStoredPolicyRefusesBeforeOpeningASession()
     {
         var (exitCode, output, factory) = await InvokeAsync(
-            ["pipelines", "run", "300", "--project", "Payments", "--compact"],
+            ["pipeline", "run", "show", "300", "--project", "Payments", "--compact"],
             vault: new MemoryCredentialVault());
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -144,7 +144,7 @@ public sealed class PipelineCommandTests
         };
 
         var (exitCode, _, _) = await InvokeAsync(
-            ["pipelines", "run", "300", "--project", "Payments", "--privacy", "standard", "--compact"],
+            ["pipeline", "run", "show", "300", "--project", "Payments", "--privacy", "standard", "--compact"],
             pipelines);
 
         Assert.Equal(ExitCodes.Success, exitCode);
@@ -163,7 +163,7 @@ public sealed class PipelineCommandTests
         pipelines.UnreadableTestRuns.Add(7001);
 
         var (exitCode, output, _) = await InvokeAsync(
-            ["pipelines", "tests", "300", "--project", "Payments", "--compact"],
+            ["pipeline", "test", "list", "--run", "300", "--project", "Payments", "--compact"],
             pipelines);
 
         Assert.Equal(ExitCodes.Partial, exitCode);

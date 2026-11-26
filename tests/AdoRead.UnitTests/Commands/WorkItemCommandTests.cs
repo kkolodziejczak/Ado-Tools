@@ -32,7 +32,7 @@ public sealed class WorkItemCommandTests
         var sessionFactory = new FakeAdoSessionFactory(session);
         CommandApplication application = CreateApplication(writer, sessionFactory);
 
-        int exitCode = await application.InvokeAsync(["work-item", "42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -69,7 +69,7 @@ public sealed class WorkItemCommandTests
             writer,
             new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
-        int exitCode = await application.InvokeAsync(["work-item", "42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -104,7 +104,7 @@ public sealed class WorkItemCommandTests
             writer,
             new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
-        int exitCode = await application.InvokeAsync(["work-item", reference, "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", reference, "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Equal(42, source.RequestedId);
@@ -126,7 +126,7 @@ public sealed class WorkItemCommandTests
             new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource())));
 
         int exitCode = await application.InvokeAsync(
-            ["work-item", "https://dev.azure.com/fabricated/Payments/_workitems/edit/42", "--compact"],
+            ["work-item", "show", "https://dev.azure.com/fabricated/Payments/_workitems/edit/42", "--compact"],
             CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -152,7 +152,7 @@ public sealed class WorkItemCommandTests
             new FakeAdoSessionFactory(new FakeAdoSession(new FakeWorkItemSource())));
 
         int exitCode = await application.InvokeAsync(
-            ["work-item", reference, "--compact"],
+            ["work-item", "show", reference, "--compact"],
             CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -181,7 +181,7 @@ public sealed class WorkItemCommandTests
                 sessionFactory);
 
             int exitCode = await application.InvokeAsync(
-                ["work-item", "42", "--download-images", outputDirectory, "--compact"],
+                ["work-item", "show", "42", "--download-images", outputDirectory, "--compact"],
                 CancellationToken.None);
 
             Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -222,7 +222,7 @@ public sealed class WorkItemCommandTests
                 sessionFactory);
 
             int exitCode = await application.InvokeAsync(
-                ["work-item", "42", "--download-images", link, "--compact"],
+                ["work-item", "show", "42", "--download-images", link, "--compact"],
                 CancellationToken.None);
 
             Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -287,7 +287,7 @@ public sealed class WorkItemCommandTests
                 new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
             int exitCode = await application.InvokeAsync(
-                ["work-item", "42", "--download-images", outputDirectory, "--compact"],
+                ["work-item", "show", "42", "--download-images", outputDirectory, "--compact"],
                 CancellationToken.None);
 
             Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -323,7 +323,7 @@ public sealed class WorkItemCommandTests
                 writer,
                 new FakeAdoSessionFactory(new FakeAdoSession(source)))
                 .InvokeAsync(
-                    ["work-item", "42", "--download-images", outputDirectory, "--compact"],
+                    ["work-item", "show", "42", "--download-images", outputDirectory, "--compact"],
                     CancellationToken.None);
 
             Assert.Equal(ExitCodes.Error, exitCode);
@@ -381,7 +381,7 @@ public sealed class WorkItemCommandTests
                 writer,
                 new FakeAdoSessionFactory(new FakeAdoSession(source)))
                 .InvokeAsync(
-                    ["work-item", "42", "--download-images", outputDirectory, "--compact"],
+                    ["work-item", "show", "42", "--download-images", outputDirectory, "--compact"],
                     CancellationToken.None);
 
             Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
@@ -408,7 +408,7 @@ public sealed class WorkItemCommandTests
             writer,
             new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
-        int exitCode = await application.InvokeAsync(["work-item", "404", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", "404", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.NotFound, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -430,7 +430,7 @@ public sealed class WorkItemCommandTests
             patProvider,
             sessionFactory);
 
-        int exitCode = await application.InvokeAsync(["work-item", "0", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", "0", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -452,7 +452,7 @@ public sealed class WorkItemCommandTests
             new MissingPatProvider(),
             sessionFactory);
 
-        int exitCode = await application.InvokeAsync(["work-item", "42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Error, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -474,7 +474,7 @@ public sealed class WorkItemCommandTests
             new CountingPatProvider(),
             new FakeAdoSessionFactory(new FakeAdoSession(source)));
 
-        int exitCode = await application.InvokeAsync(["work-item", "42", "--compact"], CancellationToken.None);
+        int exitCode = await application.InvokeAsync(["work-item", "show", "42", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.Error, exitCode);
         using JsonDocument document = JsonDocument.Parse(writer.ToString());
@@ -514,7 +514,7 @@ public sealed class WorkItemCommandTests
         try
         {
             int exitCode = await application.InvokeAsync(
-                ["work-item", "42", "--download-images", outputDirectory, "--compact"],
+                ["work-item", "show", "42", "--download-images", outputDirectory, "--compact"],
                 CancellationToken.None);
 
             Assert.Equal(ExitCodes.Error, exitCode);

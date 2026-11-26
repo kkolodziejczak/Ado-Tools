@@ -33,15 +33,15 @@ Work through the steps in order. Stop and ask the person whenever a step says **
 Install the latest prerelease of all nine tools globally. Use `update` so this works whether or not an older version is installed:
 
 ```shell
-dotnet tool update --global AdoRead.Tool --prerelease
-dotnet tool update --global AdoRead.PullRequests.Tool --prerelease
-dotnet tool update --global AdoRead.WorkItems.Tool --prerelease
-dotnet tool update --global AdoRead.Wiki.Tool --prerelease
-dotnet tool update --global AdoRead.Sprints.Tool --prerelease
-dotnet tool update --global AdoRead.Pipelines.Tool --prerelease
-dotnet tool update --global AdoWrite.Tool --prerelease
-dotnet tool update --global AdoWrite.PullRequests.Tool --prerelease
-dotnet tool update --global AdoWrite.WorkItems.Tool --prerelease
+dotnet tool update --global ado-read --prerelease
+dotnet tool update --global ado-read-pr --prerelease
+dotnet tool update --global ado-read-work-item --prerelease
+dotnet tool update --global ado-read-wiki --prerelease
+dotnet tool update --global ado-read-sprint --prerelease
+dotnet tool update --global ado-read-pipeline --prerelease
+dotnet tool update --global ado-write --prerelease
+dotnet tool update --global ado-write-pr --prerelease
+dotnet tool update --global ado-write-work-item --prerelease
 ```
 
 If the person named a version (for example `1.0.0-preview.3`), use `--version <version>` instead of `--prerelease`. Run `dotnet tool list --global` and record the version installed for each package.
@@ -60,7 +60,7 @@ Check it with `ado-read --version`. If the command is not found:
 - For this session only: Windows PowerShell `$env:PATH += ";$env:USERPROFILE\.dotnet\tools"`, bash/zsh `export PATH="$PATH:$HOME/.dotnet/tools"`.
 - Permanently: ask the person before changing their profile. On Windows, add the folder to the user `Path` variable (System Properties > Environment Variables) and open a new terminal. On macOS/Linux, add the `export` line to `~/.zshrc` or `~/.bashrc`.
 
-Then run `--version` and `--help` for all nine commands: `ado-read`, `ado-read-pr`, `ado-read-work-item`, `ado-read-wiki`, `ado-read-sprints`, `ado-read-pipelines`, `ado-write`, `ado-write-pr`, `ado-write-work-item`.
+Then run `--version` and `--help` for all nine commands: `ado-read`, `ado-read-pr`, `ado-read-work-item`, `ado-read-wiki`, `ado-read-sprint`, `ado-read-pipeline`, `ado-write`, `ado-write-pr`, `ado-write-work-item`.
 
 ## 3. Tokens (person)
 
@@ -108,21 +108,21 @@ Run each command with `--compact`. For every scenario, record the exit code, the
 
 | # | Scenario | Command | What to check |
 | --- | --- | --- | --- |
-| R1 | Discovery | `ado-read projects`, then `ado-read teams --project "<project>"` | The person's project and team are listed |
-| R2 | Pull request by ID and by URL | `ado-read pr <id>` and `ado-read pr <browser-url>` | Same result; title, status, reviewers and votes, and thread count match the portal |
-| R3 | Pull request slice tool | `ado-read-pr <id>` | Same result as R2 |
-| R4 | Work item | `ado-read work-item <id>` | Fields, comment count and relations match the portal; rich-text custom fields have `format`, `plainText`, `raw` |
-| R5 | Work-item images | `ado-read-work-item <id> --download-images <new-empty-temp-dir>` | `schemaVersion` `2.1`; the files exist inside that folder and open as images; status `success`, or `partial` with a reason. Delete the folder afterwards |
-| R6 | Pipelines for a PR | `ado-read-pipelines pr <pr-id-or-url>` | Each pipeline appears once, with the latest run; failed stages and tests make sense next to the portal |
-| R7 | One build and its tests | `ado-read pipelines run <build-url>`, then `ado-read pipelines tests <build-id> --project "<project>" --outcome all --top 20` | Counts match the build's Tests tab |
-| R8 | Sprints | `ado-read-sprints list`, `ado-read-sprints show`, `ado-read-sprints show --state <a state from the board>` | Current sprint, dates and item counts per state match the board |
-| R9 | Wiki discovery | `ado-read-wiki list`, then `ado-read-wiki pages --wiki <name>` | The Wikis and pages are listed |
-| R10 | Wiki search and read | `ado-read-wiki search "<a word on a known page>" --top 5`, then run `ado-read-wiki page` with the `next.arguments` of one hit, passed as separate arguments | The page comes back as Markdown |
-| R11 | Wiki by URL | `ado-read-wiki page "<page browser URL>"` | Same page |
-| R12 | Privacy restriction per call | `ado-read work-item <id> --privacy minimal`, and `ado-read pr <id> --withhold comments` | Text or comments are `null`/empty; `privacy.restrictedByCall` is `true` |
-| R13 | Not found | `ado-read pr 999999999` and `ado-read work-item 999999999` | Exit `3`, status `notFound` |
-| R14 | Wrong organization | `ado-read pr https://dev.azure.com/second/p/_git/r/pullrequest/1` | Exit `2`, `organizationMismatch`, rejected before any request |
-| R15 | Slice boundaries | `ado-read-pr wiki list`, `ado-read-wiki sprints show` | Exit `2`, `invalidArguments` |
+| R1 | Discovery | `ado-read project list`, then `ado-read team list --project "<project>"` | The person's project and team are listed |
+| R2 | Pull request by ID and by URL | `ado-read pr show <id>` and `ado-read pr show <browser-url>` | Same result; title, status, reviewers and votes, and thread count match the portal |
+| R3 | Pull request slice tool | `ado-read-pr show <id>` | Same result as R2 |
+| R4 | Work item | `ado-read work-item show <id>` | Fields, comment count and relations match the portal; rich-text custom fields have `format`, `plainText`, `raw` |
+| R5 | Work-item images | `ado-read-work-item show <id> --download-images <new-empty-temp-dir>` | `schemaVersion` `2.1`; the files exist inside that folder and open as images; status `success`, or `partial` with a reason. Delete the folder afterwards |
+| R6 | Pipelines for a PR | `ado-read-pipeline run list --pr <pr-id-or-url>` | Each pipeline appears once, with the latest run; failed stages and tests make sense next to the portal |
+| R7 | One build and its tests | `ado-read pipeline run show <build-url>`, then `ado-read pipeline test list --run <build-id> --project "<project>" --outcome all --top 20` | Counts match the build's Tests tab |
+| R8 | Sprints | `ado-read-sprint list`, `ado-read-sprint show`, `ado-read-sprint show --state <a state from the board>` | Current sprint, dates and item counts per state match the board |
+| R9 | Wiki discovery | `ado-read-wiki list`, then `ado-read-wiki page list --wiki <name>` | The Wikis and pages are listed |
+| R10 | Wiki search and read | `ado-read-wiki page search "<a word on a known page>" --top 5`, then run `ado-read-wiki page show` with the `next.arguments` of one hit, passed as separate arguments | The page comes back as Markdown |
+| R11 | Wiki by URL | `ado-read-wiki page show "<page browser URL>"` | Same page |
+| R12 | Privacy restriction per call | `ado-read work-item show <id> --privacy minimal`, and `ado-read pr show <id> --withhold comments` | Text or comments are `null`/empty; `privacy.restrictedByCall` is `true` |
+| R13 | Not found | `ado-read pr show 999999999` and `ado-read work-item show 999999999` | Exit `3`, status `notFound` |
+| R14 | Wrong organization | `ado-read pr show https://dev.azure.com/second/p/_git/r/pullrequest/1` | Exit `2`, `organizationMismatch`, rejected before any request |
+| R15 | Slice boundaries | `ado-read-pr wiki list`, `ado-read-wiki sprint show` | Exit `2`, `invalidArguments` |
 
 ### Write tools: dry runs only
 

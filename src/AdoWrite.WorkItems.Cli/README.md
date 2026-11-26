@@ -2,12 +2,12 @@
 
 Lets an AI agent comment on an Azure DevOps work item on your behalf, for example to ask a question during refinement. It can mention people and attach files. With `--agent`, a comment ends with a visible footer naming the agent; without it, no footer is added. Retrying the same command never posts twice. Attached files are also added to the work item's Attachments; apart from that, it never changes the work item.
 
-Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on pull requests, use `AdoWrite.Tool` (`ado-write`). To read the answers, use [`AdoRead.WorkItems.Tool`](https://www.nuget.org/packages/AdoRead.WorkItems.Tool) (`ado-read-work-item`).
+Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. To also post on pull requests, use `ado-write`. To read the answers, use [`ado-read-work-item`](https://www.nuget.org/packages/ado-read-work-item).
 
 ## Install
 
 ```powershell
-dotnet tool install --global AdoWrite.WorkItems.Tool
+dotnet tool install --global ado-write-work-item
 ```
 
 Needs .NET 10.

@@ -2,12 +2,12 @@
 
 Reads an Azure DevOps pull request and returns it as JSON, for people and AI agents: title, status, author, reviewers and their votes, source and target commits, linked work items, and the review threads with their comments. You give it an ID or a URL; you never need to name the project. It only reads; it never votes, replies or changes anything.
 
-Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. Install only the tools you need, or use `AdoRead.Tool` (`ado-read`) to get every read feature in one tool.
+Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. Install only the tools you need, or use `ado-read` to get every read feature in one tool.
 
 ## Install
 
 ```powershell
-dotnet tool install --global AdoRead.PullRequests.Tool
+dotnet tool install --global ado-read-pr
 ```
 
 Needs .NET 10.
@@ -37,16 +37,16 @@ Withheld fields come back as `null` or empty. `privacy show` shows what is allow
 
 | Command | Returns |
 | --- | --- |
-| `<id-or-url>` | The pull request and its review threads |
-| `projects`, `teams` | The projects and teams you can access |
+| `show <id-or-url>` | The pull request and its review threads |
+| `project list`, `team list` | The projects and teams you can access |
 | `config`, `auth`, `privacy` | Settings, the stored token, and the content policy |
 
 ```powershell
-ado-read-pr 412 --compact
-ado-read-pr https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
+ado-read-pr show 412 --compact
+ado-read-pr show https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
 ```
 
-Each thread includes its file path, line range and commit IDs, so you can look at the change in your local Git repository. The tool never reads file contents from the repository. To post comments or vote, use [`AdoWrite.PullRequests.Tool`](https://www.nuget.org/packages/AdoWrite.PullRequests.Tool) (`ado-write-pr`).
+Each thread includes its file path, line range and commit IDs, so you can look at the change in your local Git repository. The tool never reads file contents from the repository. To post comments or vote, use [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr).
 
 ## Learn more
 

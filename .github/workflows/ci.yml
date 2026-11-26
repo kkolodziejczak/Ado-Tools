@@ -73,15 +73,15 @@ jobs:
         run: |
           $version = $env:PACKAGE_VERSION
           $tools = @(
-            @{ PackageId = 'AdoRead.Tool'; CommandName = 'ado-read' },
-            @{ PackageId = 'AdoRead.PullRequests.Tool'; CommandName = 'ado-read-pr' },
-            @{ PackageId = 'AdoRead.WorkItems.Tool'; CommandName = 'ado-read-work-item' },
-            @{ PackageId = 'AdoRead.Wiki.Tool'; CommandName = 'ado-read-wiki' },
-            @{ PackageId = 'AdoRead.Sprints.Tool'; CommandName = 'ado-read-sprints' },
-            @{ PackageId = 'AdoRead.Pipelines.Tool'; CommandName = 'ado-read-pipelines' },
-            @{ PackageId = 'AdoWrite.Tool'; CommandName = 'ado-write' },
-            @{ PackageId = 'AdoWrite.PullRequests.Tool'; CommandName = 'ado-write-pr' },
-            @{ PackageId = 'AdoWrite.WorkItems.Tool'; CommandName = 'ado-write-work-item' }
+            @{ PackageId = 'ado-read'; CommandName = 'ado-read' },
+            @{ PackageId = 'ado-read-pr'; CommandName = 'ado-read-pr' },
+            @{ PackageId = 'ado-read-work-item'; CommandName = 'ado-read-work-item' },
+            @{ PackageId = 'ado-read-wiki'; CommandName = 'ado-read-wiki' },
+            @{ PackageId = 'ado-read-sprint'; CommandName = 'ado-read-sprint' },
+            @{ PackageId = 'ado-read-pipeline'; CommandName = 'ado-read-pipeline' },
+            @{ PackageId = 'ado-write'; CommandName = 'ado-write' },
+            @{ PackageId = 'ado-write-pr'; CommandName = 'ado-write-pr' },
+            @{ PackageId = 'ado-write-work-item'; CommandName = 'ado-write-work-item' }
           )
           foreach ($tool in $tools) {
             $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1
@@ -106,15 +106,15 @@ jobs:
         run: |
           $version = $env:PACKAGE_VERSION
           $tools = @(
-            @{ PackageId = 'AdoRead.Tool'; CommandName = 'ado-read' },
-            @{ PackageId = 'AdoRead.PullRequests.Tool'; CommandName = 'ado-read-pr' },
-            @{ PackageId = 'AdoRead.WorkItems.Tool'; CommandName = 'ado-read-work-item' },
-            @{ PackageId = 'AdoRead.Wiki.Tool'; CommandName = 'ado-read-wiki' },
-            @{ PackageId = 'AdoRead.Sprints.Tool'; CommandName = 'ado-read-sprints' },
-            @{ PackageId = 'AdoRead.Pipelines.Tool'; CommandName = 'ado-read-pipelines' },
-            @{ PackageId = 'AdoWrite.Tool'; CommandName = 'ado-write' },
-            @{ PackageId = 'AdoWrite.PullRequests.Tool'; CommandName = 'ado-write-pr' },
-            @{ PackageId = 'AdoWrite.WorkItems.Tool'; CommandName = 'ado-write-work-item' }
+            @{ PackageId = 'ado-read'; CommandName = 'ado-read' },
+            @{ PackageId = 'ado-read-pr'; CommandName = 'ado-read-pr' },
+            @{ PackageId = 'ado-read-work-item'; CommandName = 'ado-read-work-item' },
+            @{ PackageId = 'ado-read-wiki'; CommandName = 'ado-read-wiki' },
+            @{ PackageId = 'ado-read-sprint'; CommandName = 'ado-read-sprint' },
+            @{ PackageId = 'ado-read-pipeline'; CommandName = 'ado-read-pipeline' },
+            @{ PackageId = 'ado-write'; CommandName = 'ado-write' },
+            @{ PackageId = 'ado-write-pr'; CommandName = 'ado-write-pr' },
+            @{ PackageId = 'ado-write-work-item'; CommandName = 'ado-write-work-item' }
           )
           foreach ($tool in $tools) {
             $package = Get-ChildItem "artifacts/packages/$($tool.PackageId).$version.nupkg" | Select-Object -First 1

@@ -32,11 +32,11 @@ public static class ConfigCommands
         };
         var projectOption = new Option<string?>("--project")
         {
-            Description = $"Default project for the sprint and wiki commands. Discover one with '{names.Invocation("projects")}'."
+            Description = $"Default project for the sprint and wiki commands. Discover one with '{names.Invocation("project list")}'."
         };
         var teamOption = new Option<string?>("--team")
         {
-            Description = $"Default team for the sprint commands. Discover one with '{names.Invocation("teams")}'."
+            Description = $"Default team for the sprint commands. Discover one with '{names.Invocation("team list")}'."
         };
         var command = new Command("init", "Create configuration.");
         command.Options.Add(organizationOption);

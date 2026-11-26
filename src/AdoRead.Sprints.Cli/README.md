@@ -1,13 +1,13 @@
-# ado-read-sprints
+# ado-read-sprint
 
 Lists a team's Azure DevOps sprints and shows what is in one, as JSON, for people and AI agents. For each sprint you get its dates, a count of work items per state, and a short entry for every work item (ID, type, title, state, assignee). Filtering by state answers questions like "what is done?" in your board's own words. It only reads.
 
-Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. Install only the tools you need, or use `AdoRead.Tool` (`ado-read`) to get every read feature in one tool.
+Part of [Ado-Tools](https://github.com/kkolodziejczak/Ado-Tools), a set of Azure DevOps tools for agents. Install only the tools you need, or use `ado-read` to get every read feature in one tool.
 
 ## Install
 
 ```powershell
-dotnet tool install --global AdoRead.Sprints.Tool
+dotnet tool install --global ado-read-sprint
 ```
 
 Needs .NET 10.
@@ -17,11 +17,11 @@ Needs .NET 10.
 Sprints belong to a team, so set the project and the team once:
 
 ```powershell
-ado-read-sprints config init --organization https://dev.azure.com/example --project Payments --team "Payments Team"
-ado-read-sprints auth login
+ado-read-sprint config init --organization https://dev.azure.com/example --project Payments --team "Payments Team"
+ado-read-sprint auth login
 ```
 
-`auth login` saves a personal access token in your operating system's credential vault and asks you to pick a privacy level. The token needs **Work Items (Read)**, plus **Project and Team (Read)** for `projects` and `teams`. If you don't know the names, run `projects`, then `teams --project <name>`.
+`auth login` saves a personal access token in your operating system's credential vault and asks you to pick a privacy level. The token needs **Work Items (Read)**, plus **Project and Team (Read)** for `project list` and `team list`. If you don't know the names, run `project list`, then `teams --project <name>`.
 
 ### Privacy levels
 
@@ -41,12 +41,12 @@ Withheld fields come back as `null` or empty. `privacy show` shows what is allow
 | --- | --- |
 | `list [--timeframe current\|past\|future]` | The team's sprints |
 | `show [--sprint <name-or-path>] [--state <state>]...` | One sprint (the current one by default) with its work items |
-| `projects`, `teams [--project <name>] [--all]` | The projects and teams you can access |
+| `project list`, `team list [--project <name>] [--all]` | The projects and teams you can access |
 | `config`, `auth`, `privacy` | Settings, the stored token, and the content policy |
 
 ```powershell
-ado-read-sprints show --compact
-ado-read-sprints show --sprint "Sprint 42" --state Done --state Closed --compact
+ado-read-sprint show --compact
+ado-read-sprint show --sprint "Sprint 42" --state Done --state Closed --compact
 ```
 
 ## Learn more

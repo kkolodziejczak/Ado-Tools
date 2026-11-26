@@ -23,7 +23,7 @@ public static class WikiPageCommand
         var version = new Option<string?>("--version");
         var versionType = new Option<string?>("--version-type");
         var config = new Option<string?>("--config");
-        var command = new Command("page", "Read one Azure DevOps Wiki page as Markdown.");
+        var command = new Command("show", "Read one Azure DevOps Wiki page as Markdown.");
         command.Arguments.Add(reference);
         foreach (Option option in new Option[] { project, wiki, path, pageId, gitPath, version, versionType, config }) command.Options.Add(option);
         privacyOptions.AddTo(command);
@@ -55,10 +55,10 @@ public static class WikiPageCommand
                 string? selectedProject = project ?? configuration.DefaultProject;
                 if (!hasPageSelector)
                 {
-                    CommandHintDocument next = string.IsNullOrWhiteSpace(selectedProject) ? new(names.Root.Path("projects"), []) : new(names.Path("list"), ["--project", selectedProject]);
+                    CommandHintDocument next = string.IsNullOrWhiteSpace(selectedProject) ? new(names.Root.Path("project list"), []) : new(names.Path("list"), ["--project", selectedProject]);
                     return await WriteError("command", "wikiReferenceRequired", "A Wiki page reference is required.", ExitCodes.InvalidInputOrConfiguration, next);
                 }
-                if (string.IsNullOrWhiteSpace(selectedProject)) return await WriteError("configuration", "projectRequired", "No project given and none configured.", ExitCodes.InvalidInputOrConfiguration, new CommandHintDocument(names.Root.Path("projects"), []));
+                if (string.IsNullOrWhiteSpace(selectedProject)) return await WriteError("configuration", "projectRequired", "No project given and none configured.", ExitCodes.InvalidInputOrConfiguration, new CommandHintDocument(names.Root.Path("project list"), []));
                 if (!WikiIdentifier.IsSafeProject(selectedProject)) return await WriteError("configuration", "invalidProject", "The Azure DevOps project identifier is invalid.", ExitCodes.InvalidInputOrConfiguration);
                 reference = WikiReferenceParser.Create(selectedProject, wiki, path, pageId, gitPath, version, versionType);
                 if (reference is null) return await WriteError("command", "invalidWikiReference", "The Wiki reference must be a supported Wiki URL or one valid selector.", ExitCodes.InvalidInputOrConfiguration);

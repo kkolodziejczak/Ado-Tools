@@ -6,7 +6,7 @@ param(
 
     [string]$ToolRoot,
 
-    [ValidateSet('AdoRead.Tool', 'AdoRead.PullRequests.Tool', 'AdoRead.WorkItems.Tool', 'AdoRead.Wiki.Tool', 'AdoRead.Sprints.Tool', 'AdoRead.Pipelines.Tool', 'AdoWrite.Tool', 'AdoWrite.PullRequests.Tool', 'AdoWrite.WorkItems.Tool')]
+    [ValidateSet('ado-read', 'ado-read-pr', 'ado-read-work-item', 'ado-read-wiki', 'ado-read-sprint', 'ado-read-pipeline', 'ado-write', 'ado-write-pr', 'ado-write-work-item')]
     [string]$PackageId,
 
     [string]$PackageVersion = '1.0.0'

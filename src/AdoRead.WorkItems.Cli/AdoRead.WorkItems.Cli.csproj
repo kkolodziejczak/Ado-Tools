@@ -6,7 +6,7 @@
     <PackAsTool>true</PackAsTool>
     <PackRelease>true</PackRelease>
     <ToolCommandName>ado-read-work-item</ToolCommandName>
-    <PackageId>AdoRead.WorkItems.Tool</PackageId>
+    <PackageId>ado-read-work-item</PackageId>
     <Description>Read-only Azure DevOps work items, comments and images as agent-friendly JSON.</Description>
     <PackageTags>$(PackageTags);read-only;work-items;boards;attachments</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

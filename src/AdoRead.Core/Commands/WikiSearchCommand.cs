@@ -21,7 +21,7 @@ public static class WikiSearchCommand
         var skip = new Option<int?>("--skip");
         var top = new Option<int?>("--top");
         var config = new Option<string?>("--config");
-        var command = new Command("search", "Search Azure DevOps Wiki text.");
+        var command = new Command("search", "Search the text of Azure DevOps Wiki pages.");
         command.Arguments.Add(text);
         foreach (Option option in new Option[] { project, allProjects, wiki, skip, top, config }) command.Options.Add(option);
         privacyOptions.AddTo(command);

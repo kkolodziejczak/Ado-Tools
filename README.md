@@ -4,31 +4,33 @@ This repository ships six read-only .NET tools that retrieve Azure DevOps work-i
 
 ## Tools
 
-`ado-read` is the umbrella tool and contains every feature. Five slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, `privacy`, and the same `projects` and `teams` discovery commands.
+`ado-read` is the umbrella tool and contains every feature. Five slice tools each contain one feature, so an agent or a team can install only what it needs. Every tool shares the same JSON contract, `config`, `auth`, `privacy`, and the same `project list` and `team list` discovery commands.
 
-| Package ID | Command | Commands |
-| --- | --- | --- |
-| `AdoRead.Tool` | `ado-read` | `config`, `auth`, `privacy`, `projects`, `teams`, `pr <id-or-url>`, `work-item <id-or-url>`, `wiki list\|pages\|page\|search`, `sprints list\|show`, `pipelines pr\|run\|tests` |
-| `AdoRead.PullRequests.Tool` | `ado-read-pr` | `<id-or-url>`, `config`, `auth`, `privacy`, `projects`, `teams` |
-| `AdoRead.WorkItems.Tool` | `ado-read-work-item` | `<id-or-url> [--download-images]`, `config`, `auth`, `privacy`, `projects`, `teams` |
-| `AdoRead.Wiki.Tool` | `ado-read-wiki` | `list`, `pages`, `page`, `search`, `config`, `auth`, `privacy`, `projects`, `teams` |
-| `AdoRead.Sprints.Tool` | `ado-read-sprints` | `list`, `show`, `config`, `auth`, `privacy`, `projects`, `teams` |
-| `AdoRead.Pipelines.Tool` | `ado-read-pipelines` | `pr <id-or-url>`, `run <build-url-or-id>`, `tests <build-url-or-id>`, `config`, `auth`, `privacy`, `projects`, `teams` |
+Every tool's package ID is also its command, so `dotnet tool install --global ado-read-pr` installs `ado-read-pr`, and `dnx ado-read-pr show 412` runs it without installing. Commands follow one pattern, `<resource> [<child>] <verb> [<id-or-url>]`: singular nouns (`pr`, `work-item`, `wiki`, `sprint`, `pipeline`, `project`, `team`), and the verbs `show` (one item), `list` (many) and `search` (by text).
 
-The write tools are separate packages, so installing a read tool never gives an agent the ability to post. They share `config`, `auth` and the token with the read tools; they have no `privacy`, `projects` or `teams` commands because they return no Azure DevOps content.
+| Package ID and command | Commands |
+| --- | --- |
+| `ado-read` | `config`, `auth`, `privacy`, `project list`, `team list`, `pr show <id-or-url>`, `work-item show <id-or-url>`, `wiki list`, `wiki page list\|show\|search`, `sprint list\|show`, `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` |
+| `ado-read-pr` | `show <id-or-url>`, `config`, `auth`, `privacy`, `project list`, `team list` |
+| `ado-read-work-item` | `show <id-or-url> [--download-images]`, `config`, `auth`, `privacy`, `project list`, `team list` |
+| `ado-read-wiki` | `list`, `page list\|show\|search`, `config`, `auth`, `privacy`, `project list`, `team list` |
+| `ado-read-sprint` | `list`, `show`, `config`, `auth`, `privacy`, `project list`, `team list` |
+| `ado-read-pipeline` | `run list --pr <id-or-url>`, `run show <id-or-url>`, `test list --run <id-or-url>`, `config`, `auth`, `privacy`, `project list`, `team list` |
 
-| Package ID | Command | Commands |
-| --- | --- | --- |
-| `AdoWrite.Tool` | `ado-write` | `config`, `auth`, `pr comment\|reply\|requeue\|vote`, `work-item comment` |
-| `AdoWrite.PullRequests.Tool` | `ado-write-pr` | `comment <id-or-url>`, `reply <id-or-url>`, `requeue <id-or-url>`, `vote <id-or-url>`, `config`, `auth` |
-| `AdoWrite.WorkItems.Tool` | `ado-write-work-item` | `comment <id-or-url>`, `config`, `auth` |
+The write tools are separate packages, so installing a read tool never gives an agent the ability to post. They share `config`, `auth` and the token with the read tools; they have no `privacy`, `project list` or `team list` commands because they return no Azure DevOps content.
 
-In a slice tool the feature command sits directly on the executable, so `ado-read-wiki page <url>`, `ado-read-sprints show` and `ado-read-pipelines pr <url>` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
+| Package ID and command | Commands |
+| --- | --- |
+| `ado-write` | `config`, `auth`, `pr comment\|reply\|requeue\|vote`, `work-item comment` |
+| `ado-write-pr` | `comment <id-or-url>`, `reply <id-or-url>`, `requeue <id-or-url>`, `vote <id-or-url>`, `config`, `auth` |
+| `ado-write-work-item` | `comment <id-or-url>`, `config`, `auth` |
+
+In a slice tool the feature name moves into the executable, so `ado-read-wiki page show <url>`, `ado-read-sprint show` and `ado-read-pipeline run list --pr <url>` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
 
 ## Requirements
 
 - .NET SDK or runtime 10.0.
-- An Azure DevOps personal access token, stored by `auth login` in your operating system's credential vault (see below). Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, **Build (Read)**, **Test Management (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is needed for pull-request lookups, and additionally for `wiki page` when it follows a selected search hit to its exact Wiki-backed Git path. The pipeline commands need **Build (Read)**, **Test Management (Read)**, and **Code (Read)**. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
+- An Azure DevOps personal access token, stored by `auth login` in your operating system's credential vault (see below). Use only the minimum **Work Items (Read)**, **Code (Read)**, **Wiki (Read)**, **Build (Read)**, **Test Management (Read)**, and **Project and Team (Read)** scopes required for the commands you use. Wiki discovery, page lookup, and search need **Wiki (Read)**. **Code (Read)** is needed for pull-request lookups, and additionally for `wiki page show` when it follows a selected search hit to its exact Wiki-backed Git path. The pipeline commands need **Build (Read)**, **Test Management (Read)**, and **Code (Read)**. The sprint commands read iterations and team settings, which the **Work Items (Read)** scope covers.
 - For the write tools, the same token also needs **Work Items (Read & write)** for work-item comments, **Code (Read & write)** for pull-request comments, build requeues and votes, and **Identity (Read)** when a comment mentions people by mail address. Every read and write tool uses one token per organization, so log in once with any of them.
 - One configured Azure DevOps Services organization at `https://dev.azure.com/{organization}`. Azure DevOps Server is not supported.
 
@@ -50,32 +52,39 @@ dotnet pack src/AdoWrite.PullRequests.Cli/AdoWrite.PullRequests.Cli.csproj --no-
 dotnet pack src/AdoWrite.WorkItems.Cli/AdoWrite.WorkItems.Cli.csproj --no-build --configuration Release
 ```
 
-Install one package into an isolated local tool path. Replace the package ID and command for another tool from the table above:
+Install one package into an isolated local tool path. Replace the name for another tool from the table above:
 
 ```powershell
-dotnet tool install --tool-path .\.tools\ado-read --add-source .\artifacts\packages AdoRead.Tool --version 1.0.0
+dotnet tool install --tool-path .\.tools\ado-read --add-source .\artifacts\packages ado-read --version 1.0.0
 .\.tools\ado-read\ado-read --help
 ```
 
 From a configured NuGet feed, install the umbrella or any slice globally with its package ID:
 
 ```powershell
-dotnet tool install --global AdoRead.Tool
-dotnet tool install --global AdoRead.PullRequests.Tool
-dotnet tool install --global AdoRead.WorkItems.Tool
-dotnet tool install --global AdoRead.Wiki.Tool
-dotnet tool install --global AdoRead.Sprints.Tool
-dotnet tool install --global AdoRead.Pipelines.Tool
-dotnet tool install --global AdoWrite.Tool
-dotnet tool install --global AdoWrite.PullRequests.Tool
-dotnet tool install --global AdoWrite.WorkItems.Tool
+dotnet tool install --global ado-read
+dotnet tool install --global ado-read-pr
+dotnet tool install --global ado-read-work-item
+dotnet tool install --global ado-read-wiki
+dotnet tool install --global ado-read-sprint
+dotnet tool install --global ado-read-pipeline
+dotnet tool install --global ado-write
+dotnet tool install --global ado-write-pr
+dotnet tool install --global ado-write-work-item
 ```
 
 Updating or uninstalling a tool remains local to the caller, for example:
 
 ```powershell
-dotnet tool update --global AdoRead.PullRequests.Tool
-dotnet tool uninstall --global AdoRead.PullRequests.Tool
+dotnet tool update --global ado-read-pr
+dotnet tool uninstall --global ado-read-pr
+```
+
+Previews before this naming used the package IDs `AdoRead.Tool`, `AdoRead.PullRequests.Tool`, `AdoRead.WorkItems.Tool`, `AdoRead.Wiki.Tool`, `AdoRead.Sprints.Tool`, `AdoRead.Pipelines.Tool`, `AdoWrite.Tool`, `AdoWrite.PullRequests.Tool` and `AdoWrite.WorkItems.Tool`. Uninstall those first: seven of the nine commands kept their name, and .NET refuses a second package with the same command.
+
+```powershell
+dotnet tool uninstall --global AdoRead.Tool
+dotnet tool install --global ado-read
 ```
 
 ## Configure authentication and the organization
@@ -223,16 +232,16 @@ ado-read config show [--config <path>]
 ado-read privacy show [--organization <url>] [--config <path>] [--compact]
 ado-read privacy set <minimal|standard|full> [--allow <category>]... [--deny <category>]... [--organization <url>] [--config <path>] [--compact]
 ado-read privacy reset [--organization <url>] [--config <path>] [--compact]
-ado-read work-item <id-or-url> [--download-images <empty-directory>] [--config <path>] [--compact]
-ado-read pr <id-or-url> [--config <path>] [--compact]
-ado-read projects [--config <path>] [--compact]
-ado-read teams [--project <name>] [--all] [--config <path>] [--compact]
-ado-read sprints list [--project <name>] [--team <name>] [--timeframe current|past|future] [--config <path>] [--compact]
-ado-read sprints show [--project <name>] [--team <name>] [--sprint <name-or-path>] [--state <state>...] [--config <path>] [--compact]
+ado-read work-item show <id-or-url> [--download-images <empty-directory>] [--config <path>] [--compact]
+ado-read pr show <id-or-url> [--config <path>] [--compact]
+ado-read project list [--config <path>] [--compact]
+ado-read team list [--project <name>] [--all] [--config <path>] [--compact]
+ado-read sprint list [--project <name>] [--team <name>] [--timeframe current|past|future] [--config <path>] [--compact]
+ado-read sprint show [--project <name>] [--team <name>] [--sprint <name-or-path>] [--state <state>...] [--config <path>] [--compact]
 ado-read wiki list [--project <name-or-id>] [--config <path>] [--compact]
-ado-read wiki pages [--project <name-or-id>] --wiki <id-or-name> [--version <value>] [--version-type branch|tag|commit] [--top <1..100>] [--continuation-token <opaque>] [--config <path>] [--compact]
-ado-read wiki page [<ado-wiki-url>] [--project <name-or-id>] [--wiki <id-or-name>] [--path </display/page> | --page-id <positive-int> | --git-path </repo/page.md>] [--version <value>] [--version-type branch|tag|commit] [--config <path>] [--compact]
-ado-read wiki search <text> [--project <name-or-id> | --all-projects] [--skip <non-negative-int>] [--top <1..25>] [--config <path>] [--compact]
+ado-read wiki page list [--project <name-or-id>] --wiki <id-or-name> [--version <value>] [--version-type branch|tag|commit] [--top <1..100>] [--continuation-token <opaque>] [--config <path>] [--compact]
+ado-read wiki page show [<ado-wiki-url>] [--project <name-or-id>] [--wiki <id-or-name>] [--path </display/page> | --page-id <positive-int> | --git-path </repo/page.md>] [--version <value>] [--version-type branch|tag|commit] [--config <path>] [--compact]
+ado-read wiki page search <text> [--project <name-or-id> | --all-projects] [--skip <non-negative-int>] [--top <1..25>] [--config <path>] [--compact]
 ```
 
 `--compact` removes JSON indentation only. `--help` and `--version` use conventional human-readable command output; every expected command outcome is exactly one JSON document on standard output.
@@ -240,9 +249,9 @@ ado-read wiki search <text> [--project <name-or-id> | --all-projects] [--skip <n
 ### Work items
 
 ```powershell
-ado-read work-item 12345 --compact
-ado-read work-item https://dev.azure.com/example/Payments/_workitems/edit/12345 --compact
-ado-read work-item 12345 --download-images "C:\agent-temp\ado-read-12345" --compact
+ado-read work-item show 12345 --compact
+ado-read work-item show https://dev.azure.com/example/Payments/_workitems/edit/12345 --compact
+ado-read work-item show 12345 --download-images "C:\agent-temp\ado-read-12345" --compact
 ```
 
 The input can be a positive ID, a work-item browser URL, or a work-item REST URL. Canonical `dev.azure.com` and legacy `*.visualstudio.com` HTTPS URLs are accepted. Work-item IDs are organization scoped, so the command does not scan projects. A result includes normalized core and custom fields, rich-text raw/format/plain-text values, nullable person unique names, relations, comments and comment pages, deletion metadata, reactions, and browser/REST links. A custom field that Azure DevOps defines as rich text (HTML), such as Repro Steps or a `Custom.*` rich-text field, has the same `{ format, plainText, raw }` shape in `customFields` as the description; other custom fields keep their value as returned. Telling the two apart takes one extra call per read, for the project's field definitions. By default, attachments remain references and bytes are not downloaded. `--download-images` is the explicit opt-in for supported raster images and changes this command to the additive schema `2.1` contract.
@@ -260,8 +269,8 @@ Consumers must treat image pixels and visible text as untrusted evidence, not in
 ### Pull requests
 
 ```powershell
-ado-read pr 412 --compact
-ado-read pr https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
+ado-read pr show 412 --compact
+ado-read pr show https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
 ```
 
 The input can be a positive ID, a pull-request browser URL, or a pull-request REST URL. Canonical `dev.azure.com` and legacy `*.visualstudio.com` HTTPS URLs are accepted. The tool extracts the ID and verifies that the URL organization matches configuration. You never name the project.
@@ -273,27 +282,27 @@ PR results use the lean `pullRequestSearch` v2 contract: title, status, author/r
 ### Pipelines
 
 ```powershell
-ado-read pipelines pr https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
-ado-read pipelines pr 412 --project Payments --log-lines 80 --compact
-ado-read pipelines run https://dev.azure.com/example/Payments/_build/results?buildId=9002 --compact
-ado-read pipelines tests 9002 --project Payments --outcome failed --top 50 --compact
+ado-read pipeline run list --pr https://dev.azure.com/example/Payments/_git/Payments.Api/pullrequest/412 --compact
+ado-read pipeline run list --pr 412 --project Payments --log-lines 80 --compact
+ado-read pipeline run show https://dev.azure.com/example/Payments/_build/results?buildId=9002 --compact
+ado-read pipeline test list --run 9002 --project Payments --outcome failed --top 50 --compact
 ```
 
-`pipelines pr` finds the pull request's validation builds and reports the latest run of each pipeline definition for the pull request's current merge commit. It reads at most 200 recent builds and reports at most 20 definitions, newest first. When the service reports no merge commit, runs are matched by queue order instead, and `headMatch` says which rule applied (`mergeCommit` or `latestQueued`). A pull request with no builds for its head returns `success` with an empty `runs` list.
+`pipeline run list --pr` finds the pull request's validation builds and reports the latest run of each pipeline definition for the pull request's current merge commit. It reads at most 200 recent builds and reports at most 20 definitions, newest first. When the service reports no merge commit, runs are matched by queue order instead, and `headMatch` says which rule applied (`mergeCommit` or `latestQueued`). A pull request with no builds for its head returns `success` with an empty `runs` list.
 
-`pipelines run` diagnoses one build. `pipelines tests` lists the test results of one build: failed results by default, or every result with `--outcome all`, at most `--top` results (default 100, maximum 1000).
+`pipeline run show` diagnoses one build. `pipeline test list --run` lists the test results of one build: failed results by default, or every result with `--outcome all`, at most `--top` results (default 100, maximum 1000).
 
 ```mermaid
 flowchart TD
-    A[pr or run] --> B[builds for the head]
-    B --> C[latest per definition]
-    C --> D[diagnose each run]
-    D --> E[steps, tests, messages, logs]
+    A["run list --pr or run show"] --> B["builds for the head"]
+    B --> C["latest per definition"]
+    C --> D["diagnose each run"]
+    D --> E["steps, tests, messages, logs"]
 ```
 
-Legend: `pr` resolves the pull request and selects its runs. `run` and `tests` take one build. Each diagnosed run contains its failed stages, jobs and tasks, its test runs with counts, and its failed tests. Messages, stack traces and log tails are added only as the privacy policy allows.
+Legend: `run list --pr` resolves the pull request and selects its runs. `run show` and `test list --run` take one build. Each diagnosed run contains its failed stages, jobs and tasks, its test runs with counts, and its failed tests. Messages, stack traces and log tails are added only as the privacy policy allows.
 
-A build reference is a positive build ID, or a results URL such as `https://dev.azure.com/{organization}/{project}/_build/results?buildId=N`. A project in the URL overrides `--project`; a conflict is rejected with `projectMismatch`. `--log-lines` accepts 1 to 500 and defaults to 50. Each failed task contributes its last lines, numbered from the start of the log, and at most 10 failed tasks contribute logs. `--repository` on `pr` names the repository the pull request must belong to.
+A build reference is a positive build ID, or a results URL such as `https://dev.azure.com/{organization}/{project}/_build/results?buildId=N`. A project in the URL overrides `--project`; a conflict is rejected with `projectMismatch`. `--log-lines` accepts 1 to 500 and defaults to 50. Each failed task contributes its last lines, numbered from the start of the log, and at most 10 failed tasks contribute logs. `--repository` on `run list` names the repository the pull request must belong to.
 
 | Level | What a run contains |
 | --- | --- |
@@ -313,38 +322,38 @@ Work-item and pull-request IDs are organization scoped, but **iterations are tea
 
 ```powershell
 ado-read config init --organization https://dev.azure.com/example --project Payments --team "Payments Team"
-ado-read sprints show --compact
+ado-read sprint show --compact
 ```
 
 If you do not know the names, walk to them. Each command lists what the next one needs, so a person or an agent can follow the chain without guessing:
 
 ```powershell
-ado-read projects --compact                          # pick a project
-ado-read teams --project Payments --compact          # pick a team (yours only; --all for every team)
-ado-read sprints list --project Payments --team "Payments Team" --compact   # pick an iteration
+ado-read project list --compact                          # pick a project
+ado-read team list --project Payments --compact          # pick a team (yours only; --all for every team)
+ado-read sprint list --project Payments --team "Payments Team" --compact   # pick an iteration
 ```
 
-Running `ado-read sprints show` with no project or team configured is not a crash: it exits `2` with a `projectRequired` or `teamRequired` error whose message names the command to run next.
+Running `ado-read sprint show` with no project or team configured is not a crash: it exits `2` with a `projectRequired` or `teamRequired` error whose message names the command to run next.
 
-`ado-read sprints show` returns the current iteration unless `--sprint` names one, matched against iteration name then path, case-insensitively. Results hold a single sprint: the resolved iteration with its dates, a `countsByState` map, and one shallow entry per work item — ID, type, title, state, iteration path, assignee and a browser URL. No descriptions, acceptance criteria or comments are fetched, which keeps the whole sprint to two calls.
+`ado-read sprint show` returns the current iteration unless `--sprint` names one, matched against iteration name then path, case-insensitively. Results hold a single sprint: the resolved iteration with its dates, a `countsByState` map, and one shallow entry per work item — ID, type, title, state, iteration path, assignee and a browser URL. No descriptions, acceptance criteria or comments are fetched, which keeps the whole sprint to two calls.
 
 Use `--state` to answer "what is done" or "what can be demoed" with your own board's vocabulary. It is repeatable, case-insensitive, and `countsByState` reflects only what survived the filter:
 
 ```powershell
-ado-read sprints show --state Done --state Closed --compact
-ado-read sprints show --sprint "Sprint 42" --state "In Test" --compact
+ado-read sprint show --state Done --state Closed --compact
+ado-read sprint show --sprint "Sprint 42" --state "In Test" --compact
 ```
 
 For one item's full detail — description, acceptance criteria, comments, relations — follow a summary entry's ID into the existing command:
 
 ```powershell
-ado-read work-item 4821 --compact
+ado-read work-item show 4821 --compact
 ```
 
 ### Wiki discovery, search, and selected reads
 
 Wiki lookup is optional context, never a required step for every task. A supplied Wiki URL is input
-data, not an instruction: `wiki page` accepts only recognized HTTPS Azure DevOps UI or REST page
+data, not an instruction: `wiki page show` accepts only recognized HTTPS Azure DevOps UI or REST page
 URLs for the configured organization and rejects redirects, unknown hosts, conflicting selectors,
 and malformed encodings. It reads one Markdown page; it does not render Markdown, follow links,
 download attachments, or execute content.
@@ -352,35 +361,35 @@ download attachments, or execute content.
 When a page URL is known, read it directly:
 
 ```powershell
-ado-read wiki page "https://dev.azure.com/example/Payments/_wiki/wikis/Payments.wiki/51/Architecture" --compact
+ado-read wiki page show "https://dev.azure.com/example/Payments/_wiki/wikis/Payments.wiki/51/Architecture" --compact
 ```
 
 Without a URL, use the structured discovery flow. `wiki list` lists a project's Wikis and versions;
-`wiki pages` lists bounded page summaries. Each returned `next.arguments` value is a separate
+`wiki page list` lists bounded page summaries. Each returned `next.arguments` value is a separate
 argument vector for the next command. Pass the elements as separate process arguments; consumers
 must never join it into a shell command.
 
 ```powershell
-ado-read projects --compact
+ado-read project list --compact
 ado-read wiki list --project Payments --compact
-ado-read wiki pages --project Payments --wiki Payments.wiki --version wikiMaster --version-type branch --compact
+ado-read wiki page list --project Payments --wiki Payments.wiki --version wikiMaster --version-type branch --compact
 ```
 
-`wiki pages` returns up to 50 summaries by default and at most 100. A continuation token means
+`wiki page list` returns up to 50 summaries by default and at most 100. A continuation token means
 more summaries exist; send that opaque token back unchanged to request the next page. A missing
-Wiki/page selector returns structured guidance to start with `projects` or `wiki list`, rather than
+Wiki/page selector returns structured guidance to start with `project list` or `wiki list`, rather than
 guessing.
 
 Search is also bounded and deliberately two-step:
 
 ```powershell
-ado-read wiki search "authentication flow" --project Payments --top 10 --compact
+ado-read wiki page search "authentication flow" --project Payments --top 10 --compact
 ```
 
-`wiki search` returns `wikiFullTextSearch` v2 JSON with at most 10 hits by default and never more
+`wiki page search` returns `wikiFullTextSearch` v2 JSON with at most 10 hits by default and never more
 than 25. It does not paginate automatically, hydrate every hit, fetch page bodies, expose facets,
 or make repository reads while searching. A selected hit's `next.arguments` includes the exact
-project, Wiki, Git path, and version for `wiki page`; use that vector unchanged. The selected read
+project, Wiki, Git path, and version for `wiki page show`; use that vector unchanged. The selected read
 accepts only one normalized `.md` path inside the selected Wiki's mapped directory and fetches only
 that exact path/version through the existing **Code (Read)** boundary. It never rewrites a display
 path, guesses a branch, or reads arbitrary repository files.
@@ -437,7 +446,7 @@ flowchart TD
 
 For a work item, the replies to the latest round are found with the existing read output, which needs a privacy level that allows `comments` (and `people` for real author names instead of aliases):
 
-1. Run `ado-read work-item <id> --compact`. Its `comments` are ordered by `id`, which grows with each new comment.
+1. Run `ado-read work-item show <id> --compact`. Its `comments` are ordered by `id`, which grows with each new comment.
 2. Take the last comment whose `rawText` contains `<!-- ado-write:refine-it:<id>:` as the latest round. Its key says which round it was.
 3. Every later comment is a reply: use its `createdByUniqueName`, `createdAtUtc` and `rawText` (or `plainText`). Skip comments that carry an `ado-write` marker themselves, which are the agent's own posts.
 
@@ -480,8 +489,8 @@ A PR response is deliberately partial rather than silently incomplete when a pro
 Use compact output when passing a result to another program or agent:
 
 ```powershell
-ado-read work-item 12345 --compact | ConvertFrom-Json
-ado-read pr 412 --compact | ConvertFrom-Json
+ado-read work-item show 12345 --compact | ConvertFrom-Json
+ado-read pr show 412 --compact | ConvertFrom-Json
 ```
 
 Check `status` before acting on `results`. Do not infer that a missing PR is absent when the status is `partial` or `error`; inspect `errors` first. The tool returns context only—it does not evaluate requirements or review feedback.

@@ -11,7 +11,7 @@ public sealed class WorkItemProcessTests
     {
         string toolRoot = FindToolRoot();
         string assemblyPath = FindFakeHostAssembly(toolRoot);
-        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "work-item", "123", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "work-item", "show", "123", "--compact");
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
@@ -36,8 +36,8 @@ public sealed class WorkItemProcessTests
         string toolRoot = FindToolRoot();
         string outputDirectory = Path.Combine(Path.GetTempPath(), $"ado-read-parser-{Guid.NewGuid():N}");
         string[] arguments = caseName == "missing-id"
-            ? ["work-item", "--download-images", outputDirectory, "--compact"]
-            : ["work-item", "42", "--download-images", outputDirectory, "--unrelated-typo", "--compact"];
+            ? ["work-item", "show", "--download-images", outputDirectory, "--compact"]
+            : ["work-item", "show", "42", "--download-images", outputDirectory, "--unrelated-typo", "--compact"];
 
         try
         {
@@ -75,6 +75,7 @@ public sealed class WorkItemProcessTests
                 toolRoot,
                 FindFakeHostAssembly(toolRoot),
                 "work-item",
+                "show",
                 "123",
                 "--download-images",
                 outputDirectory,
@@ -153,6 +154,7 @@ public sealed class WorkItemProcessTests
                 toolRoot,
                 FindFakeHostAssembly(toolRoot),
                 "work-item",
+                "show",
                 "124",
                 "--download-images",
                 outputDirectory,
@@ -217,7 +219,7 @@ public sealed class WorkItemProcessTests
     public async Task WorkItem_FakeProcessEmitsTheLeanV2PersonContract()
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "work-item", "123", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "work-item", "show", "123", "--compact");
 
         Assert.Equal(0, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -236,7 +238,7 @@ public sealed class WorkItemProcessTests
     public async Task WorkItem_FakeProcessImageBearingDefaultReadRemainsSchema20WithoutMediaDownload()
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "work-item", "125", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "work-item", "show", "125", "--compact");
 
         Assert.Equal(0, result.ExitCode);
         using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
@@ -258,6 +260,7 @@ public sealed class WorkItemProcessTests
                 toolRoot,
                 FindFakeHostAssembly(toolRoot),
                 "work-item",
+                "show",
                 "123",
                 "--download-images",
                 outputDirectory,
@@ -287,6 +290,7 @@ public sealed class WorkItemProcessTests
                 toolRoot,
                 FindFakeHostAssembly(toolRoot),
                 "work-item",
+                "show",
                 "126",
                 "--download-images",
                 outputDirectory,
@@ -318,6 +322,7 @@ public sealed class WorkItemProcessTests
             toolRoot,
             assemblyPath,
             "work-item",
+            "show",
             "https://dev.azure.com/fabricated/FabricatedApp/_workitems/edit/123",
             "--compact");
 
@@ -333,7 +338,7 @@ public sealed class WorkItemProcessTests
         string toolRoot = FindToolRoot();
         string assemblyPath = FindFakeHostAssembly(toolRoot);
 
-        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "work-item", "404", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "work-item", "show", "404", "--compact");
 
         Assert.Equal(3, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -353,6 +358,7 @@ public sealed class WorkItemProcessTests
                 toolRoot,
                 assemblyPath,
                 "work-item",
+                "show",
                 "404",
                 "--download-images",
                 outputDirectory,
@@ -402,6 +408,7 @@ public sealed class WorkItemProcessTests
                 toolRoot,
                 assemblyPath,
                 "work-item",
+                "show",
                 "123",
                 "--config",
                 configPath,

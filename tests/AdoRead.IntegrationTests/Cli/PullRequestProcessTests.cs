@@ -9,7 +9,7 @@ public sealed class PullRequestProcessTests
     public async Task PullRequest_FakeProcessOutputMatchesFabricatedSnapshot()
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "126", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "show", "126", "--compact");
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(string.IsNullOrWhiteSpace(result.StandardError), result.StandardError);
@@ -29,7 +29,7 @@ public sealed class PullRequestProcessTests
     public async Task PullRequest_FakeProcessEmitsTheLeanV2Contract()
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "126", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "show", "126", "--compact");
 
         Assert.Equal(0, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -63,6 +63,7 @@ public sealed class PullRequestProcessTests
             toolRoot,
             FindFakeHostAssembly(toolRoot),
             "pr",
+            "show",
             "https://dev.azure.com/fabricated/Fabricated.Alpha/_git/Fabricated.Alpha.Repository/pullrequest/126",
             "--compact");
 
@@ -76,7 +77,7 @@ public sealed class PullRequestProcessTests
     public async Task PullRequest_FakeProcessReturnsEveryMatchingProject()
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "123", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "show", "123", "--compact");
 
         Assert.Equal(0, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -89,7 +90,7 @@ public sealed class PullRequestProcessTests
         string toolRoot = FindToolRoot();
         string assemblyPath = Path.Combine(AppContext.BaseDirectory, "AdoRead.Cli.dll");
 
-        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "pr", "--compact");
+        ProcessResult result = await RunAsync(toolRoot, assemblyPath, "pr", "show", "--compact");
 
         Assert.Equal(2, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -108,7 +109,7 @@ public sealed class PullRequestProcessTests
         string expectedStatus)
     {
         string toolRoot = FindToolRoot();
-        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", id.ToString(), "--compact");
+        ProcessResult result = await RunAsync(toolRoot, FindFakeHostAssembly(toolRoot), "pr", "show", id.ToString(), "--compact");
 
         Assert.Equal(expectedExitCode, result.ExitCode);
         using JsonDocument output = JsonDocument.Parse(result.StandardOutput);
@@ -140,6 +141,7 @@ public sealed class PullRequestProcessTests
                 toolRoot,
                 assemblyPath,
                 "pr",
+                "show",
                 "123",
                 "--config",
                 configPath,
