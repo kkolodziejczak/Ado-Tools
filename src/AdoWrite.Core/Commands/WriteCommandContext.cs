@@ -123,6 +123,7 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
         CommentKinds.WorkItemComment => "Work Items (Read & write), plus Identity (Read) to mention people by mail address",
         CommentKinds.PullRequestComment or CommentKinds.PullRequestReply => "Code (Read & write), plus Identity (Read) to mention people by mail address",
         ReviewKinds.PullRequestRequeue or ReviewKinds.PullRequestVote => "Code (Read & write)",
+        CreateKinds.PullRequestCreate => "Code (Read & write), plus Identity (Read) to add reviewers by mail address",
         ThreadKinds.PullRequestResolve or ThreadKinds.PullRequestUnresolve => "Code (Read & write), plus Identity (Read) to mention people by mail address",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown write command.")
     };

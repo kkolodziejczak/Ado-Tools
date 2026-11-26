@@ -17,6 +17,8 @@ public interface IAdoWriteSession : IAsyncDisposable
     IPeopleDirectory People { get; }
 
     IPullRequestReviewClient Reviews { get; }
+
+    IPullRequestCreateClient PullRequestCreation { get; }
 }
 
 public interface IAdoWriteSessionFactory
@@ -75,7 +77,10 @@ internal sealed class AdoWriteSession : IAdoWriteSession
         WorkItems = new SdkWorkItemCommentClient(_workItemClient);
         People = new SdkPeopleDirectory(connection, _identityClient);
         Reviews = new SdkPullRequestReviewClient(_policyClient, _gitClient);
+        PullRequestCreation = new SdkPullRequestCreateClient(_gitClient);
     }
+
+    public IPullRequestCreateClient PullRequestCreation { get; }
 
     public IPullRequestCommentClient PullRequests { get; }
 

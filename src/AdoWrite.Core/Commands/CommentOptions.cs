@@ -104,7 +104,7 @@ internal sealed class CommentOptions
             attachments);
     }
 
-    private static async Task<string> ReadBodyFileAsync(string path, CancellationToken cancellationToken)
+    internal static async Task<string> ReadBodyFileAsync(string path, CancellationToken cancellationToken)
     {
         if (path == "-")
         {

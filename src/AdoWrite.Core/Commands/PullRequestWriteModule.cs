@@ -39,6 +39,8 @@ public static class PullRequestWriteModule
             "Reopen a resolved thread by making it active again, optionally after replying in it.",
             ThreadKinds.PullRequestUnresolve,
             resolve: false);
+        Command create = CreateCreateCommand(context);
+        target.Subcommands.Add(create);
         target.Subcommands.Add(comment);
         target.Subcommands.Add(reply);
         target.Subcommands.Add(resolve);
@@ -47,6 +49,7 @@ public static class PullRequestWriteModule
         target.Subcommands.Add(vote);
         return new Dictionary<Command, string>
         {
+            [create] = CreateKinds.PullRequestCreate,
             [comment] = CommentKinds.PullRequestComment,
             [reply] = CommentKinds.PullRequestReply,
             [resolve] = ThreadKinds.PullRequestResolve,
@@ -55,6 +58,98 @@ public static class PullRequestWriteModule
             [vote] = ReviewKinds.PullRequestVote
         };
     }
+
+    private static Command CreateCreateCommand(WriteCommandContext context)
+    {
+        var project = new Option<string?>("--project") { Description = "Project of the repository. Needed when --repository is a name." };
+        var repository = new Option<string?>("--repository") { Description = "Repository name, or its ID." };
+        var source = new Option<string?>("--source") { Description = "Branch with the changes, for example feature/retry or refs/heads/feature/retry." };
+        var target = new Option<string?>("--target") { Description = "Branch to merge into. Defaults to the repository's default branch." };
+        var title = new Option<string?>("--title") { Description = "Title of the pull request." };
+        var body = new Option<string?>("--body") { Description = "Description in Markdown. Use --body-file for longer text." };
+        var bodyFile = new Option<string?>("--body-file") { Description = "Read the Markdown description from this UTF-8 file, or from standard input when the path is '-'." };
+        var agent = new Option<string?>("--agent")
+        {
+            Description = "The AI agent and model that wrote the pull request, for example \"Claude Opus 5.5\". Adds a footer naming it and you to the description."
+        };
+        var reviewer = new Option<string[]>("--reviewer") { Description = "Add a reviewer by mail address or identity ID. Repeat for several people." };
+        var workItem = new Option<string[]>("--work-item") { Description = "Link a work item by its ID. Repeat for several." };
+        var draft = new Option<bool>("--draft") { Description = "Open the pull request as a draft." };
+        var dryRun = new Option<bool>("--dry-run") { Description = "Check the repository, branches and reviewers and show the description, without creating anything." };
+        Option<string?> config = ReadCommandContext.CreateConfigOption();
+        var command = new Command(
+            "create",
+            "Open a pull request. An active pull request for the same branches is returned instead, so running it again opens no second one.");
+        foreach (Option option in new Option[] { project, repository, source, target, title, body, bodyFile, agent, reviewer, workItem, draft, dryRun, config })
+        {
+            command.Options.Add(option);
+        }
+
+        command.SetAction((parseResult, cancellationToken) => context.RunAsync(
+            CreateKinds.PullRequestCreate,
+            parseResult,
+            config,
+            async token =>
+            {
+                string repositoryName = Clean(parseResult.GetValue(repository))
+                    ?? throw WriteException.Rejected("repositoryRequired", "--repository must name the repository, by name or ID.");
+                string? projectName = Clean(parseResult.GetValue(project));
+                if (projectName is null && !Guid.TryParse(repositoryName, out _))
+                {
+                    throw WriteException.Rejected("projectRequired", "--repository is a name, so --project must name its project. A repository ID needs no project.");
+                }
+
+                string sourceRef = PullRequestRequest.RefName(Clean(parseResult.GetValue(source))
+                    ?? throw WriteException.Rejected("sourceRequired", "--source must name the branch with the changes."), "--source");
+                string? targetRef = Clean(parseResult.GetValue(target)) is { } named ? PullRequestRequest.RefName(named, "--target") : null;
+                string titleText = Clean(parseResult.GetValue(title))
+                    ?? throw WriteException.Rejected("titleRequired", "--title must give the pull request a title.");
+                string? description = await ReadDescriptionAsync(parseResult.GetValue(body), parseResult.GetValue(bodyFile), token);
+                int[] workItems = (parseResult.GetValue(workItem) ?? [])
+                    .Select(value => int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int id) && id > 0
+                        ? id
+                        : throw WriteException.Rejected("invalidWorkItemId", "--work-item must be a positive work-item ID."))
+                    .Distinct()
+                    .ToArray();
+                var request = new PullRequestRequest(
+                    projectName,
+                    repositoryName,
+                    sourceRef,
+                    targetRef,
+                    titleText,
+                    description,
+                    Clean(parseResult.GetValue(agent)),
+                    [.. (parseResult.GetValue(reviewer) ?? []).Select(value => value.Trim()).Where(value => value.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)],
+                    workItems,
+                    parseResult.GetValue(draft),
+                    parseResult.GetValue(dryRun));
+                return new WriteTarget<CreatedPullRequestDocument>(
+                    new AdoReference(0, null),
+                    new CreateQuery(projectName, repositoryName, sourceRef, targetRef),
+                    async (session, organizationUrl, requestToken) => new WriteOutcome<CreatedPullRequestDocument>(
+                    [
+                        await new PullRequestCreator(session.PullRequestCreation, session.People, organizationUrl).CreateAsync(request, requestToken)
+                    ]));
+            },
+            cancellationToken));
+        return command;
+    }
+
+    /// <summary>At most one of the two gives the description, which Azure DevOps keeps up to 4,000 characters.</summary>
+    private static async Task<string?> ReadDescriptionAsync(string? body, string? bodyFile, CancellationToken cancellationToken)
+    {
+        if (body is not null && bodyFile is not null)
+        {
+            throw WriteException.Rejected("conflictingOptions", "Give the description with --body or --body-file, not both.");
+        }
+
+        string? text = body ?? (bodyFile is null ? null : await CommentOptions.ReadBodyFileAsync(bodyFile, cancellationToken));
+        return text is { Length: > PullRequestRequest.MaxDescriptionLength }
+            ? throw WriteException.Rejected("descriptionTooLong", $"The description has {text.Length} characters; Azure DevOps keeps {PullRequestRequest.MaxDescriptionLength}.")
+            : text;
+    }
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static Command CreateThreadStatusCommand(WriteCommandContext context, string name, string description, string kind, bool resolve)
     {
@@ -332,3 +427,5 @@ public static class PullRequestWriteModule
 internal sealed record RequeueQuery(int Id, IReadOnlyList<Guid> Evaluations);
 
 internal sealed record VoteQuery(int Id, string Vote);
+
+internal sealed record CreateQuery(string? Project, string Repository, string SourceRefName, string? TargetRefName);
