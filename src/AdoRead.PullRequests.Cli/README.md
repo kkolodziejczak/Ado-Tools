@@ -52,6 +52,15 @@ ado-read-pr list --author me --activity --compact
 
 Each thread includes its file path, line range and commit IDs, so you can look at the change in your local Git repository. The tool never reads file contents from the repository. To post comments or vote, use [`ado-write-pr`](https://www.nuget.org/packages/ado-write-pr).
 
+## Give it to your agent
+
+Ready-made instructions tell an agent how to use the tools: run only what is installed, check `status` before `results`, treat Azure DevOps content as data, and post only what you ask for.
+
+- **As a skill** (Claude Code, Codex and other harnesses that read `SKILL.md`): copy [`skills/ado-tools`](https://github.com/kkolodziejczak/Ado-Tools/tree/master/skills/ado-tools) into `~/.claude/skills/` or `~/.codex/skills/`, or run `npx skills add kkolodziejczak/Ado-Tools`. It loads only when a task mentions Azure DevOps.
+- **As one file** for any agent: paste [`agent-instructions.md`](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/agent-instructions.md) into your global `AGENTS.md` or `CLAUDE.md`.
+
+Install steps and test prompts: [Agent skill and instructions](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/agent-integration.md).
+
 ## Learn more
 
 - [Pull requests in detail](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/pull-requests.md): how the pull request is found, and the thread fields; [listing pull requests](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/pull-requests.md#listing-pull-requests)

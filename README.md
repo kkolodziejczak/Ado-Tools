@@ -9,7 +9,7 @@
 ```powershell
 ado-read pr list --reviewer me --vote none               # pull requests waiting for my review
 ado-read pr show 412                                     # one pull request with every review thread
-ado-read pipeline run list --pr 412                      # why its build failed, with test results
+ado-read pipeline run list --pr 412 --project Payments   # why its build failed, with test results
 ado-read sprint show                                     # my team's current sprint and its work items
 ado-write pr reply 412 --thread 7 --body "Fixed in the latest push."
 ```
@@ -40,6 +40,16 @@ ado-read auth login          # paste a personal access token; it goes to the OS 
 ado-read pr list --author me
 ```
 
+## Give it to your agent
+
+- **As a skill** (Claude Code, Codex and other harnesses that read `SKILL.md`): copy
+  [`skills/ado-tools`](skills/ado-tools) into `~/.claude/skills/` or `~/.codex/skills/`,
+  or run `npx skills add kkolodziejczak/Ado-Tools`. It loads only when a task mentions Azure DevOps.
+- **As one file** for any agent: paste [`docs/agent-instructions.md`](docs/agent-instructions.md)
+  into your global `AGENTS.md` or `CLAUDE.md`.
+
+Install steps and test prompts: [docs/agent-integration.md](docs/agent-integration.md).
+
 ## Tools
 
 Install the umbrella tool for everything, or only the slice you need. Each package ID is also its command.
@@ -63,7 +73,7 @@ Commands follow one pattern, `<resource> <verb> [<id-or-url>]`, and accept an ID
 - [Getting started](docs/getting-started.md): install, sign-in, token scopes, configuration
 - [Privacy](docs/privacy.md): levels, categories, aliases
 - Commands: [pull requests](docs/pull-requests.md) · [work items](docs/work-items.md) · [pipelines](docs/pipelines.md) · [sprints](docs/sprints.md) · [Wiki](docs/wiki.md) · [write tools](docs/writing.md)
-- [JSON contract and exit codes](docs/json-contract.md) · [Using it from an agent](docs/agent-integration.md)
+- [JSON contract and exit codes](docs/json-contract.md) · [Agent skill and instructions](docs/agent-integration.md)
 - [Building and releasing](docs/development.md)
 
 ## License
