@@ -10,8 +10,8 @@ Every tool's package ID is also its command, so `dotnet tool install --global ad
 
 | Package ID and command | Commands |
 | --- | --- |
-| `ado-read` | `config`, `auth`, `privacy`, `project list`, `team list`, `pr show <id-or-url>`, `work-item show <id-or-url>`, `work-item list`, `wiki list`, `wiki page list\|show\|search`, `sprint list\|show`, `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` |
-| `ado-read-pr` | `show <id-or-url>`, `config`, `auth`, `privacy`, `project list`, `team list` |
+| `ado-read` | `config`, `auth`, `privacy`, `project list`, `team list`, `pr show <id-or-url>`, `pr list`, `work-item show <id-or-url>`, `work-item list`, `wiki list`, `wiki page list\|show\|search`, `sprint list\|show`, `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` |
+| `ado-read-pr` | `show <id-or-url>`, `list [filters]`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-work-item` | `show <id-or-url> [--download-images]`, `list [filters \| --wiql]`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-wiki` | `list`, `page list\|show\|search`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-sprint` | `list`, `show`, `config`, `auth`, `privacy`, `project list`, `team list` |
@@ -236,6 +236,7 @@ ado-read work-item show <id-or-url> [--download-images <empty-directory>] [--con
 ado-read work-item list [--project <name>] [--tag <tag>]... [--assignee me|none|<name>] [--state <state>]... [--area <path>]... [--type <type>]... [--top <1..200>] [--full] [--config <path>] [--compact]
 ado-read work-item list --wiql <query> [--top <1..200>] [--full] [--config <path>] [--compact]
 ado-read pr show <id-or-url> [--config <path>] [--compact]
+ado-read pr list [--author me|<name>] [--reviewer me|<name> [--vote <vote>]] [--status active|completed|abandoned|all] [--repository <name-or-id>] [--project <name-or-id>] [--top <1..200>] [--full] [--config <path>] [--compact]
 ado-read project list [--config <path>] [--compact]
 ado-read team list [--project <name>] [--all] [--config <path>] [--compact]
 ado-read sprint list [--project <name>] [--team <name>] [--timeframe current|past|future] [--config <path>] [--compact]
@@ -297,6 +298,21 @@ The input can be a positive ID, a pull-request browser URL, or a pull-request RE
 Lookup is two stage. Pull-request IDs are unique within an organization, so the tool first asks Azure DevOps for the ID at organization scope; that single call resolves the owning project and answers the common case. If that lookup cannot answer — no such pull request, or the call is unavailable to the caller — the tool falls back to discovering every accessible project and searching them with bounded concurrency, returning every matching PR in deterministic project/repository order. The fallback is the authoritative path, so a `partial` result can still occur when some projects fail.
 
 PR results use the lean `pullRequestSearch` v2 contract: title, status, author/reviewer unique names and votes, source/target revisions, linked work-item references, and review threads with comments. A thread can include `reviewedCommitId`, `latestCommitId`, and `isPossiblyOutdated`; each is nullable when Azure DevOps does not supply usable iteration provenance. `isPossiblyOutdated` describes only whether a file location may be stale, not whether the review feedback is relevant. PR results do not include commits, iterations, or changed-file metadata. Use the source and target commit IDs plus the thread's file path and line range to inspect the change with local Git; the `pr` command never retrieves repository file contents.
+
+#### Listing pull requests
+
+```powershell
+ado-read pr list --author me --compact
+ado-read pr list --reviewer me --vote none --compact
+ado-read pr list --repository Payments.Api --status completed --top 20 --compact
+ado-read pr list --reviewer me --vote wait-for-author --full --compact
+```
+
+`pr list` returns pull requests newest first, from every accessible project or from `--project`. `--status` is `active` (default), `completed`, `abandoned` or `all`. `--author` and `--reviewer` take `me` for the token's owner, or a person's unique name (e-mail) or display name. `--vote` needs `--reviewer` and keeps the pull requests where that reviewer's vote is `approve`, `approve-with-suggestions`, `none`, `wait-for-author` or `reject`, the same values `ado-write pr vote` takes. So `--reviewer me --vote none` lists what you still have to review. `--repository` takes a repository name or ID.
+
+Azure DevOps filters the status, and `--author me` and `--reviewer me`, itself. Names, the repository and the vote are checked by the tool on each page of results. Each project is read 100 pull requests at a time until it has `--top` matches, and at most 1,000 deep. A project that hits that limit before it has enough matches makes the result `partial` (exit `4`) with a `scanLimitReached` error naming the project. A project that can't be read makes it `partial` with that project's error.
+
+By default the result has kind `pullRequestList` (schema `1.0`), with one short entry per pull request: `id`, `title`, `status`, `isDraft`, `createdAtUtc`, `creatorUniqueName`, `project`, `repository`, `sourceRefName`, `targetRefName`, `reviewers` (unique name, vote, review status, required) and `browser`. With `--full`, the result has kind `pullRequestSearch` (schema `2.0`) with the `pr show` document of each match, threads and work items included, read up to `maxParallelProjects` at a time. `--top` (default 50, at most 200) limits what is returned. When people are withheld, a named `query.author` or `query.reviewer` is aliased like the people in the results.
 
 ### Pipelines
 
@@ -490,7 +506,7 @@ ado-write pr vote 412 --vote approve --confirm --compact
 
 ## JSON contract and exit codes
 
-Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads (including `work-item list --full`), and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `workItemList`, `projectSearch`, `teamSearch`, `iterationSearch`, `sprintSearch`, the pipeline kinds `pipelinePullRequest`, `pipelineRun`, and `pipelineTests`, and the write kinds `pullRequestComment`, `pullRequestReply`, `workItemComment`, `pullRequestRequeue`, and `pullRequestVote`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
+Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generatedAtUtc`, `results`, and `errors` properties. Read responses that are not errors also carry a `privacy` section (see [Privacy](#privacy)). `schemaVersion` is `2.0` for `pullRequestSearch`, normal `workItemSearch` reads (including `work-item list --full`), and every Wiki kind. An explicit `--download-images` work-item read uses additive `workItemSearch` schema `2.1` for success, not-found, partial, and error envelopes. It is `1.0` for `configuration`, `workItemList`, `pullRequestList`, `projectSearch`, `teamSearch`, `iterationSearch`, `sprintSearch`, the pipeline kinds `pipelinePullRequest`, `pipelineRun`, and `pipelineTests`, and the write kinds `pullRequestComment`, `pullRequestReply`, `workItemComment`, `pullRequestRequeue`, and `pullRequestVote`. Work-item person fields use nullable `...UniqueName` values only; no display names, IDs, descriptors, or profile URLs are emitted. Dates are UTC ISO-8601 values, collections are always arrays, and results/errors use deterministic ordering.
 
 | Exit code | Status | Meaning |
 | ---: | --- | --- |

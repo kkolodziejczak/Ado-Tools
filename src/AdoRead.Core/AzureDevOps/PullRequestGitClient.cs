@@ -31,10 +31,31 @@ public interface IPullRequestGitClient
         int pullRequestId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<GitPullRequest>> GetPullRequestsAsync(
+        Guid projectId,
+        GitPullRequestSearchCriteria criteria,
+        int skip,
+        int top,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 public sealed class SdkPullRequestGitClient(GitHttpClient client) : IPullRequestGitClient
 {
+    public async Task<IReadOnlyList<GitPullRequest>> GetPullRequestsAsync(
+        Guid projectId,
+        GitPullRequestSearchCriteria criteria,
+        int skip,
+        int top,
+        CancellationToken cancellationToken) =>
+        await client.GetPullRequestsByProjectAsync(
+            projectId,
+            criteria,
+            maxCommentLength: null,
+            skip,
+            top,
+            userState: null,
+            cancellationToken);
+
     public Task<GitPullRequest> GetByIdAsync(int pullRequestId, CancellationToken cancellationToken) =>
         client.GetPullRequestByIdAsync(pullRequestId, userState: null, cancellationToken);
 

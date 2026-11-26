@@ -47,8 +47,128 @@ public static class PullRequestModule
             services.JsonOutput,
             services.TimeProvider,
             cancellationToken));
-        return new Dictionary<Command, string> { [command] = "pullRequestSearch" };
+        Command list = CreateListCommand(names, services);
+        target.Subcommands.Add(list);
+        return new Dictionary<Command, string>
+        {
+            [command] = "pullRequestSearch",
+            [list] = PullRequestListReader.ListKind
+        };
     }
+
+    private const int DefaultTop = 50;
+    private const int MaxTop = 200;
+
+    private static Command CreateListCommand(ToolCommandNames names, CommandServices services)
+    {
+        var context = new ReadCommandContext(services, names.Root);
+        Option<string?> configOption = ReadCommandContext.CreateConfigOption();
+        var projectOption = new Option<string?>("--project")
+        {
+            Description = "Only pull requests in this project (name or ID). Omit to list every accessible project."
+        };
+        var repositoryOption = new Option<string?>("--repository")
+        {
+            Description = "Only pull requests in this repository (name or ID)."
+        };
+        var authorOption = new Option<string?>("--author")
+        {
+            Description = "Only pull requests this person created: 'me' for the token owner, or a unique or display name."
+        };
+        var reviewerOption = new Option<string?>("--reviewer")
+        {
+            Description = "Only pull requests this person reviews: 'me' for the token owner, or a unique or display name."
+        };
+        var voteOption = new Option<string?>("--vote")
+        {
+            Description = $"With --reviewer: only where that reviewer's vote is {string.Join(", ", PullRequestFilter.Votes.Keys)}."
+        };
+        var statusOption = new Option<string>("--status")
+        {
+            Description = $"{string.Join(", ", PullRequestFilter.Statuses)}. Default active.",
+            DefaultValueFactory = _ => "active"
+        };
+        var topOption = new Option<int>("--top")
+        {
+            Description = $"Return at most this many pull requests, 1 to {MaxTop}. Default {DefaultTop}.",
+            DefaultValueFactory = _ => DefaultTop
+        };
+        var fullOption = new Option<bool>("--full")
+        {
+            Description = $"Return every match as '{names.Invocation("show")}' would, with threads and work items, instead of a short entry."
+        };
+        var privacyOptions = new PrivacyRequestOptions();
+        var command = new Command(
+            "list",
+            $"List pull requests by author, reviewer, vote, status or repository, newest first. Read one with '{names.Invocation("show")}'.");
+        foreach (Option option in new Option[] { configOption, projectOption, repositoryOption, authorOption, reviewerOption, voteOption, statusOption, topOption, fullOption })
+        {
+            command.Options.Add(option);
+        }
+
+        privacyOptions.AddTo(command);
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            bool compact = parseResult.GetValue(services.CompactOption);
+            bool full = parseResult.GetValue(fullOption);
+            string kind = full ? PullRequestListReader.FullKind : PullRequestListReader.ListKind;
+            int top = parseResult.GetValue(topOption);
+            string status = (parseResult.GetValue(statusOption) ?? string.Empty).Trim().ToLowerInvariant();
+            string? vote = Clean(parseResult.GetValue(voteOption))?.ToLowerInvariant();
+            string? reviewer = Clean(parseResult.GetValue(reviewerOption));
+            (string Code, string Message)? invalid =
+                top is < 1 or > MaxTop ? ("invalidTop", $"--top must be between 1 and {MaxTop}.")
+                : !PullRequestFilter.Statuses.Contains(status) ? ("invalidStatus", $"--status must be one of {string.Join(", ", PullRequestFilter.Statuses)}.")
+                : vote is not null && !PullRequestFilter.Votes.ContainsKey(vote) ? ("invalidVote", $"--vote must be one of {string.Join(", ", PullRequestFilter.Votes.Keys)}.")
+                : vote is not null && reviewer is null ? ("conflictingOptions", "--vote needs --reviewer: it filters on that reviewer's vote.")
+                : null;
+            if (invalid is { } error)
+            {
+                SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
+                    kind,
+                    [new SearchError("command", null, error.Code, error.Message, false)],
+                    services.TimeProvider.GetUtcNow());
+                await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
+                return ExitCodes.InvalidInputOrConfiguration;
+            }
+
+            var filter = new PullRequestFilter(
+                Clean(parseResult.GetValue(projectOption)),
+                Clean(parseResult.GetValue(repositoryOption)),
+                Clean(parseResult.GetValue(authorOption)),
+                reviewer,
+                vote,
+                status);
+            return full
+                ? await context.RunAsync(
+                    kind,
+                    parseResult.GetValue(configOption),
+                    compact,
+                    privacyOptions.Read(parseResult),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListFullAsync(filter, top, token),
+                    cancellationToken)
+                : await context.RunAsync(
+                    kind,
+                    parseResult.GetValue(configOption),
+                    compact,
+                    privacyOptions.Read(parseResult),
+                    (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListAsync(filter, top, token),
+                    cancellationToken);
+
+            PullRequestListReader Reader(IAdoSession session, AdoReadConfiguration configuration, EffectivePrivacy privacy) =>
+                new(
+                    session.Projects,
+                    session.PullRequests,
+                    session.GetTokenOwnerIdAsync,
+                    configuration.OrganizationUrl,
+                    configuration.MaxParallelProjects,
+                    services.TimeProvider,
+                    privacy);
+        });
+        return command;
+    }
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static async Task<int> ReadAsync(
         string? value,
