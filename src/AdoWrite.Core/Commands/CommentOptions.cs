@@ -56,6 +56,23 @@ internal sealed class CommentOptions
         command.Options.Add(Config);
     }
 
+    /// <summary>
+    /// For a command whose comment is optional: null without <c>--body</c> or <c>--body-file</c>, and
+    /// refused when another comment option is given without the text it would apply to.
+    /// </summary>
+    public async Task<CommentDraft?> ReadOptionalDraftAsync(ParseResult parseResult, CancellationToken cancellationToken)
+    {
+        if (parseResult.GetResult(Body) is not null || parseResult.GetResult(BodyFile) is not null)
+        {
+            return await ReadDraftAsync(parseResult, cancellationToken);
+        }
+
+        Option[] commentOnly = [Agent, Mention, Attach, Key];
+        return commentOnly.Any(option => parseResult.GetResult(option) is not null)
+            ? throw WriteException.Rejected("bodyRequired", "--agent, --mention, --attach and --key apply to a comment: add --body or --body-file.")
+            : null;
+    }
+
     /// <summary>Exactly one of <c>--body</c> and <c>--body-file</c> gives the text; the draft validates the rest.</summary>
     public async Task<CommentDraft> ReadDraftAsync(ParseResult parseResult, CancellationToken cancellationToken)
     {

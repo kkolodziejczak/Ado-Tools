@@ -197,8 +197,41 @@ internal sealed class FakePullRequestCommentClient : IPullRequestCommentClient
 
     public Task<Comment> CreateCommentAsync(PullRequestLocation location, int threadId, Comment comment, CancellationToken cancellationToken)
     {
-        CreatedComments.Add((threadId, comment));
-        return Task.FromResult(Fabricated.CommentBy(5, comment.Content, parentId: comment.ParentCommentId));
+        Comment created = Fabricated.CommentBy(5, comment.Content, parentId: comment.ParentCommentId);
+        lock (Threads)
+        {
+            CreatedComments.Add((threadId, comment));
+            if (KeepsCreated && Threads.FirstOrDefault(thread => thread.Id == threadId) is { } thread)
+            {
+                thread.Comments = [.. thread.Comments ?? [], created];
+            }
+        }
+
+        return Task.FromResult(created);
+    }
+
+    public List<(int ThreadId, CommentThreadStatus Status)> StatusUpdates { get; } = [];
+
+    public Exception? UpdateThreadFailure { get; set; }
+
+    public Task<GitPullRequestCommentThread> UpdateThreadStatusAsync(
+        PullRequestLocation location,
+        int threadId,
+        CommentThreadStatus status,
+        CancellationToken cancellationToken)
+    {
+        if (UpdateThreadFailure is not null)
+        {
+            throw UpdateThreadFailure;
+        }
+
+        lock (Threads)
+        {
+            StatusUpdates.Add((threadId, status));
+            GitPullRequestCommentThread thread = Threads.Single(candidate => candidate.Id == threadId);
+            thread.Status = status;
+            return Task.FromResult(thread);
+        }
     }
 }
 

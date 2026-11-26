@@ -60,7 +60,7 @@ $toolContracts = @{
     }
     'ado-write-pr' = @{
         Command = 'ado-write-pr'
-        Commands = @('config', 'auth', 'comment', 'reply', 'requeue', 'vote')
+        Commands = @('config', 'auth', 'comment', 'reply', 'resolve', 'unresolve', 'requeue', 'vote')
         Foreign = @('work-item', 'comment', '1')
         InvalidTarget = @('reply', '42', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'threadRequired'

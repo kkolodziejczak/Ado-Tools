@@ -48,6 +48,13 @@ public interface IPullRequestCommentClient
         int threadId,
         Comment comment,
         CancellationToken cancellationToken);
+
+    /// <summary>Sets a thread's status and nothing else about it.</summary>
+    Task<GitPullRequestCommentThread> UpdateThreadStatusAsync(
+        PullRequestLocation location,
+        int threadId,
+        CommentThreadStatus status,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Where a pull request lives. Every call after the lookup is scoped to it.</summary>
@@ -186,6 +193,20 @@ public sealed class SdkPullRequestCommentClient(GitHttpClient client) : IPullReq
         CancellationToken cancellationToken) =>
         client.CreateCommentAsync(
             comment,
+            location.ProjectId,
+            location.RepositoryId,
+            location.PullRequestId,
+            threadId,
+            userState: null,
+            cancellationToken);
+
+    public Task<GitPullRequestCommentThread> UpdateThreadStatusAsync(
+        PullRequestLocation location,
+        int threadId,
+        CommentThreadStatus status,
+        CancellationToken cancellationToken) =>
+        client.UpdateThreadAsync(
+            new GitPullRequestCommentThread { Status = status },
             location.ProjectId,
             location.RepositoryId,
             location.PullRequestId,

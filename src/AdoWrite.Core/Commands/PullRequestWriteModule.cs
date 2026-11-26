@@ -27,17 +27,68 @@ public static class PullRequestWriteModule
         Command reply = CreateReplyCommand(context);
         Command requeue = CreateRequeueCommand(context);
         Command vote = CreateVoteCommand(context);
+        Command resolve = CreateThreadStatusCommand(
+            context,
+            "resolve",
+            "Mark a pull-request thread resolved, optionally after replying in it.",
+            ThreadKinds.PullRequestResolve,
+            resolve: true);
+        Command unresolve = CreateThreadStatusCommand(
+            context,
+            "unresolve",
+            "Reopen a resolved thread by making it active again, optionally after replying in it.",
+            ThreadKinds.PullRequestUnresolve,
+            resolve: false);
         target.Subcommands.Add(comment);
         target.Subcommands.Add(reply);
+        target.Subcommands.Add(resolve);
+        target.Subcommands.Add(unresolve);
         target.Subcommands.Add(requeue);
         target.Subcommands.Add(vote);
         return new Dictionary<Command, string>
         {
             [comment] = CommentKinds.PullRequestComment,
             [reply] = CommentKinds.PullRequestReply,
+            [resolve] = ThreadKinds.PullRequestResolve,
+            [unresolve] = ThreadKinds.PullRequestUnresolve,
             [requeue] = ReviewKinds.PullRequestRequeue,
             [vote] = ReviewKinds.PullRequestVote
         };
+    }
+
+    private static Command CreateThreadStatusCommand(WriteCommandContext context, string name, string description, string kind, bool resolve)
+    {
+        Argument<string> reference = CreateReferenceArgument();
+        var thread = new Option<int?>("--thread")
+        {
+            Description = "ID of the thread, as the pull-request read shows it."
+        };
+        var options = new CommentOptions();
+        var command = new Command(name, description + " With --body or --body-file the reply is posted first, and only once.");
+        command.Arguments.Add(reference);
+        command.Options.Add(thread);
+        options.AddTo(command);
+        command.SetAction((parseResult, cancellationToken) => context.RunAsync(
+            kind,
+            parseResult,
+            options.Config,
+            async token =>
+            {
+                AdoReference pullRequest = ParsePullRequest(parseResult.GetValue(reference));
+                int threadId = parseResult.GetValue(thread) is > 0 and int id
+                    ? id
+                    : throw WriteException.Rejected("threadRequired", "--thread must name a positive thread ID.");
+                CommentDraft? reply = await options.ReadOptionalDraftAsync(parseResult, token);
+                bool dryRun = parseResult.GetValue(options.DryRun);
+                return new WriteTarget<ThreadStatusDocument>(
+                    pullRequest,
+                    new CommentQuery(pullRequest.Id, threadId),
+                    (session, organizationUrl, requestToken) =>
+                        new ThreadStatusChanger(session.PullRequests, session.People, organizationUrl)
+                            .ChangeAsync(pullRequest.Id, threadId, resolve, reply, dryRun, requestToken));
+            },
+            cancellationToken));
+        return command;
     }
 
     private static Command CreateCommentCommand(WriteCommandContext context)
