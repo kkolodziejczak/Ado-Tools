@@ -129,10 +129,11 @@ public static class WorkItemModule
             bool compact = parseResult.GetValue(services.CompactOption);
             bool full = parseResult.GetValue(fullOption);
             string kind = full ? WorkItemListReader.FullKind : WorkItemListReader.ListKind;
+            string schemaVersion = full ? "2.0" : "1.0";
             int top = parseResult.GetValue(topOption);
             if (top is < 1 or > MaxTop)
             {
-                return await WriteListErrorAsync(services, kind, "invalidTop", $"--top must be between 1 and {MaxTop}.", compact, cancellationToken);
+                return await context.RejectAsync(kind, "invalidTop", $"--top must be between 1 and {MaxTop}.", compact, cancellationToken, schemaVersion);
             }
 
             WorkItemListRequest request;
@@ -149,13 +150,13 @@ public static class WorkItemModule
             }
             else if (filterOptions.Any(option => parseResult.GetResult(option) is not null))
             {
-                return await WriteListErrorAsync(
-                    services,
+                return await context.RejectAsync(
                     kind,
                     "conflictingOptions",
                     "Pass either --wiql or the filter options (--project, --tag, --assignee, --state, --area, --type), not both.",
                     compact,
-                    cancellationToken);
+                    cancellationToken,
+                    schemaVersion);
             }
             else if (WorkItemWiql.Clean(parseResult.GetValue(wiqlOption)) is { } wiql)
             {
@@ -163,7 +164,7 @@ public static class WorkItemModule
             }
             else
             {
-                return await WriteListErrorAsync(services, kind, "invalidWiql", "--wiql needs a query.", compact, cancellationToken);
+                return await context.RejectAsync(kind, "invalidWiql", "--wiql needs a query.", compact, cancellationToken, schemaVersion);
             }
 
             return full
@@ -173,7 +174,8 @@ public static class WorkItemModule
                     compact,
                     privacyOptions.Read(parseResult),
                     (session, configuration, privacy, token) => Reader(session, configuration, privacy).ListFullAsync(request, token),
-                    cancellationToken)
+                    cancellationToken,
+                    schemaVersion)
                 : await context.RunAsync(
                     kind,
                     parseResult.GetValue(configOption),
@@ -186,22 +188,6 @@ public static class WorkItemModule
                 new(session.WorkItems, configuration.OrganizationUrl, services.TimeProvider, privacy, configuration.MaxParallelProjects);
         });
         return command;
-    }
-
-    private static async Task<int> WriteListErrorAsync(
-        CommandServices services,
-        string kind,
-        string code,
-        string message,
-        bool compact,
-        CancellationToken cancellationToken)
-    {
-        SearchEnvelope<object> envelope = SearchEnvelopeFactory.Error(
-            kind,
-            [new SearchError("command", null, code, message, false)],
-            services.TimeProvider.GetUtcNow());
-        await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
-        return ExitCodes.InvalidInputOrConfiguration;
     }
 
     private static async Task<int> ReadAsync(

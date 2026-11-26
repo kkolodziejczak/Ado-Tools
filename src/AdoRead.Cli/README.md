@@ -35,7 +35,7 @@ Withheld fields come back as `null` or empty. `privacy show` shows what is allow
 
 | Command | Returns | Also available on its own |
 | --- | --- | --- |
-| `pr show <id-or-url>` | A pull request with its review threads | [`ado-read-pr`](https://www.nuget.org/packages/ado-read-pr) |
+| `pr show <id-or-url>`, `pr list [--author] [--reviewer] [--vote] [--status] [--full]` | A pull request with its review threads, or the pull requests matching filters | [`ado-read-pr`](https://www.nuget.org/packages/ado-read-pr) |
 | `work-item show <id-or-url> [--download-images <dir>]`, `work-item list [filters \| --wiql <query>] [--full]` | A work item, and optionally its images; or the work items matching filters or a WIQL query | [`ado-read-work-item`](https://www.nuget.org/packages/ado-read-work-item) |
 | `pipeline run list --pr <id-or-url>`, `pipeline run show <id-or-url>`, `pipeline test list --run <id-or-url>` | Pipeline diagnosis for a pull request or a build | [`ado-read-pipeline`](https://www.nuget.org/packages/ado-read-pipeline) |
 | `wiki list`, `wiki page list\|show\|search` | Wiki discovery, search and page reads | [`ado-read-wiki`](https://www.nuget.org/packages/ado-read-wiki) |
@@ -45,6 +45,7 @@ Withheld fields come back as `null` or empty. `privacy show` shows what is allow
 
 ```powershell
 ado-read pr show 412 --compact
+ado-read pr list --reviewer me --vote none --compact
 ado-read work-item show 12345 --compact
 ado-read work-item list --tag needs-refinement --compact
 ado-read pipeline run list --pr 412 --project Payments --compact

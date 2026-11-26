@@ -27,7 +27,29 @@ public interface IPullRequestSource
     Task<PullRequestDocument> GetAllDetailsAsync(
         PullRequestDocument pullRequest,
         CancellationToken cancellationToken);
+
+    /// <summary>One page of a project's pull requests, newest first, filtered by Azure DevOps on <paramref name="search"/>.</summary>
+    Task<IReadOnlyList<PullRequestCandidate>> ListAsync(
+        AdoProject project,
+        PullRequestSearch search,
+        int skip,
+        int top,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
 }
+
+/// <summary>What Azure DevOps filters on itself: a status, and the identity IDs of a creator or reviewer.</summary>
+public sealed record PullRequestSearch(string Status, Guid? CreatorId, Guid? ReviewerId);
+
+/// <summary>A person as Azure DevOps names them; kept beside the document so a filter can match by ID or name.</summary>
+public sealed record PullRequestPerson(Guid? Id, string? UniqueName, string? DisplayName);
+
+public sealed record PullRequestReviewerVote(PullRequestPerson Reviewer, int Vote);
+
+/// <summary>A listed pull request: its summary document, and its people with the IDs the document leaves out.</summary>
+public sealed record PullRequestCandidate(
+    PullRequestDocument Document,
+    PullRequestPerson Creator,
+    IReadOnlyList<PullRequestReviewerVote> Reviewers);
 
 public class PullRequestSourceException(
     string code,
