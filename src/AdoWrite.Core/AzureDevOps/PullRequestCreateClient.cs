@@ -8,6 +8,9 @@ public interface IPullRequestCreateClient
     /// <summary>A repository by ID anywhere in the organization, or by name in <paramref name="project"/>.</summary>
     Task<GitRepository> GetRepositoryAsync(string? project, string repository, CancellationToken cancellationToken);
 
+    Task<bool> BranchExistsAsync(GitRepository repository, string refName, CancellationToken cancellationToken);
+
+    /// <summary>Active pull requests between the two branches whose source is this repository, not a fork of it.</summary>
     Task<IReadOnlyList<GitPullRequest>> GetActivePullRequestsAsync(
         GitRepository repository,
         string sourceRefName,
@@ -37,6 +40,7 @@ public sealed class SdkPullRequestCreateClient(GitHttpClient client) : IPullRequ
             new GitPullRequestSearchCriteria
             {
                 Status = PullRequestStatus.Active,
+                SourceRepositoryId = repository.Id,
                 SourceRefName = sourceRefName,
                 TargetRefName = targetRefName
             },
@@ -45,6 +49,17 @@ public sealed class SdkPullRequestCreateClient(GitHttpClient client) : IPullRequ
             top: null,
             userState: null,
             cancellationToken);
+
+    /// <summary>The refs filter matches by prefix, so the exact name is checked among what it returns.</summary>
+    public async Task<bool> BranchExistsAsync(GitRepository repository, string refName, CancellationToken cancellationToken)
+    {
+        List<GitRef> refs = await client.GetRefsAsync(
+            repository.Id,
+            filter: refName["refs/".Length..],
+            userState: null,
+            cancellationToken: cancellationToken);
+        return refs.Any(gitRef => string.Equals(gitRef.Name, refName, StringComparison.Ordinal));
+    }
 
     public Task<GitPullRequest> CreatePullRequestAsync(
         GitRepository repository,

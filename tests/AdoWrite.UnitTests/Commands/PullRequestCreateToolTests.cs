@@ -174,6 +174,57 @@ public sealed class PullRequestCreateToolTests
     }
 
     [Fact]
+    public async Task Create_IgnoresAForksPullRequestWithTheSameBranchNames()
+    {
+        Creation.Active.Add(new GitPullRequest
+        {
+            PullRequestId = 79,
+            SourceRefName = "refs/heads/feature/retry",
+            TargetRefName = "refs/heads/main",
+            ForkSource = new GitForkRef { Repository = new GitRepository { Id = Guid.NewGuid(), Name = "Someones.Fork" } }
+        });
+
+        int exitCode = await Run("pr", "create", "--project", Fabricated.Project, "--repository", Fabricated.Repository, "--source", "feature/retry", "--title", "Retry");
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Equal("created", Result().GetProperty("outcome").GetString());
+        Assert.Single(Creation.Created);
+    }
+
+    [Theory]
+    [InlineData("--source", "refs/heads/feature/typo", false)]
+    [InlineData("--source", "refs/heads/feature/typo", true)]
+    [InlineData("--target", "refs/heads/relase", true)]
+    public async Task Create_ReportsABranchTheRepositoryDoesNotHave(string option, string branch, bool dryRun)
+    {
+        Creation.MissingBranches.Add(branch);
+        string[] args = option == "--source"
+            ? ["pr", "create", "--project", Fabricated.Project, "--repository", Fabricated.Repository, "--source", branch, "--title", "T"]
+            : ["pr", "create", "--project", Fabricated.Project, "--repository", Fabricated.Repository, "--source", "feature/x", "--target", branch, "--title", "T"];
+
+        int exitCode = await Run(dryRun ? [.. args, "--dry-run"] : args);
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        JsonElement error = Envelope().GetProperty("errors")[0];
+        Assert.Equal("branchNotFound", error.GetProperty("code").GetString());
+        Assert.Contains(branch, error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Empty(Creation.Created);
+    }
+
+    [Theory]
+    [InlineData("refs/tags/v1")]
+    [InlineData("/")]
+    [InlineData("refs/heads/")]
+    public async Task Create_RejectsARefThatIsNotABranch(string source)
+    {
+        int exitCode = await Run("pr", "create", "--project", Fabricated.Project, "--repository", Fabricated.Repository, "--source", source, "--title", "T");
+
+        Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
+        Assert.Equal("invalidBranch", Envelope().GetProperty("errors")[0].GetProperty("code").GetString());
+        Assert.Empty(Creation.RepositoryLookups);
+    }
+
+    [Fact]
     public async Task Create_SaysWhyAzureDevOpsRefusedThePullRequest()
     {
         Creation.CreateFailure = new VssServiceResponseException(HttpStatusCode.BadRequest, "TF401398: The source branch no longer exists.", null);

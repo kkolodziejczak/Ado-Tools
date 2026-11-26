@@ -63,11 +63,19 @@ internal sealed record PullRequestRequest(
     /// <summary>Azure DevOps keeps at most this many characters of a pull request's description.</summary>
     public const int MaxDescriptionLength = 4000;
 
-    /// <summary><c>feature/x</c> and <c>refs/heads/feature/x</c> name the same branch.</summary>
-    public static string RefName(string branch)
+    private const string BranchPrefix = "refs/heads/";
+
+    /// <summary>
+    /// <c>feature/x</c> and <c>refs/heads/feature/x</c> name the same branch. A tag or another ref, and a
+    /// name with nothing after the prefix, are no branch.
+    /// </summary>
+    public static string RefName(string branch, string option)
     {
         string trimmed = branch.Trim();
-        return trimmed.StartsWith("refs/", StringComparison.Ordinal) ? trimmed : "refs/heads/" + trimmed.TrimStart('/');
+        string refName = trimmed.StartsWith("refs/", StringComparison.Ordinal) ? trimmed : BranchPrefix + trimmed.TrimStart('/');
+        return refName.StartsWith(BranchPrefix, StringComparison.Ordinal) && refName.Length > BranchPrefix.Length && !refName.EndsWith('/')
+            ? refName
+            : throw WriteException.Rejected("invalidBranch", $"{option} must name a branch, for example feature/retry or refs/heads/feature/retry.");
     }
 }
 
@@ -90,6 +98,14 @@ internal sealed class PullRequestCreator(IPullRequestCreateClient client, IPeopl
         if (string.Equals(request.SourceRefName, target, StringComparison.Ordinal))
         {
             throw WriteException.Rejected("sameBranch", $"--source and --target are both {target}; a pull request needs two branches.");
+        }
+
+        foreach (string branch in new[] { request.SourceRefName, target })
+        {
+            if (!await AzureDevOpsCall.RunAsync(() => client.BranchExistsAsync(repository, branch, cancellationToken), cancellationToken))
+            {
+                throw WriteException.Rejected("branchNotFound", $"Repository {repository.Name} has no branch {branch}.");
+            }
         }
 
         Person author = await AzureDevOpsCall.RunAsync(() => people.GetSignedInUserAsync(cancellationToken), cancellationToken);
@@ -153,7 +169,11 @@ internal sealed class PullRequestCreator(IPullRequestCreateClient client, IPeopl
         IReadOnlyList<GitPullRequest> active = await AzureDevOpsCall.RunAsync(
             () => client.GetActivePullRequestsAsync(repository, source, target, cancellationToken),
             cancellationToken);
-        return active.OrderBy(pullRequest => pullRequest.PullRequestId).FirstOrDefault();
+        // A fork's pull request can use the same branch names; only this repository's own branches count.
+        return active
+            .Where(pullRequest => pullRequest.ForkSource?.Repository is null || pullRequest.ForkSource.Repository.Id == repository.Id)
+            .OrderBy(pullRequest => pullRequest.PullRequestId)
+            .FirstOrDefault();
     }
 
     /// <summary>The body, and the footer naming the agent and the person it creates for when an agent is named.</summary>

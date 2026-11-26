@@ -414,6 +414,12 @@ internal sealed class FakePullRequestCreateClient : IPullRequestCreateClient
 
     public List<GitPullRequest> Active { get; } = [];
 
+    /// <summary>Full ref names the repository does not have; every other branch exists.</summary>
+    public HashSet<string> MissingBranches { get; } = [];
+
+    public Task<bool> BranchExistsAsync(GitRepository repository, string refName, CancellationToken cancellationToken) =>
+        Task.FromResult(!MissingBranches.Contains(refName));
+
     public List<GitPullRequest> Created { get; } = [];
 
     public Exception? CreateFailure { get; set; }

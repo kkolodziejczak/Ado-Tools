@@ -100,8 +100,8 @@ public static class PullRequestWriteModule
                 }
 
                 string sourceRef = PullRequestRequest.RefName(Clean(parseResult.GetValue(source))
-                    ?? throw WriteException.Rejected("sourceRequired", "--source must name the branch with the changes."));
-                string? targetRef = Clean(parseResult.GetValue(target)) is { } named ? PullRequestRequest.RefName(named) : null;
+                    ?? throw WriteException.Rejected("sourceRequired", "--source must name the branch with the changes."), "--source");
+                string? targetRef = Clean(parseResult.GetValue(target)) is { } named ? PullRequestRequest.RefName(named, "--target") : null;
                 string titleText = Clean(parseResult.GetValue(title))
                     ?? throw WriteException.Rejected("titleRequired", "--title must give the pull request a title.");
                 string? description = await ReadDescriptionAsync(parseResult.GetValue(body), parseResult.GetValue(bodyFile), token);
