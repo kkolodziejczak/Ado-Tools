@@ -11,6 +11,7 @@ Every new tool, command and option follows this rule. Check a name against it be
    - Read: `show` (one item), `list` (many, filtered by options), `search` (by text).
    - Write: `create`, `comment`, `reply`, `resolve`, `unresolve`, `vote`, `requeue`.
    - Setup: `init`, `show`, `set`, `reset`, `login`, `logout`, `status`.
+   - Approval window: `open` (`approval open`, where the person posts or rejects queued writes).
    A new verb needs the owner's approval. Don't use compound verbs such as `resolve-thread` or `list-for-pr`.
 5. **The positional argument** is `<id-or-url>` of the resource the noun path names (`<url>` where only a URL works). Things inside it, and references to other resources, are options named after them: `--thread`, `--run`, `--pr`, `--wiki`, `--sprint`. `search <text>` and `privacy set <level>` keep their operand.
 6. **Options** reuse the short domain word the README already uses: `--author`, `--reviewer`, `--vote`, `--status`, `--repository`, `--project`, `--assignee`, `--state`, `--tag`, `--area`, `--type`. Use `me` for the token owner. An option that already exists on another command keeps its name and values. A write verb that also posts a comment takes `--body` / `--body-file`, like `reply`.

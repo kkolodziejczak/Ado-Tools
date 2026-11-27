@@ -126,7 +126,7 @@ public sealed class ApprovalReviewTests : IDisposable
         var output = new StringWriter();
 
         int exitCode = await Composition(output).CreateUmbrella("ado-write", [ApprovalModule.Create(_outbox, new ScriptedConsole { IsInteractive = false }, _factory)])
-            .InvokeAsync(["approval", "review", "--compact"], CancellationToken.None);
+            .InvokeAsync(["approval", "open", "--compact"], CancellationToken.None);
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Equal("consoleRequired", JsonDocument.Parse(output.ToString()).RootElement.GetProperty("errors")[0].GetProperty("code").GetString());
@@ -141,7 +141,7 @@ public sealed class ApprovalReviewTests : IDisposable
         var output = new StringWriter();
 
         int exitCode = await Composition(output).CreateUmbrella("ado-write", [ApprovalModule.Create(_outbox, new ScriptedConsole(ConsoleKey.Q), _factory)])
-            .InvokeAsync(["approval", "review", "--compact"], CancellationToken.None);
+            .InvokeAsync(["approval", "open", "--compact"], CancellationToken.None);
 
         Assert.NotNull(first);
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);

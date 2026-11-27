@@ -142,7 +142,7 @@ internal sealed class WriteCommandContext(
         string message = "Not posted yet. It waits for the person the token belongs to, who posts or rejects it in the ado-write approval window. "
             + "Don't assume it was posted: check later with ado-read."
             + (window == ApprovalWindowState.NotOpened
-                ? $" Ask them to run '{names.Root.Invocation("approval review")}' in a terminal of their own."
+                ? $" Ask them to run '{names.Root.Invocation("approval open")}' in a terminal of their own."
                 : string.Empty);
         var envelope = new SearchEnvelope<PendingWriteDocument>(
             "1.0",

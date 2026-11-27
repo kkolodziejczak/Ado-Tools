@@ -2,29 +2,29 @@ namespace AdoWrite.UnitTests.Approval;
 
 public sealed class ApprovalWindowPlanTests
 {
-    private static readonly string[] Tool = ["/home/me/.dotnet/tools/ado-write", "approval", "review"];
+    private static readonly string[] Tool = ["/home/me/.dotnet/tools/ado-write", "approval", "open"];
 
     [Fact]
     public void Windows_StartsTheToolInAConsoleOfItsOwn()
     {
-        WindowLaunch launch = Assert.Single(ApprovalWindowPlan.For(ApprovalPlatform.Windows, [@"C:\tools\ado-write.exe", "approval", "review"], _ => true, _ => null));
+        WindowLaunch launch = Assert.Single(ApprovalWindowPlan.For(ApprovalPlatform.Windows, [@"C:\tools\ado-write.exe", "approval", "open"], _ => true, _ => null));
 
         Assert.Equal(@"C:\tools\ado-write.exe", launch.File);
-        Assert.Equal(["approval", "review"], launch.Arguments);
+        Assert.Equal(["approval", "open"], launch.Arguments);
         Assert.True(launch.ShellExecute);
     }
 
     [Fact]
     public void MacOS_RunsTheToolInTerminalWithEveryArgumentQuoted()
     {
-        string[] tool = ["/Users/me/my tools/ado-write", "approval", "review"];
+        string[] tool = ["/Users/me/my tools/ado-write", "approval", "open"];
 
         WindowLaunch launch = Assert.Single(ApprovalWindowPlan.For(ApprovalPlatform.MacOS, tool, _ => true, _ => null));
 
         Assert.Equal("osascript", launch.File);
         Assert.True(launch.WaitsForLauncher);
         Assert.Equal(
-            ["-e", "tell application \"Terminal\" to do script \"'/Users/me/my tools/ado-write' 'approval' 'review'\"", "-e", "tell application \"Terminal\" to activate"],
+            ["-e", "tell application \"Terminal\" to do script \"'/Users/me/my tools/ado-write' 'approval' 'open'\"", "-e", "tell application \"Terminal\" to activate"],
             launch.Arguments);
     }
 

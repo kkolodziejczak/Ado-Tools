@@ -7,13 +7,13 @@ using AdoWrite.AzureDevOps;
 namespace AdoWrite.Commands;
 
 /// <summary>
-/// <c>approval review</c> opens the approval window, where the person the token belongs to posts or
+/// <c>approval open</c> opens the approval window, where the person the token belongs to posts or
 /// rejects the writes agents queued. It runs only in a console a person types into, so an agent that
 /// runs it with redirected input cannot approve anything.
 /// </summary>
 public static class ApprovalModule
 {
-    public const string ReviewKind = "approvalReview";
+    public const string OpenKind = "approvalOpen";
 
     public static CommandModule Definition { get; } = Create(ApprovalOutbox.ForCurrentUser(), new SystemApprovalConsole(), new AdoWriteSessionFactory());
 
@@ -22,8 +22,8 @@ public static class ApprovalModule
         "Post or reject the writes agents queued, in a window only you type into.",
         (target, _, services) =>
         {
-            var review = new Command("review", "Open the approval window: see each queued write as it will be posted, then post or reject it.");
-            review.SetAction(async (parseResult, cancellationToken) =>
+            var open = new Command("open", "Open the approval window: see each queued write as it will be posted, then post or reject it.");
+            open.SetAction(async (parseResult, cancellationToken) =>
             {
                 if (!console.IsInteractive)
                 {
@@ -45,13 +45,13 @@ public static class ApprovalModule
                 async Task<int> RefuseAsync(string code, string message)
                 {
                     await services.JsonOutput.WriteAsync(
-                        SearchEnvelopeFactory.Error(ReviewKind, [new SearchError("command", null, code, message, false)], services.TimeProvider.GetUtcNow()),
+                        SearchEnvelopeFactory.Error(OpenKind, [new SearchError("command", null, code, message, false)], services.TimeProvider.GetUtcNow()),
                         parseResult.GetValue(services.CompactOption),
                         cancellationToken);
                     return ExitCodes.InvalidInputOrConfiguration;
                 }
             });
-            target.Subcommands.Add(review);
-            return new Dictionary<Command, string> { [review] = ReviewKind };
+            target.Subcommands.Add(open);
+            return new Dictionary<Command, string> { [open] = OpenKind };
         });
 }

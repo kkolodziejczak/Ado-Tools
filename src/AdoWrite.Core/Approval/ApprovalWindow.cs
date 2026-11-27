@@ -17,7 +17,7 @@ public interface IApprovalWindow
 }
 
 /// <summary>
-/// Opens <c>approval review</c> of the running tool in a terminal window of its own. An open window
+/// Opens <c>approval open</c> of the running tool in a terminal window of its own. An open window
 /// holds <c>window.lock</c> in the outbox, so a second one is not started. When no window can be
 /// opened, for example on a Linux machine without a desktop, the person starts the command themselves.
 /// </summary>
@@ -40,8 +40,8 @@ public sealed class ConsoleApprovalWindow(string outboxDirectory) : IApprovalWin
 
         // A tool run through the dotnet host (dotnet ado-write.dll) names its assembly first.
         string[] tool = Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
-            ? [executable, Environment.GetCommandLineArgs()[0], "approval", "review"]
-            : [executable, "approval", "review"];
+            ? [executable, Environment.GetCommandLineArgs()[0], "approval", "open"]
+            : [executable, "approval", "open"];
         foreach (WindowLaunch launch in ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable))
         {
             if (TryStart(launch))
@@ -136,7 +136,7 @@ public static class ApprovalWindowPlan
         ("xterm", "-e"),
     ];
 
-    /// <param name="tool">The tool's program and its arguments, ending with <c>approval review</c>.</param>
+    /// <param name="tool">The tool's program and its arguments, ending with <c>approval open</c>.</param>
     public static IReadOnlyList<WindowLaunch> For(
         ApprovalPlatform platform,
         IReadOnlyList<string> tool,

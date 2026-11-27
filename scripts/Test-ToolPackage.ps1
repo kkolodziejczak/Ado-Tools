@@ -305,7 +305,7 @@ function Test-WriteSmoke
     Assert-JsonValidationError -Arguments ([string[]]$contract.Foreign + @('--compact')) -ExpectedCode 'invalidArguments'
     Assert-JsonValidationError -Arguments ([string[]]$contract.InvalidTarget + @('--config', $configPath, '--compact')) -ExpectedCode $contract.InvalidTargetCode
     # Output captured here is redirected, as it is for an agent, so the approval window must refuse to open.
-    Assert-JsonValidationError -Arguments @('approval', 'review', '--compact') -ExpectedCode 'consoleRequired'
+    Assert-JsonValidationError -Arguments @('approval', 'open', '--compact') -ExpectedCode 'consoleRequired'
 }
 
 function Test-UmbrellaSmoke

@@ -32,7 +32,7 @@ Every Ado-Tools read and write tool uses the same token from your operating syst
 | `unresolve <id-or-url> --thread <id> [--body <markdown>]` | Makes a resolved thread active again, after an optional reply |
 | `requeue <id-or-url> [--evaluation <id>]...` | Requeues expired build policies, or the ones you name |
 | `vote <id-or-url> --vote <vote>` | Sets your vote: `approve`, `approve-with-suggestions`, `none`, `wait-for-author` or `reject` |
-| `approval review` | Opens the approval window, where you post or reject what agents queued |
+| `approval open` | Opens the approval window, where you post or reject what agents queued |
 | `config`, `auth` | Settings and the stored token |
 
 Every write command accepts `--dry-run`, which shows what would happen without changing anything. Comments also take `--mention`, `--attach` and `--key`.
@@ -48,7 +48,7 @@ ado-write-pr vote 412 --vote approve --compact
 
 ## Approving writes
 
-Every write waits in the approval window until you press `y` to post it or `n` to reject it. `↑`/`↓` pick a write and `a` posts all that remain. The first write opens the window: a console on Windows, Terminal on macOS, and on Linux a desktop terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`). Where none can open, for example over SSH, run `ado-write-pr approval review` in a terminal. `--dry-run` never waits. The agent can't approve: the window refuses input that isn't typed at its console.
+Every write waits in the approval window until you press `y` to post it or `n` to reject it. `↑`/`↓` pick a write and `a` posts all that remain. The first write opens the window: a console on Windows, Terminal on macOS, and on Linux a desktop terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`). Where none can open, for example over SSH, run `ado-write-pr approval open` in a terminal. `--dry-run` never waits. The agent can't approve: the window refuses input that isn't typed at its console.
 
 To turn approval off for everyone on the machine, an administrator sets `ADO_WRITE_APPROVAL` to `off` at machine level:
 
