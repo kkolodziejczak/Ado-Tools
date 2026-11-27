@@ -18,18 +18,19 @@ public interface IApprovalWindow
 /// was not saved. Where no window can open, for example over SSH or on Linux without a desktop, the
 /// write is withdrawn.
 /// </summary>
-public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claimTimeout = null, Func<WindowLaunch, bool>? start = null) : IApprovalWindow
+/// <param name="startWindow">Starts a window for the write with this ID and says whether it started; by default this system's terminal.</param>
+public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claimTimeout = null, Func<string, bool>? startWindow = null) : IApprovalWindow
 {
     /// <summary>A cold start of Terminal on macOS can take several seconds.</summary>
     private static readonly TimeSpan DefaultClaimTimeout = TimeSpan.FromSeconds(20);
 
     private static readonly TimeSpan ClaimPollInterval = TimeSpan.FromMilliseconds(100);
 
-    private readonly Func<WindowLaunch, bool> _start = start ?? TryStart;
+    private readonly Func<string, bool> _startWindow = startWindow ?? StartTerminal;
 
     public bool Open(string id)
     {
-        bool started = Tool(id) is { } tool && ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Any(_start);
+        bool started = _startWindow(id);
         DateTime deadline = DateTime.UtcNow + (claimTimeout ?? DefaultClaimTimeout);
         while (started && DateTime.UtcNow < deadline)
         {
@@ -45,6 +46,10 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
         // that timed out after Terminal had started; then the write stays with that window.
         return !pending.Withdraw(id);
     }
+
+    /// <summary>Tries this system's ways of opening a terminal that runs the window, until one starts.</summary>
+    private static bool StartTerminal(string id) =>
+        Tool(id) is { } tool && ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Any(TryStart);
 
     /// <summary>This tool's own program, with <c>approval open &lt;id&gt;</c>; null when its path is unknown.</summary>
     private static string[]? Tool(string id)
