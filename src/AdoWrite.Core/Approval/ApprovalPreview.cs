@@ -69,11 +69,20 @@ public static class ApprovalPreview
         && read.TryGetProperty("results", out JsonElement before) && now.TryGetProperty("results", out JsonElement after)
         && before.GetRawText() == after.GetRawText();
 
-    /// <summary>The URL of what a real run posted, or its outcome when it has none.</summary>
-    public static string? PostedUrl(JsonElement envelope) =>
-        Results(envelope).FirstOrDefault() is { ValueKind: JsonValueKind.Object } result
-            ? String(result, "url") ?? String(result, "outcome")
-            : null;
+    /// <summary>
+    /// What a real run did, by outcome, with the URL of what it touched: <c>created · https://…</c>, or
+    /// <c>unchanged</c> or <c>existing</c> when it found nothing to change, <c>requeued ×2</c> for builds.
+    /// </summary>
+    public static string Done(JsonElement envelope)
+    {
+        JsonElement[] results = [.. Results(envelope)];
+        string outcomes = string.Join(", ", results
+            .Select(result => String(result, "outcome") ?? "done")
+            .GroupBy(outcome => outcome, StringComparer.Ordinal)
+            .Select(group => group.Count() == 1 ? group.Key : $"{group.Key} ×{group.Count()}"));
+        string? url = results.Select(result => String(result, "url")).FirstOrDefault(link => link is not null);
+        return url is null ? outcomes : $"{outcomes} · {url}";
+    }
 
     /// <summary>The first error of a run that did not fully succeed, as <c>code: message</c>.</summary>
     public static string? Error(JsonElement envelope)

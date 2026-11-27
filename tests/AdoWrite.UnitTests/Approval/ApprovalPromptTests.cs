@@ -49,7 +49,7 @@ public sealed class ApprovalPromptTests : IDisposable
         Assert.Contains(ApprovalScreen.ReadyKeys, read);
         Assert.Equal(0, postedBeforeEnter);
         Assert.Single(_session.FakePullRequests.CreatedThreads);
-        Assert.Contains("Posted: ", console.LastScreen);
+        Assert.Contains("Done: created · ", console.LastScreen);
     }
 
     [Theory]
@@ -152,7 +152,7 @@ public sealed class ApprovalPromptTests : IDisposable
         await Prompt(console, id);
 
         Assert.Contains("Not posted, or only partly", console.LastScreen);
-        Assert.DoesNotContain("Posted: ", console.LastScreen);
+        Assert.DoesNotContain("Done: ", console.LastScreen);
     }
 
     [Fact]
@@ -179,6 +179,18 @@ public sealed class ApprovalPromptTests : IDisposable
         Assert.Equal("<U+2028>", ApprovalScreen.Printable("\u2028"));
         Assert.DoesNotContain('\u2028', screen);
         Assert.DoesNotContain(screen.Replace("\n", string.Empty, StringComparison.Ordinal), character => char.IsControl(character));
+    }
+
+    [Fact]
+    public void Screen_NamesThePullRequestTheDryRunResolved_NotTheLastSegmentOfTheUrl()
+    {
+        ApprovalRequest request = Request("pullRequestComment", "https://dev.azure.com/fabricated/p/_apis/git/repositories/r/pullRequests/42/threads/7");
+        JsonElement preview = Envelope(new { outcome = "preview", target = "pullRequest", targetId = 42, actingAs = "Example Author", text = "Hi" });
+
+        string screen = string.Join('\n', ApprovalScreen.Render(request, PromptStage.Ready, preview).Select(line => line.Text));
+
+        Assert.StartsWith("PR 42 · comment", screen);
+        Assert.DoesNotContain("PR 7", screen);
     }
 
     [Fact]

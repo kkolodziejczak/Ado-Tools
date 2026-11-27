@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AdoWrite.Comments;
 
 namespace AdoWrite.Approval;
 
@@ -50,6 +51,12 @@ public sealed partial class PendingWrites(string directory, TimeProvider timePro
             int attachments = 0;
             IReadOnlyList<string> arguments = Freeze(parseResult, body, path =>
             {
+                // The draft checked the file's size; one that grew since is not copied.
+                if (new FileInfo(path).Length > CommentAttachment.MaxBytes)
+                {
+                    throw new IOException($"The --attach file '{Path.GetFileName(path)}' grew past {CommentAttachment.MaxBytes / (1024 * 1024)} MB after it was checked.");
+                }
+
                 string copy = Path.Combine(folder, "attachments", (attachments++).ToString(CultureInfo.InvariantCulture), Path.GetFileName(path));
                 System.IO.Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
                 File.Copy(path, copy);

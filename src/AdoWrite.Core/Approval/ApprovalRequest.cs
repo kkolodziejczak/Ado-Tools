@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using AdoWrite.Comments;
 using AdoWrite.Reviews;
@@ -32,6 +33,40 @@ public sealed record ApprovalRequest(string Id, string Kind, IReadOnlyList<strin
     /// <summary>The value of <c>--name=value</c>, the form every option is stored in.</summary>
     public string? Option(string name) =>
         Arguments.FirstOrDefault(argument => argument.StartsWith(name + "=", StringComparison.Ordinal))?[(name.Length + 1)..];
+
+    /// <summary>
+    /// The write as the person approved it: what its dry run resolved by itself is fixed in the arguments,
+    /// so the post can't choose otherwise. A new pull request keeps the target branch it showed, and a
+    /// requeue only the builds it showed. Null when the approved dry run sends nothing at all.
+    /// </summary>
+    public ApprovalRequest? Pinned(JsonElement preview)
+    {
+        IReadOnlyList<JsonElement> results = preview.TryGetProperty("results", out JsonElement values) && values.ValueKind == JsonValueKind.Array
+            ? [.. values.EnumerateArray()]
+            : [];
+        switch (Kind)
+        {
+            case CreateKinds.PullRequestCreate when Option("--target") is null:
+                return results.Select(result => Text(result, "targetRefName")).FirstOrDefault(target => target is not null) is { } target
+                    ? this with { Arguments = [.. Arguments, "--target=" + target] }
+                    : this;
+            case ReviewKinds.PullRequestRequeue when Option("--evaluation") is null:
+                string[] planned =
+                [
+                    .. results
+                        .Where(result => Text(result, "outcome") == RequeueOutcomes.Preview)
+                        .Select(result => Text(result, "evaluationId"))
+                        .OfType<string>()
+                        .Select(id => "--evaluation=" + id)
+                ];
+                return planned.Length == 0 ? null : this with { Arguments = [.. Arguments, .. planned] };
+            default:
+                return this;
+        }
+    }
+
+    private static string? Text(JsonElement element, string name) =>
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     /// <summary>The positional ID or URL, which comes before every option.</summary>
     [JsonIgnore]

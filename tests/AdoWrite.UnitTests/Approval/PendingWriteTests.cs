@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AdoRead.Commands;
+using AdoRead.Configuration;
 using AdoRead.Credentials;
 using AdoRead.Output;
 using AdoWrite.Commands;
@@ -157,6 +158,48 @@ public sealed class PendingWriteTests : IDisposable
     }
 
     [Fact]
+    public async Task Runner_PostsWithTheConfigurationItChecked_EvenWhenTheFileChangesRightAfter()
+    {
+        _window.ClaimsOnOpen = false;
+        await Run("work-item", "comment", "7", "--body", "Internal note");
+        ApprovalRequest request = _pending.Claim(_window.Opened.Single())!;
+        var second = new Uri("https://dev.azure.com/second/");
+        _vault.Write(CredentialAccount.For(second), "second-token");
+        var configuration = new SequencedConfigurationStore(Fabricated.Organization, second);
+
+        JsonElement posted = await new ApprovalRunner(configuration, _factory, _vault, new FakeTokenOwners(), TimeProvider.System)
+            .RunAsync(request, preview: false, CancellationToken.None);
+
+        Assert.Equal("success", posted.GetProperty("status").GetString());
+        Assert.Equal(Fabricated.Organization, _factory.OrganizationUrl);
+        Assert.Equal(Token, _factory.Pat);
+    }
+
+    [Fact]
+    public void Pinned_KeepsTheTargetBranchTheDryRunShowed()
+    {
+        ApprovalRequest request = new("20260101-000000-0123abcd", "pullRequestCreate", ["--title=Add x", "--source=feature/x"], Fabricated.Organization, DateTimeOffset.UnixEpoch);
+        JsonElement preview = JsonSerializer.SerializeToElement(new { status = "success", results = new[] { new { outcome = "preview", targetRefName = "refs/heads/main" } } });
+
+        Assert.Equal(["--title=Add x", "--source=feature/x", "--target=refs/heads/main"], request.Pinned(preview)!.Arguments);
+    }
+
+    [Fact]
+    public void Pinned_RequeuesOnlyTheBuildsTheDryRunShowed()
+    {
+        ApprovalRequest request = new("20260101-000000-0123abcd", "pullRequestRequeue", ["42"], Fabricated.Organization, DateTimeOffset.UnixEpoch);
+        JsonElement preview = JsonSerializer.SerializeToElement(new
+        {
+            status = "success",
+            results = new[] { new { outcome = "preview", evaluationId = "eval-a" }, new { outcome = "notExpired", evaluationId = "eval-b" } }
+        });
+        JsonElement nothing = JsonSerializer.SerializeToElement(new { status = "success", results = new[] { new { outcome = "notExpired", evaluationId = "eval-b" } } });
+
+        Assert.Equal(["42", "--evaluation=eval-a"], request.Pinned(preview)!.Arguments);
+        Assert.Null(request.Pinned(nothing));
+    }
+
+    [Fact]
     public async Task Claim_GivesTheWriteToOneWindowOnly()
     {
         _window.ClaimsOnOpen = false;
@@ -205,7 +248,7 @@ public sealed class PendingWriteTests : IDisposable
         await Run("pr", "comment", "42", "--body", "x");
         string id = _window.Opened.Single();
 
-        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => false).Open(id);
+        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => [() => false]).Open(id);
 
         Assert.False(opened);
         Assert.Empty(Directory.GetDirectories(_pending.Directory));
@@ -218,7 +261,7 @@ public sealed class PendingWriteTests : IDisposable
         await Run("pr", "comment", "42", "--body", "x");
         string id = _window.Opened.Single();
 
-        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromMilliseconds(300), _ => true).Open(id);
+        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromMilliseconds(300), _ => [() => true]).Open(id);
 
         Assert.False(opened);
         Assert.Null(_pending.Claim(id));
@@ -231,7 +274,7 @@ public sealed class PendingWriteTests : IDisposable
         await Run("pr", "comment", "42", "--body", "x");
         string id = _window.Opened.Single();
 
-        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => _pending.Claim(id) is not null).Open(id);
+        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => [() => _pending.Claim(id) is not null]).Open(id);
 
         Assert.True(opened);
         Assert.Single(Directory.GetDirectories(_pending.Directory));
@@ -245,10 +288,28 @@ public sealed class PendingWriteTests : IDisposable
         string id = _window.Opened.Single();
 
         // Like an osascript that timed out after Terminal had started the window.
-        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => _pending.Claim(id) is null).Open(id);
+        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => [() => _pending.Claim(id) is null]).Open(id);
 
         Assert.True(opened);
         Assert.Single(Directory.GetDirectories(_pending.Directory));
+    }
+
+    [Fact]
+    public async Task Window_TriesTheNextTerminalWhenOneStartsButNeverShowsTheWindow()
+    {
+        _window.ClaimsOnOpen = false;
+        await Run("pr", "comment", "42", "--body", "x");
+        string id = _window.Opened.Single();
+        int tried = 0;
+
+        bool opened = new ConsoleApprovalWindow(
+                _pending,
+                TimeSpan.FromMilliseconds(300),
+                _ => [() => ++tried > 0, () => ++tried > 0 && _pending.Claim(id) is not null])
+            .Open(id);
+
+        Assert.True(opened);
+        Assert.Equal(2, tried);
     }
 
     [Fact]
@@ -272,16 +333,30 @@ public sealed class PendingWriteTests : IDisposable
         Assert.Equal(off, MachineApprovalSetting.IsOff(value));
 
     [Fact]
-    public void MachineSetting_TheUnixFileCountsOnlyWhenTheUserCannotChangeIt()
+    public void MachineSetting_TheUnixFileCountsOnlyWhenOnlyAnAdministratorCanChangeItAndItsFolder()
     {
         Directory.CreateDirectory(_root);
         string file = Path.Combine(_root, "approval");
         File.WriteAllText(file, "off");
 
-        Assert.Equal("off", MachineApprovalSetting.ReadUnixFile(file, _ => false));
-        Assert.Null(MachineApprovalSetting.ReadUnixFile(file, path => path == file));
-        Assert.Null(MachineApprovalSetting.ReadUnixFile(file, path => path == _root));
-        Assert.Null(MachineApprovalSetting.ReadUnixFile(Path.Combine(_root, "missing"), _ => false));
+        Assert.Equal("off", MachineApprovalSetting.ReadUnixFile(file, _ => true));
+        Assert.Null(MachineApprovalSetting.ReadUnixFile(file, path => path != file));
+        Assert.Null(MachineApprovalSetting.ReadUnixFile(file, path => path != _root));
+        Assert.Null(MachineApprovalSetting.ReadUnixFile(Path.Combine(_root, "missing"), _ => true));
+    }
+
+    [Fact]
+    public void MachineSetting_OnMacOSAndLinux_TrustsRootsFoldersOnlyAndNeverTheUsersOwn()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Root itself may write /etc, so for root it doesn't count either.
+        Assert.Equal(Environment.UserName != "root", MachineApprovalSetting.OnlyAnAdministratorCanChange("/etc"));
+        Directory.CreateDirectory(_root);
+        Assert.False(MachineApprovalSetting.OnlyAnAdministratorCanChange(_root));
     }
 
     private ApprovalRunner Runner() => new(new FixedConfigurationStore(), _factory, _vault, new FakeTokenOwners(), TimeProvider.System);
@@ -300,6 +375,23 @@ public sealed class PendingWriteTests : IDisposable
                 tokenOwners: new FakeTokenOwners())
             .CreateUmbrella("ado-write", [PullRequestWriteModule.Create(_factory, approval), WorkItemCommentModule.Create(_factory, approval)])
             .InvokeAsync([.. args, "--compact"], CancellationToken.None);
+    }
+
+    /// <summary>Each load returns the next organization, then stays on the last: a configuration file that changes between reads.</summary>
+    private sealed class SequencedConfigurationStore(params Uri[] organizations) : IConfigurationStore
+    {
+        private int _loads;
+
+        public string DefaultPath => "memory://config";
+
+        public Task<AdoReadConfiguration> LoadAsync(string? overridePath, CancellationToken cancellationToken) =>
+            Task.FromResult(AdoReadConfiguration.Create(
+                organizations[Math.Min(_loads++, organizations.Length - 1)],
+                AdoReadConfiguration.DefaultRequestTimeoutSeconds,
+                AdoReadConfiguration.DefaultMaxParallelProjects));
+
+        public Task SaveAsync(string? overridePath, AdoReadConfiguration configuration, bool overwrite, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>A window that opens at once and, unless told otherwise, claims the write as a real one would.</summary>

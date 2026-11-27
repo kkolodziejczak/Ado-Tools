@@ -65,10 +65,17 @@ public sealed class ApprovalPrompt(PendingWrites pending, ApprovalRunner runner,
                 continue;
             }
 
-            JsonElement result = await RunAsync(request, preview: false, cancellationToken);
+            if (request.Pinned(read) is not { } approved)
+            {
+                Show(ApprovalScreen.Render(request, PromptStage.Posted, read, "nothing to send, so nothing was sent"));
+                ReadFreshKey();
+                return;
+            }
+
+            JsonElement result = await RunAsync(approved, preview: false, cancellationToken);
             Show(ApprovalPreview.Error(result) is { } error
                 ? ApprovalScreen.Render(request, PromptStage.NotPosted, read, error)
-                : ApprovalScreen.Render(request, PromptStage.Posted, read, ApprovalPreview.PostedUrl(result)));
+                : ApprovalScreen.Render(request, PromptStage.Posted, read, ApprovalPreview.Done(result)));
             ReadFreshKey();
             return;
         }

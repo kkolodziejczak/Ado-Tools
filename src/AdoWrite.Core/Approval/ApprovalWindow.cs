@@ -18,21 +18,45 @@ public interface IApprovalWindow
 /// was not saved. Where no window can open, for example over SSH or on Linux without a desktop, the
 /// write is withdrawn.
 /// </summary>
-/// <param name="startWindow">Starts a window for the write with this ID and says whether it started; by default this system's terminal.</param>
-public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claimTimeout = null, Func<string, bool>? startWindow = null) : IApprovalWindow
+/// <param name="launchers">
+/// The ways to start a window for the write with this ID, tried in order; each says whether its
+/// program started. By default this system's terminals.
+/// </param>
+public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claimTimeout = null, Func<string, IReadOnlyList<Func<bool>>>? launchers = null) : IApprovalWindow
 {
     /// <summary>A cold start of Terminal on macOS can take several seconds.</summary>
     private static readonly TimeSpan DefaultClaimTimeout = TimeSpan.FromSeconds(20);
 
+    /// <summary>How long a terminal that is not the last one to try gets before the next is tried.</summary>
+    private static readonly TimeSpan FallbackClaimTimeout = TimeSpan.FromSeconds(6);
+
     private static readonly TimeSpan ClaimPollInterval = TimeSpan.FromMilliseconds(100);
 
-    private readonly Func<string, bool> _startWindow = startWindow ?? StartTerminal;
+    private readonly Func<string, IReadOnlyList<Func<bool>>> _launchers = launchers ?? Terminals;
 
     public bool Open(string id)
     {
-        bool started = _startWindow(id);
-        DateTime deadline = DateTime.UtcNow + (claimTimeout ?? DefaultClaimTimeout);
-        while (started && DateTime.UtcNow < deadline)
+        TimeSpan timeout = claimTimeout ?? DefaultClaimTimeout;
+        IReadOnlyList<Func<bool>> ways = _launchers(id);
+        for (int index = 0; index < ways.Count; index++)
+        {
+            // A terminal that starts but never shows the window, for example one that exits at once, gives way to the next.
+            TimeSpan wait = index == ways.Count - 1 || timeout < FallbackClaimTimeout ? timeout : FallbackClaimTimeout;
+            if (ways[index]() && WaitForClaim(id, wait))
+            {
+                return true;
+            }
+        }
+
+        // A window can claim it even when its launcher reported a failure, for example an osascript
+        // that timed out after Terminal had started; then the write stays with that window.
+        return !pending.Withdraw(id);
+    }
+
+    private bool WaitForClaim(string id, TimeSpan wait)
+    {
+        DateTime deadline = DateTime.UtcNow + wait;
+        while (DateTime.UtcNow < deadline)
         {
             if (pending.IsClaimed(id))
             {
@@ -42,14 +66,14 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
             Thread.Sleep(ClaimPollInterval);
         }
 
-        // A window can claim it even when its launcher reported a failure, for example an osascript
-        // that timed out after Terminal had started; then the write stays with that window.
-        return !pending.Withdraw(id);
+        return pending.IsClaimed(id);
     }
 
-    /// <summary>Tries this system's ways of opening a terminal that runs the window, until one starts.</summary>
-    private static bool StartTerminal(string id) =>
-        Tool(id) is { } tool && ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Any(TryStart);
+    /// <summary>This system's ways of opening a terminal that runs the window.</summary>
+    private static IReadOnlyList<Func<bool>> Terminals(string id) =>
+        Tool(id) is { } tool
+            ? [.. ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Select(launch => (Func<bool>)(() => TryStart(launch)))]
+            : [];
 
     /// <summary>This tool's own program, with <c>approval open &lt;id&gt;</c>; null when its path is unknown.</summary>
     private static string[]? Tool(string id)

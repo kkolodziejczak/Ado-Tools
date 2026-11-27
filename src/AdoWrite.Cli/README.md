@@ -55,7 +55,7 @@ setx /M ADO_WRITE_APPROVAL off     # Windows, in an elevated prompt
 sudo mkdir -p /etc/ado-tools && echo off | sudo tee /etc/ado-tools/approval     # Linux and macOS
 ```
 
-Only the machine-level value counts. Setting the variable for one shell or one user does nothing, and the file counts only while the user can't write it or its folder, so an agent can't turn approval off. Any value other than `off` (or removing it) turns approval back on. [Details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)
+Only the machine-level value counts. Setting the variable for one shell or one user does nothing, and the file counts only while root owns it and its folder and the user can't write them, so an agent can't turn approval off. Any value other than `off` (or removing it) turns approval back on. [Details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)
 
 To read pull requests and work items, and the answers to a comment, install [`ado-read`](https://www.nuget.org/packages/ado-read).
 

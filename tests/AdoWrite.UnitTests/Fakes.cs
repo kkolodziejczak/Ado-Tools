@@ -513,12 +513,15 @@ internal sealed class FakeWriteSessionFactory(FakeWriteSession session) : IAdoWr
 {
     public string? Pat { get; private set; }
 
+    public Uri? OrganizationUrl { get; private set; }
+
     /// <summary>Thrown by <see cref="Create"/>, as the SDK does when it connects with a token Azure DevOps refuses.</summary>
     public Exception? CreateFailure { get; set; }
 
     public IAdoWriteSession Create(Uri organizationUrl, string pat)
     {
         Pat = pat;
+        OrganizationUrl = organizationUrl;
         return CreateFailure is null ? session : throw CreateFailure;
     }
 }

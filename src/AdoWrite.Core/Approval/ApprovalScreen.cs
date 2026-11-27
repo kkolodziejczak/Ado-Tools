@@ -51,12 +51,12 @@ public static class ApprovalScreen
     public const string CloseKey = "[any key] close";
 
     /// <param name="preview">The dry-run envelope; null while it loads.</param>
-    /// <param name="note">The error of a failed dry run or post, or the URL of a posted write.</param>
+    /// <param name="note">The error of a failed dry run or post, or what a posted write did.</param>
     public static IReadOnlyList<ScreenLine> Render(ApprovalRequest request, PromptStage stage, JsonElement? preview, string? note = null)
     {
         var lines = new List<ScreenLine>
         {
-            new(Describe(request)),
+            new(Describe(request, preview)),
             new($"Organization: {request.Organization}", ScreenTone.Dim),
             new($"Posted as: {(preview is { } envelope ? ApprovalPreview.ActingAs(envelope) : null) ?? "the owner of the token"}", ScreenTone.Dim),
             new($"Requested by: {request.Option("--agent") ?? "an agent that gave no --agent"} · {request.RequestedAtUtc.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)}", ScreenTone.Dim),
@@ -83,12 +83,12 @@ public static class ApprovalScreen
         lines.Add(new(string.Empty));
 
         // Repeated next to the keys, so a text longer than the window can't scroll it out of sight.
-        lines.Add(new($"{Describe(request)} · {request.Organization}", ScreenTone.Dim));
+        lines.Add(new($"{Describe(request, preview)} · {request.Organization}", ScreenTone.Dim));
         lines.AddRange(stage switch
         {
             PromptStage.Ready or PromptStage.Changed => [new ScreenLine(ReadyKeys)],
             PromptStage.Posting => [new ScreenLine("Checking it is unchanged, then posting…", ScreenTone.Dim)],
-            PromptStage.Posted => [new ScreenLine($"Posted: {note}", ScreenTone.Posted), new ScreenLine(CloseKey)],
+            PromptStage.Posted => [new ScreenLine($"Done: {note}", ScreenTone.Posted), new ScreenLine(CloseKey)],
             PromptStage.NotPosted =>
             [
                 new ScreenLine($"Not posted, or only partly: {note}", ScreenTone.Failed),
@@ -105,10 +105,13 @@ public static class ApprovalScreen
     public static IReadOnlyList<ScreenLine> Message(string message) =>
         [new(Printable(message), ScreenTone.Failed), new(string.Empty), new(CloseKey)];
 
-    /// <summary>One line naming the target and what the write does, from the arguments alone.</summary>
-    public static string Describe(ApprovalRequest request)
+    /// <summary>
+    /// One line naming the target and what the write does. The target is the ID the dry run resolved,
+    /// the same one the write goes to; before the dry run, the ID or URL as given.
+    /// </summary>
+    public static string Describe(ApprovalRequest request, JsonElement? preview = null)
     {
-        string target = ShortTarget(request.Target);
+        string target = (preview is { } envelope ? ResolvedId(envelope) : null) ?? request.Target ?? string.Empty;
         return request.Kind switch
         {
             CommentKinds.PullRequestComment when request.Option("--file") is { } file =>
@@ -152,9 +155,13 @@ public static class ApprovalScreen
         return printable.ToString();
     }
 
-    /// <summary>A URL is shown by its last segment, the ID.</summary>
-    private static string ShortTarget(string? target) =>
-        target is not null && Uri.TryCreate(target, UriKind.Absolute, out Uri? url)
-            ? url.Segments[^1].Trim('/')
-            : target ?? string.Empty;
+    /// <summary>The pull request or work item the dry run acts on.</summary>
+    private static string? ResolvedId(JsonElement envelope) =>
+        envelope.TryGetProperty("results", out JsonElement results) && results.ValueKind == JsonValueKind.Array
+            ? results.EnumerateArray()
+                .Select(result => (result.TryGetProperty("targetId", out JsonElement id) || result.TryGetProperty("pullRequestId", out id)) && id.ValueKind == JsonValueKind.Number
+                    ? id.GetRawText()
+                    : null)
+                .FirstOrDefault(id => id is not null)
+            : null;
 }

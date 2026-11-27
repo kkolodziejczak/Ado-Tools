@@ -23,16 +23,27 @@ public sealed class ApprovalRunner(
 {
     public async Task<JsonElement> RunAsync(ApprovalRequest request, bool preview, CancellationToken cancellationToken)
     {
-        if (await ConfiguredOrganizationAsync(request, cancellationToken) is { } organization && organization != request.Organization)
+        AdoReadConfiguration configuration;
+        try
+        {
+            configuration = await configurationStore.LoadAsync(request.Option("--config"), cancellationToken);
+        }
+        catch (ConfigurationException exception)
+        {
+            return Error(exception.Code, exception.Message);
+        }
+
+        if (configuration.OrganizationUrl != request.Organization)
         {
             return Error(
                 "organizationChanged",
-                $"The configuration now points to {organization}, but this write was requested for {request.Organization}. Nothing was posted.");
+                $"The configuration now points to {configuration.OrganizationUrl}, but this write was requested for {request.Organization}. Nothing was posted.");
         }
 
         using var output = new StringWriter();
         CommandApplication application = new ToolComposition(
-                configurationStore,
+                // The command uses the configuration checked here, so a change on disk can't redirect it.
+                new CheckedConfiguration(configuration, configurationStore.DefaultPath),
                 new JsonOutput(output),
                 timeProvider ?? TimeProvider.System,
                 credentialVault: credentialVault,
@@ -50,19 +61,17 @@ public sealed class ApprovalRunner(
         return document.RootElement.Clone();
     }
 
-    /// <summary>The organization the write's configuration names now; null when it cannot be read, which the command itself reports.</summary>
-    private async Task<Uri?> ConfiguredOrganizationAsync(ApprovalRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return (await configurationStore.LoadAsync(request.Option("--config"), cancellationToken)).OrganizationUrl;
-        }
-        catch (ConfigurationException)
-        {
-            return null;
-        }
-    }
-
     internal static JsonElement Error(string code, string message) =>
         JsonSerializer.SerializeToElement(new { status = "error", errors = new[] { new { code, message } } });
+
+    /// <summary>One configuration, already loaded and checked against the write's organization.</summary>
+    private sealed class CheckedConfiguration(AdoReadConfiguration configuration, string defaultPath) : IConfigurationStore
+    {
+        public string DefaultPath => defaultPath;
+
+        public Task<AdoReadConfiguration> LoadAsync(string? overridePath, CancellationToken cancellationToken) => Task.FromResult(configuration);
+
+        public Task SaveAsync(string? overridePath, AdoReadConfiguration configuration, bool overwrite, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The approval window never changes the configuration.");
+    }
 }
