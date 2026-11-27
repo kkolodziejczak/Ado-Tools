@@ -1,5 +1,6 @@
 using System.CommandLine;
 using AdoRead.Commands;
+using AdoWrite.Approval;
 using AdoWrite.AzureDevOps;
 using AdoWrite.Comments;
 
@@ -8,12 +9,12 @@ namespace AdoWrite.Commands;
 /// <summary>Work-item discussion: <c>comment</c> adds one Markdown comment.</summary>
 public static class WorkItemCommentModule
 {
-    public static CommandModule Definition { get; } = Create(new AdoWriteSessionFactory());
+    public static CommandModule Definition { get; } = Create(new AdoWriteSessionFactory(), WriteApproval.ForThisMachine());
 
-    public static CommandModule Create(IAdoWriteSessionFactory sessionFactory) => new(
+    public static CommandModule Create(IAdoWriteSessionFactory sessionFactory, WriteApproval approval) => new(
         "work-item",
         "Comment in a work item's discussion.",
-        (target, names, services) => Configure(target, new WriteCommandContext(services, sessionFactory, names.Root.Invocation("auth login"))));
+        (target, names, services) => Configure(target, new WriteCommandContext(services, sessionFactory, approval, names)));
 
     private static IReadOnlyDictionary<Command, string> Configure(Command target, WriteCommandContext context)
     {

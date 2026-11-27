@@ -53,21 +53,21 @@ $toolContracts = @{
     }
     'ado-write' = @{
         Command = 'ado-write'
-        Commands = @('config', 'auth', 'pr', 'work-item')
+        Commands = @('config', 'auth', 'pr', 'work-item', 'approval')
         Foreign = @('privacy', 'show')
         InvalidTarget = @('pr', 'comment', '0', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'invalidPullRequestId'
     }
     'ado-write-pr' = @{
         Command = 'ado-write-pr'
-        Commands = @('config', 'auth', 'create', 'comment', 'reply', 'resolve', 'unresolve', 'requeue', 'vote')
+        Commands = @('config', 'auth', 'create', 'comment', 'reply', 'resolve', 'unresolve', 'requeue', 'vote', 'approval')
         Foreign = @('work-item', 'comment', '1')
         InvalidTarget = @('reply', '42', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'threadRequired'
     }
     'ado-write-work-item' = @{
         Command = 'ado-write-work-item'
-        Commands = @('config', 'auth', 'comment')
+        Commands = @('config', 'auth', 'comment', 'approval')
         Foreign = @('reply', '1')
         InvalidTarget = @('comment', '0', '--body', 'Question', '--agent', 'Smoke Agent')
         InvalidTargetCode = 'invalidWorkItemId'
@@ -304,6 +304,8 @@ function Test-WriteSmoke
     Test-InstalledConfiguration
     Assert-JsonValidationError -Arguments ([string[]]$contract.Foreign + @('--compact')) -ExpectedCode 'invalidArguments'
     Assert-JsonValidationError -Arguments ([string[]]$contract.InvalidTarget + @('--config', $configPath, '--compact')) -ExpectedCode $contract.InvalidTargetCode
+    # Output captured here is redirected, as it is for an agent, so the approval window must refuse to open.
+    Assert-JsonValidationError -Arguments @('approval', 'open', '20260101-000000-0123abcd', '--compact') -ExpectedCode 'consoleRequired'
 }
 
 function Test-UmbrellaSmoke

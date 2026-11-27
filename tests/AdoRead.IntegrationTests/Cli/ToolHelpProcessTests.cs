@@ -12,9 +12,9 @@ public sealed class ToolHelpProcessTests
         { "AdoRead.Wiki.Cli", ["config", "auth", "privacy", "project", "team", "list", "page"] },
         { "AdoRead.Sprints.Cli", ["config", "auth", "privacy", "project", "team", "list", "show"] },
         { "AdoRead.Pipelines.Cli", ["config", "auth", "privacy", "project", "team", "run", "test"] },
-        { "AdoWrite.Cli", ["config", "auth", "pr", "work-item"] },
-        { "AdoWrite.PullRequests.Cli", ["config", "auth", "create", "comment", "reply", "resolve", "unresolve", "requeue", "vote"] },
-        { "AdoWrite.WorkItems.Cli", ["config", "auth", "comment"] },
+        { "AdoWrite.Cli", ["config", "auth", "pr", "work-item", "approval"] },
+        { "AdoWrite.PullRequests.Cli", ["config", "auth", "create", "comment", "reply", "resolve", "unresolve", "requeue", "vote", "approval"] },
+        { "AdoWrite.WorkItems.Cli", ["config", "auth", "comment", "approval"] },
     };
 
     [Theory]

@@ -1,6 +1,7 @@
 using System.CommandLine;
 using AdoRead.Commands;
 using AdoRead.Commands.Shared;
+using AdoWrite.Approval;
 using AdoWrite.AzureDevOps;
 using AdoWrite.Comments;
 using AdoWrite.Reviews;
@@ -14,12 +15,12 @@ namespace AdoWrite.Commands;
 /// </summary>
 public static class PullRequestWriteModule
 {
-    public static CommandModule Definition { get; } = Create(new AdoWriteSessionFactory());
+    public static CommandModule Definition { get; } = Create(new AdoWriteSessionFactory(), WriteApproval.ForThisMachine());
 
-    public static CommandModule Create(IAdoWriteSessionFactory sessionFactory) => new(
+    public static CommandModule Create(IAdoWriteSessionFactory sessionFactory, WriteApproval approval) => new(
         "pr",
         "Comment on a pull request or on its lines, reply in one of its threads, requeue its builds, or vote on it.",
-        (target, names, services) => Configure(target, new WriteCommandContext(services, sessionFactory, names.Root.Invocation("auth login"))));
+        (target, names, services) => Configure(target, new WriteCommandContext(services, sessionFactory, approval, names)));
 
     private static IReadOnlyDictionary<Command, string> Configure(Command target, WriteCommandContext context)
     {
@@ -129,7 +130,9 @@ public static class PullRequestWriteModule
                     async (session, organizationUrl, requestToken) => new WriteOutcome<CreatedPullRequestDocument>(
                     [
                         await new PullRequestCreator(session.PullRequestCreation, session.People, organizationUrl).CreateAsync(request, requestToken)
-                    ]));
+                    ]),
+                    request.DryRun,
+                    description);
             },
             cancellationToken));
         return command;
@@ -180,7 +183,9 @@ public static class PullRequestWriteModule
                     new CommentQuery(pullRequest.Id, threadId),
                     (session, organizationUrl, requestToken) =>
                         new ThreadStatusChanger(session.PullRequests, session.People, organizationUrl)
-                            .ChangeAsync(pullRequest.Id, threadId, resolve, reply, dryRun, requestToken));
+                            .ChangeAsync(pullRequest.Id, threadId, resolve, reply, dryRun, requestToken),
+                    dryRun,
+                    reply?.Body);
             },
             cancellationToken));
         return command;
@@ -307,7 +312,8 @@ public static class PullRequestWriteModule
                         RequeueReport report = await new BuildRequeuer(session.PullRequests, session.Reviews)
                             .RequeueAsync(pullRequest.Id, selected, preview, token);
                         return new WriteOutcome<RequeuedBuildDocument>(report.Builds, report.Failure);
-                    }));
+                    },
+                    preview));
             },
             cancellationToken));
         return command;
@@ -327,19 +333,14 @@ public static class PullRequestWriteModule
         {
             Description = "Your vote: " + VoteNames + "."
         };
-        var confirm = new Option<bool>("--confirm")
-        {
-            Description = "Required to cast the vote: confirms that the person the token belongs to agreed to it."
-        };
         var dryRun = new Option<bool>("--dry-run")
         {
-            Description = "Show the current and the new vote without voting. Needs no --confirm."
+            Description = "Show the current and the new vote without voting."
         };
         Option<string?> config = ReadCommandContext.CreateConfigOption();
         var command = new Command("vote", "Vote on a pull request as the person the token belongs to.");
         command.Arguments.Add(reference);
         command.Options.Add(vote);
-        command.Options.Add(confirm);
         command.Options.Add(dryRun);
         command.Options.Add(config);
         command.SetAction((parseResult, cancellationToken) => context.RunAsync(
@@ -352,13 +353,6 @@ public static class PullRequestWriteModule
                 PullRequestVote chosen = PullRequestVote.Parse(parseResult.GetValue(vote))
                     ?? throw WriteException.Rejected("invalidVote", "--vote must be one of " + VoteNames + ".");
                 bool preview = parseResult.GetValue(dryRun);
-                if (!preview && !parseResult.GetValue(confirm))
-                {
-                    throw WriteException.Rejected(
-                        "confirmationRequired",
-                        "A vote needs --confirm, given only after the person the token belongs to agreed to it. Use --dry-run to check it first.");
-                }
-
                 return Task.FromResult(new WriteTarget<CastVoteDocument>(
                     pullRequest,
                     new VoteQuery(pullRequest.Id, chosen.Name),
@@ -367,7 +361,8 @@ public static class PullRequestWriteModule
                         [
                             await new PullRequestVoter(session.PullRequests, session.Reviews, session.People, organizationUrl)
                                 .VoteAsync(pullRequest.Id, chosen, preview, token)
-                        ])));
+                        ]),
+                    preview));
             },
             cancellationToken));
         return command;

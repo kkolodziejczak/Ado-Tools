@@ -12,7 +12,8 @@ namespace AdoRead.Commands;
 
 /// <summary>
 /// Composes shared commands and feature modules into one command tree. The umbrella mounts each
-/// module under its group name; a slice mounts its single module directly on the executable.
+/// module under its group name; a slice mounts its single module directly on the executable, and its
+/// shared modules, such as the write tools' <c>approval</c>, under their group names.
 /// A write tool shares only <c>config</c> and <c>auth</c>, and the token, with the read tools: it returns no
 /// comment, work-item or other Azure DevOps text, so it has no privacy policy or discovery commands.
 /// </summary>
@@ -41,17 +42,11 @@ public sealed class ToolComposition(
         CommandServices services = CreateServices(compactOption, executable);
         var sharedNames = new ToolCommandNames(executable, null);
         Dictionary<Command, string> kinds = ConfigureShared(rootCommand, sharedNames, services);
-        foreach (CommandModule module in modules)
-        {
-            var group = new Command(module.Name, module.Description);
-            rootCommand.Subcommands.Add(group);
-            Include(kinds, module.Configure(group, new ToolCommandNames(executable, module.Name), services));
-        }
-
+        MountGroups(rootCommand, executable, modules, services, kinds);
         return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider, sharedNames.Invocation("auth login"));
     }
 
-    public CommandApplication CreateSlice(string executable, CommandModule module)
+    public CommandApplication CreateSlice(string executable, CommandModule module, IReadOnlyList<CommandModule>? sharedModules = null)
     {
         RootCommand rootCommand = NewRootCommand(module.Description);
         Option<bool> compactOption = AddCompactOption(rootCommand);
@@ -59,8 +54,23 @@ public sealed class ToolComposition(
         var names = new ToolCommandNames(executable, null);
         Dictionary<Command, string> kinds = ConfigureShared(rootCommand, names, services);
         Include(kinds, module.Configure(rootCommand, names, services));
-
+        MountGroups(rootCommand, executable, sharedModules ?? [], services, kinds);
         return new CommandApplication(rootCommand, compactOption, kinds, jsonOutput, timeProvider, names.Invocation("auth login"));
+    }
+
+    private static void MountGroups(
+        RootCommand rootCommand,
+        string executable,
+        IReadOnlyList<CommandModule> modules,
+        CommandServices services,
+        Dictionary<Command, string> kinds)
+    {
+        foreach (CommandModule module in modules)
+        {
+            var group = new Command(module.Name, module.Description);
+            rootCommand.Subcommands.Add(group);
+            Include(kinds, module.Configure(group, new ToolCommandNames(executable, module.Name), services));
+        }
     }
 
     // Every description is English, so System.CommandLine's own texts must be too, whatever the
