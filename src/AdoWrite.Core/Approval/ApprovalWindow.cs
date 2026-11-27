@@ -142,28 +142,28 @@ public static class ApprovalWindowPlan
         IReadOnlyList<string> tool,
         Func<string, bool> isOnPath,
         Func<string, string?> environment) => platform switch
-    {
-        // Shell execution gives a console program a new console window of its own.
-        ApprovalPlatform.Windows => [new WindowLaunch(tool[0], [.. tool.Skip(1)], ShellExecute: true)],
-        ApprovalPlatform.MacOS =>
-        [
-            new WindowLaunch(
+        {
+            // Shell execution gives a console program a new console window of its own.
+            ApprovalPlatform.Windows => [new WindowLaunch(tool[0], [.. tool.Skip(1)], ShellExecute: true)],
+            ApprovalPlatform.MacOS =>
+            [
+                new WindowLaunch(
                 "osascript",
                 ["-e", $"tell application \"Terminal\" to do script \"{AppleScriptText(ShellCommand(tool))}\"", "-e", "tell application \"Terminal\" to activate"],
                 WaitsForLauncher: true)
-        ],
-        // Without a desktop session no window can open. setsid keeps the window alive when the agent's
-        // command, and the process group it ran in, ends.
-        ApprovalPlatform.Linux when environment("DISPLAY") is { Length: > 0 } || environment("WAYLAND_DISPLAY") is { Length: > 0 } =>
-        [
-            .. LinuxTerminals
+            ],
+            // Without a desktop session no window can open. setsid keeps the window alive when the agent's
+            // command, and the process group it ran in, ends.
+            ApprovalPlatform.Linux when environment("DISPLAY") is { Length: > 0 } || environment("WAYLAND_DISPLAY") is { Length: > 0 } =>
+            [
+                .. LinuxTerminals
                 .Where(terminal => isOnPath(terminal.Program))
                 .Select(terminal => isOnPath("setsid")
                     ? new WindowLaunch("setsid", [terminal.Program, terminal.RunOption, .. tool])
                     : new WindowLaunch(terminal.Program, [terminal.RunOption, .. tool]))
-        ],
-        _ => []
-    };
+            ],
+            _ => []
+        };
 
     public static ApprovalPlatform Current =>
         OperatingSystem.IsWindows() ? ApprovalPlatform.Windows
