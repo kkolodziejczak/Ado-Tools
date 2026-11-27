@@ -42,7 +42,7 @@ jobs:
           path: artifacts/packages/*.${{ inputs.version }}.nupkg
           if-no-files-found: error
 
-  # The write tools' approval window opens and locks per system, so their tests also run on Linux and macOS.
+  # The write tools open their approval window and protect pending writes per system, so their tests also run on Linux and macOS.
   write-tests:
     strategy:
       fail-fast: false

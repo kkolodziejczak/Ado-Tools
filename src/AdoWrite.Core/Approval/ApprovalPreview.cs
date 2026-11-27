@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace AdoWrite.Approval;
@@ -8,20 +9,23 @@ namespace AdoWrite.Approval;
 /// </summary>
 public static class ApprovalPreview
 {
-    /// <summary>The text, vote, status or builds the write sends, or the error that stops it.</summary>
+    /// <summary>Everything the write sends: title, repository, reviewers, lines, mentions, attachments, vote, status, builds and text.</summary>
     public static IReadOnlyList<string> Lines(JsonElement envelope)
     {
-        if (Error(envelope) is { } error)
-        {
-            return [error];
-        }
-
         var lines = new List<string>();
-        foreach (JsonElement result in envelope.GetProperty("results").EnumerateArray())
+        foreach (JsonElement result in Results(envelope))
         {
             if (String(result, "title") is { } title)
             {
-                lines.Add($"Title: {title} ({String(result, "sourceRefName")} → {String(result, "targetRefName")})");
+                lines.Add($"Title: {title}");
+                lines.Add($"Repository: {String(result, "project")}/{String(result, "repository")}  {Branch(String(result, "sourceRefName"))} → {Branch(String(result, "targetRefName"))}");
+                if (Bool(result, "isDraft"))
+                {
+                    lines.Add("Draft: yes");
+                }
+
+                AddList(lines, "Reviewers", result, "reviewers", reviewer => String(reviewer, "input"));
+                AddList(lines, "Work items", result, "workItems", item => item.ValueKind == JsonValueKind.Number ? item.GetInt32().ToString(CultureInfo.InvariantCulture) : null);
             }
 
             if (String(result, "previousVote") is { } previousVote)
@@ -36,24 +40,36 @@ public static class ApprovalPreview
 
             if (String(result, "evaluationId") is not null)
             {
-                lines.Add($"{String(result, "name")}: {String(result, "outcome")}");
+                lines.Add($"Build {String(result, "name")}: {String(result, "outcome")}");
             }
 
-            string? text = String(result, "text")
-                ?? String(result, "description")
-                ?? (result.TryGetProperty("comment", out JsonElement comment) && comment.ValueKind == JsonValueKind.Object ? String(comment, "text") : null);
-            if (text is not null)
+            JsonElement comment = result.TryGetProperty("comment", out JsonElement nested) && nested.ValueKind == JsonValueKind.Object ? nested : result;
+            AddComment(lines, comment);
+            if (String(result, "description") is { } description)
             {
-                lines.AddRange(text.ReplaceLineEndings("\n").Split('\n').Where(line => !line.StartsWith("<!-- ado-write:", StringComparison.Ordinal)));
+                lines.Add(string.Empty);
+                lines.AddRange(TextLines(description));
             }
         }
 
         return lines.Count > 0 ? lines : ["(no change)"];
     }
 
-    /// <summary>The URL of what a real run posted, or null with <see cref="Error"/> saying why.</summary>
+    /// <summary>Who the write is posted as: the token owner the dry run names.</summary>
+    public static string? ActingAs(JsonElement envelope) =>
+        Results(envelope)
+            .Select(result => String(result, "actingAs")
+                ?? (result.TryGetProperty("comment", out JsonElement comment) && comment.ValueKind == JsonValueKind.Object ? String(comment, "actingAs") : null))
+            .FirstOrDefault(name => name is not null);
+
+    /// <summary>Whether two dry runs describe the same write, so the post sends what the person read.</summary>
+    public static bool SameWrite(JsonElement read, JsonElement now) =>
+        Error(read) is null && Error(now) is null
+        && read.GetProperty("results").GetRawText() == now.GetProperty("results").GetRawText();
+
+    /// <summary>The URL of what a real run posted, or its outcome when it has none.</summary>
     public static string? PostedUrl(JsonElement envelope) =>
-        Error(envelope) is null && envelope.GetProperty("results").EnumerateArray().FirstOrDefault() is { ValueKind: JsonValueKind.Object } result
+        Results(envelope).FirstOrDefault() is { ValueKind: JsonValueKind.Object } result
             ? String(result, "url") ?? String(result, "outcome")
             : null;
 
@@ -65,11 +81,59 @@ public static class ApprovalPreview
             return null;
         }
 
-        return envelope.TryGetProperty("errors", out JsonElement errors) && errors.GetArrayLength() > 0
+        return envelope.TryGetProperty("errors", out JsonElement errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0
             ? $"{String(errors[0], "code")}: {String(errors[0], "message")}"
             : $"The write ended with status {String(envelope, "status")}.";
     }
 
+    private static void AddComment(List<string> lines, JsonElement comment)
+    {
+        if (comment.TryGetProperty("anchor", out JsonElement anchor) && anchor.ValueKind == JsonValueKind.Object)
+        {
+            lines.Add($"On: {String(anchor, "filePath")} lines {Int(anchor, "startLine")}–{Int(anchor, "endLine")} ({String(anchor, "side")} side)");
+        }
+
+        AddList(lines, "Mentions", comment, "mentions", mention => String(mention, "input"));
+        if (comment.TryGetProperty("attachments", out JsonElement attachments) && attachments.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement attachment in attachments.EnumerateArray())
+            {
+                string sha = String(attachment, "sha256") ?? string.Empty;
+                lines.Add($"Attachment: {String(attachment, "name")} ({Int(attachment, "length")} bytes, sha256 {sha[..Math.Min(12, sha.Length)]})");
+            }
+        }
+
+        if (String(comment, "text") is { } text)
+        {
+            lines.Add(string.Empty);
+            lines.AddRange(TextLines(text));
+        }
+    }
+
+    private static IEnumerable<string> TextLines(string text) =>
+        text.ReplaceLineEndings("\n").Split('\n').Where(line => !line.StartsWith("<!-- ado-write:", StringComparison.Ordinal));
+
+    private static void AddList(List<string> lines, string label, JsonElement element, string name, Func<JsonElement, string?> item)
+    {
+        if (element.TryGetProperty(name, out JsonElement values) && values.ValueKind == JsonValueKind.Array && values.GetArrayLength() > 0)
+        {
+            lines.Add($"{label}: {string.Join(", ", values.EnumerateArray().Select(item))}");
+        }
+    }
+
+    private static IEnumerable<JsonElement> Results(JsonElement envelope) =>
+        envelope.TryGetProperty("results", out JsonElement results) && results.ValueKind == JsonValueKind.Array
+            ? results.EnumerateArray()
+            : [];
+
+    private static string? Branch(string? refName) => refName?.StartsWith("refs/heads/", StringComparison.Ordinal) == true ? refName["refs/heads/".Length..] : refName;
+
     private static string? String(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static string? Int(JsonElement element, string name) =>
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number ? value.GetRawText() : null;
+
+    private static bool Bool(JsonElement element, string name) =>
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.True;
 }

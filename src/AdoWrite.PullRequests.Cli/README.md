@@ -32,7 +32,7 @@ Every Ado-Tools read and write tool uses the same token from your operating syst
 | `unresolve <id-or-url> --thread <id> [--body <markdown>]` | Makes a resolved thread active again, after an optional reply |
 | `requeue <id-or-url> [--evaluation <id>]...` | Requeues expired build policies, or the ones you name |
 | `vote <id-or-url> --vote <vote>` | Sets your vote: `approve`, `approve-with-suggestions`, `none`, `wait-for-author` or `reject` |
-| `approval open` | Opens the approval window, where you post or reject what agents queued |
+| `approval open <id>` | The approval window of one write; each write opens its own, so you don't type it |
 | `config`, `auth` | Settings and the stored token |
 
 Every write command accepts `--dry-run`, which shows what would happen without changing anything. Comments also take `--mention`, `--attach` and `--key`.
@@ -48,7 +48,7 @@ ado-write-pr vote 412 --vote approve --compact
 
 ## Approving writes
 
-Every write waits in the approval window until you press `y` to post it or `n` to reject it. `↑`/`↓` pick a write and `a` posts all that remain. The first write opens the window: a console on Windows, Terminal on macOS, and on Linux a desktop terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`). Where none can open, for example over SSH, run `ado-write-pr approval open` in a terminal. `--dry-run` never waits. The agent can't approve: the window refuses input that isn't typed at its console.
+Every write opens a window of its own that shows its dry run: press Enter to post it, any other key to cancel. The window is a console on Windows, Terminal on macOS, and on Linux a desktop terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`). Where none can open, for example over SSH, the write is refused with `approvalWindowUnavailable`. `--dry-run` never waits. An agent that just runs commands can't approve: the window refuses input that isn't typed at its console.
 
 To turn approval off for everyone on the machine, an administrator sets `ADO_WRITE_APPROVAL` to `off` at machine level:
 
@@ -60,7 +60,7 @@ setx /M ADO_WRITE_APPROVAL off     # Windows, in an elevated prompt
 sudo mkdir -p /etc/ado-tools && echo off | sudo tee /etc/ado-tools/approval     # Linux and macOS
 ```
 
-Only the machine-level value counts. Setting the variable for one shell or one user does nothing, so an agent can't turn approval off. Any value other than `off` (or removing it) turns approval back on. [Details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)
+Only the machine-level value counts. Setting the variable for one shell or one user does nothing, and the file counts only while the user can't write it or its folder, so an agent can't turn approval off. Any value other than `off` (or removing it) turns approval back on. [Details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)
 
 ## Give it to your agent
 

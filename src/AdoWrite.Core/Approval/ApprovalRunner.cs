@@ -10,8 +10,9 @@ using AdoWrite.Commands;
 namespace AdoWrite.Approval;
 
 /// <summary>
-/// Runs a queued write in this process, through the same commands an agent calls, with approval
-/// granted: the approval window's only way to post. Returns the command's JSON envelope.
+/// Runs a pending write in this process, through the same commands an agent calls, with approval
+/// granted: the approval window's only way to post. Returns the command's JSON envelope. A write runs
+/// only against the organization it was saved for.
 /// </summary>
 public sealed class ApprovalRunner(
     IConfigurationStore configurationStore,
@@ -22,6 +23,13 @@ public sealed class ApprovalRunner(
 {
     public async Task<JsonElement> RunAsync(ApprovalRequest request, bool preview, CancellationToken cancellationToken)
     {
+        if (await ConfiguredOrganizationAsync(request, cancellationToken) is { } organization && organization != request.Organization)
+        {
+            return Error(
+                "organizationChanged",
+                $"The configuration now points to {organization}, but this write was requested for {request.Organization}. Nothing was posted.");
+        }
+
         using var output = new StringWriter();
         CommandApplication application = new ToolComposition(
                 configurationStore,
@@ -41,4 +49,20 @@ public sealed class ApprovalRunner(
         using JsonDocument document = JsonDocument.Parse(output.ToString());
         return document.RootElement.Clone();
     }
+
+    /// <summary>The organization the write's configuration names now; null when it cannot be read, which the command itself reports.</summary>
+    private async Task<Uri?> ConfiguredOrganizationAsync(ApprovalRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await configurationStore.LoadAsync(request.Option("--config"), cancellationToken)).OrganizationUrl;
+        }
+        catch (ConfigurationException)
+        {
+            return null;
+        }
+    }
+
+    internal static JsonElement Error(string code, string message) =>
+        JsonSerializer.SerializeToElement(new { status = "error", errors = new[] { new { code, message } } });
 }

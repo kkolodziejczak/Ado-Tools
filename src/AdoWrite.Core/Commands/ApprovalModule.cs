@@ -7,49 +7,41 @@ using AdoWrite.AzureDevOps;
 namespace AdoWrite.Commands;
 
 /// <summary>
-/// <c>approval open</c> opens the approval window, where the person the token belongs to posts or
-/// rejects the writes agents queued. It runs only in a console a person types into, so an agent that
-/// runs it with redirected input cannot approve anything.
+/// <c>approval open &lt;id&gt;</c> is the approval window of one write: the person the token belongs to
+/// reads its dry run and presses Enter to post it. A write opens its window by itself; the command is
+/// public so the window can run it. It runs only in a console a person types into, so an agent that runs
+/// it with redirected input cannot approve anything.
 /// </summary>
 public static class ApprovalModule
 {
     public const string OpenKind = "approvalOpen";
 
-    public static CommandModule Definition { get; } = Create(ApprovalOutbox.ForCurrentUser(), new SystemApprovalConsole(), new AdoWriteSessionFactory());
+    public static CommandModule Definition { get; } = Create(PendingWrites.ForCurrentUser(), new SystemApprovalConsole(), new AdoWriteSessionFactory());
 
-    public static CommandModule Create(ApprovalOutbox outbox, IApprovalConsole console, IAdoWriteSessionFactory sessionFactory) => new(
+    public static CommandModule Create(PendingWrites pending, IApprovalConsole console, IAdoWriteSessionFactory sessionFactory) => new(
         "approval",
-        "Post or reject the writes agents queued, in a window only you type into.",
+        "Approve a write an agent asked for, in a window only you type into.",
         (target, _, services) =>
         {
-            var open = new Command("open", "Open the approval window: see each queued write as it will be posted, then post or reject it.");
+            var id = new Argument<string>("id") { Description = "The approvalId the write returned." };
+            var open = new Command("open", "Open the approval window of one write: read its dry run, then press Enter to post it or any other key to cancel.") { id };
             open.SetAction(async (parseResult, cancellationToken) =>
             {
                 if (!console.IsInteractive)
                 {
-                    return await RefuseAsync(
-                        "consoleRequired",
-                        "The approval window needs a console a person types into; its input and output must not be redirected.");
-                }
-
-                using FileStream? window = ConsoleApprovalWindow.TryHold(outbox.Directory);
-                if (window is null)
-                {
-                    return await RefuseAsync("approvalWindowOpen", "An approval window is already open.");
-                }
-
-                var runner = new ApprovalRunner(services.ConfigurationStore, sessionFactory, services.CredentialVault, services.TokenOwners, services.TimeProvider);
-                await new ApprovalReview(outbox, runner, console, TimeZoneInfo.Local).RunAsync(cancellationToken);
-                return ExitCodes.Success;
-
-                async Task<int> RefuseAsync(string code, string message)
-                {
                     await services.JsonOutput.WriteAsync(
-                        SearchEnvelopeFactory.Error(OpenKind, [new SearchError("command", null, code, message, false)], services.TimeProvider.GetUtcNow()),
+                        SearchEnvelopeFactory.Error(
+                            OpenKind,
+                            [new SearchError("command", null, "consoleRequired", "The approval window needs a console a person types into; its input and output must not be redirected.", false)],
+                            services.TimeProvider.GetUtcNow()),
                         parseResult.GetValue(services.CompactOption),
                         cancellationToken);
                     return ExitCodes.InvalidInputOrConfiguration;
                 }
+
+                var runner = new ApprovalRunner(services.ConfigurationStore, sessionFactory, services.CredentialVault, services.TokenOwners, services.TimeProvider);
+                await new ApprovalPrompt(pending, runner, console).RunAsync(parseResult.GetRequiredValue(id), cancellationToken);
+                return ExitCodes.Success;
             });
             target.Subcommands.Add(open);
             return new Dictionary<Command, string> { [open] = OpenKind };

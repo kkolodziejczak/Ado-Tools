@@ -2,55 +2,66 @@ using System.Diagnostics;
 
 namespace AdoWrite.Approval;
 
-public enum ApprovalWindowState
-{
-    Opened,
-    AlreadyOpen,
-    NotOpened
-}
-
-/// <summary>The window where the person approves queued writes.</summary>
+/// <summary>The window where the person approves one pending write.</summary>
 public interface IApprovalWindow
 {
-    /// <summary>Opens the window unless one is open already.</summary>
-    ApprovalWindowState EnsureOpen();
+    /// <summary>
+    /// Opens a window for the write <paramref name="id"/> and waits until it has taken the write. False
+    /// when no window took it in time: then the write is withdrawn and nothing can post it.
+    /// </summary>
+    bool Open(string id);
 }
 
 /// <summary>
-/// Opens <c>approval open</c> of the running tool in a terminal window of its own. An open window
-/// holds <c>window.lock</c> in the outbox, so a second one is not started. When no window can be
-/// opened, for example on a Linux machine without a desktop, the person starts the command themselves.
+/// Runs <c>approval open &lt;id&gt;</c> of the running tool in a terminal window of its own and waits
+/// for that window to claim the write, so the agent is told the truth: a window is open, or the write
+/// was not saved. Where no window can open, for example over SSH or on Linux without a desktop, the
+/// write is withdrawn.
 /// </summary>
-public sealed class ConsoleApprovalWindow(string outboxDirectory) : IApprovalWindow
+public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claimTimeout = null, Func<WindowLaunch, bool>? start = null) : IApprovalWindow
 {
-    public ApprovalWindowState EnsureOpen()
+    /// <summary>A cold start of Terminal on macOS can take several seconds.</summary>
+    private static readonly TimeSpan DefaultClaimTimeout = TimeSpan.FromSeconds(20);
+
+    private static readonly TimeSpan ClaimPollInterval = TimeSpan.FromMilliseconds(100);
+
+    private readonly Func<WindowLaunch, bool> _start = start ?? TryStart;
+
+    public bool Open(string id)
     {
-        using (FileStream? probe = TryHold(outboxDirectory))
+        if (Tool(id) is not { } tool || !ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Any(_start))
         {
-            if (probe is null)
-            {
-                return ApprovalWindowState.AlreadyOpen;
-            }
+            pending.Withdraw(id);
+            return false;
         }
 
+        DateTime deadline = DateTime.UtcNow + (claimTimeout ?? DefaultClaimTimeout);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (pending.IsClaimed(id))
+            {
+                return true;
+            }
+
+            Thread.Sleep(ClaimPollInterval);
+        }
+
+        // A window that claims it at this very moment wins, and the write stays with it.
+        return !pending.Withdraw(id);
+    }
+
+    /// <summary>This tool's own program, with <c>approval open &lt;id&gt;</c>; null when its path is unknown.</summary>
+    private static string[]? Tool(string id)
+    {
         if (Environment.ProcessPath is not { } executable)
         {
-            return ApprovalWindowState.NotOpened;
+            return null;
         }
 
         // A tool run through the dotnet host (dotnet ado-write.dll) names its assembly first.
-        string[] tool = Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
-            ? [executable, Environment.GetCommandLineArgs()[0], "approval", "open"]
-            : [executable, "approval", "open"];
-        foreach (WindowLaunch launch in ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable))
-        {
-            if (TryStart(launch))
-            {
-                return ApprovalWindowState.Opened;
-            }
-        }
-
-        return ApprovalWindowState.NotOpened;
+        return Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
+            ? [executable, Environment.GetCommandLineArgs()[0], "approval", "open", id]
+            : [executable, "approval", "open", id];
     }
 
     private static bool TryStart(WindowLaunch launch)
@@ -77,8 +88,20 @@ public sealed class ConsoleApprovalWindow(string outboxDirectory) : IApprovalWin
                 return false;
             }
 
+            if (!launch.WaitsForLauncher)
+            {
+                return true;
+            }
+
             // A launcher that hands the window to another program says by its exit code whether it could.
-            return !launch.WaitsForLauncher || (process.WaitForExit(TimeSpan.FromSeconds(10)) && process.ExitCode == 0);
+            if (process.WaitForExit(TimeSpan.FromSeconds(10)))
+            {
+                return process.ExitCode == 0;
+            }
+
+            // Stopped, so it cannot open a window after the agent was told none opened.
+            process.Kill(entireProcessTree: true);
+            return false;
         }
         catch (System.ComponentModel.Win32Exception)
         {
@@ -90,20 +113,6 @@ public sealed class ConsoleApprovalWindow(string outboxDirectory) : IApprovalWin
         (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Any(directory => File.Exists(Path.Combine(directory, program)));
-
-    /// <summary>The lock an open window holds; null when another process holds it.</summary>
-    public static FileStream? TryHold(string outboxDirectory)
-    {
-        Directory.CreateDirectory(outboxDirectory);
-        try
-        {
-            return new FileStream(Path.Combine(outboxDirectory, "window.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-    }
 }
 
 public enum ApprovalPlatform
@@ -136,7 +145,7 @@ public static class ApprovalWindowPlan
         ("xterm", "-e"),
     ];
 
-    /// <param name="tool">The tool's program and its arguments, ending with <c>approval open</c>.</param>
+    /// <param name="tool">The tool's program and its arguments, ending with <c>approval open &lt;id&gt;</c>.</param>
     public static IReadOnlyList<WindowLaunch> For(
         ApprovalPlatform platform,
         IReadOnlyList<string> tool,

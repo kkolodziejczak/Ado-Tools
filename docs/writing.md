@@ -2,31 +2,33 @@
 
 ## Approving writes
 
-Every write waits for your approval. An agent's `ado-write` command doesn't post: it saves the write to an outbox and returns at once. The approval window posts it after you press `y`; the agent can't approve it itself.
+Every write waits for your approval. An agent's `ado-write` command doesn't post: it opens a window of its own for that one write and returns. You read it there and press Enter to post it; any other key cancels it.
 
 ```mermaid
 flowchart TD
-    A["Agent: ado-write pr reply ..."] --> B["Saved to the outbox<br/>outcome: pendingApproval"]
-    B --> C["Agent carries on"]
-    A --> D{"Approval window open?"}
-    D -->|"no"| E["The command opens it"]
-    D -->|"yes"| F["The write joins it"]
-    E --> G["You: y post, n reject"]
-    F --> G
-    G --> H["The window posts it with your token"]
+    A["Agent: ado-write pr reply ..."] --> B["A new window opens<br/>with this write"]
+    B --> C["Agent gets pendingApproval<br/>and carries on"]
+    B --> D["The window shows the dry run"]
+    D --> E{"You"}
+    E -->|"Enter"| F["Dry run again: unchanged?"]
+    F -->|"yes"| G["Posted with your token"]
+    F -->|"no"| D
+    E -->|"any other key"| H["Cancelled, nothing posted"]
 ```
 
 ```text
-ado-write approval open [--compact]
+ado-write approval open <id>
 ```
 
-- **The window.** It lists every queued write and shows the selected one as it will be posted, from a dry run: the comment text with its footer, the vote, the thread status or the builds. `↑`/`↓` pick a write, `y` posts it, `n` rejects it, `a` posts all that remain and `q` closes the window. Writes queued while it is open appear in it. Posted and rejected writes leave the outbox; a write that failed stays, with the reason, so you can post it again or reject it. The first queued write opens the window: in a console of its own on Windows, in Terminal on macOS, and on a Linux desktop in the first terminal found of `x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` and `xterm`. When none can open, for example over SSH or without a desktop, the result has `window: "notOpened"`; run `ado-write approval open` (or `ado-write-pr approval open`, `ado-write-work-item approval open`) in a terminal.
-- **Only you approve.** The window reads keys only from a console a person types into: when its input or output is redirected, as it is for an agent, it refuses with `consoleRequired`. A second window refuses with `approvalWindowOpen`.
-- **What is posted is what was queued.** The outbox (`~/.ado-read/outbox`) keeps the command's arguments with the text of `--body` or `--body-file` and copies of the `--attach` files, so changing those files after the command doesn't change the post.
+- **The window.** Each write opens its own: a console on Windows, Terminal on macOS, and on a Linux desktop the first terminal found of `x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` and `xterm`. It shows the organization, who it posts as, the agent that asked (`--agent`), and the write as a dry run sees it: the comment text with its footer, the lines it is attached to, mentions and attachments, the vote, the thread status, the builds, or the new pull request's repository, branches, reviewers, work items and draft flag. Text the agent chose is shown with control and direction characters as codes such as `^[` and `<U+202E>`, so it can't disguise itself.
+- **Enter posts, any other key cancels.** Enter works only after a dry run succeeded; keys typed before a screen appeared are ignored. Before posting, the window runs the dry run again: if anything changed, for example someone resolved the thread, it shows the new one and waits for Enter again. It then shows the link, or why it wasn't posted. The write is deleted when the window closes, so it is never offered twice.
+- **Where no window can open**, for example over SSH or on Linux without a desktop, the write is refused with `approvalWindowUnavailable` and nothing is kept. `approval open <id>` is the command the window runs; you don't need to type it.
+- **The agent can't approve by just running commands.** The window reads keys only from a console a person types into: when its input or output is redirected, as it is for an agent's commands, it refuses with `consoleRequired`.
+- **What is posted is what was asked.** The command saves the write under `~/.ado-read/approvals` with the text of `--body` or `--body-file`, copies of the `--attach` files and the organization it was checked against, so changing those files or the configuration afterwards doesn't change the post. A configuration that now points to another organization stops it with `organizationChanged`.
 - **Dry runs** never wait: `--dry-run` still returns the preview at once.
-- **Result.** A queued write returns `status: "pendingApproval"` with exit code `0`. Its result has `outcome: "pendingApproval"`, `approvalId`, `window` (`opened`, `alreadyOpen` or `notOpened`) and a `message`. It doesn't say whether you posted or rejected it: check with `ado-read`, for example `ado-read pr show <id>`.
-- **Turning approval off.** Only an administrator can: set the machine-level variable `ADO_WRITE_APPROVAL` to `off` on Windows (`setx /M ADO_WRITE_APPROVAL off` in an elevated prompt), or write `off` to `/etc/ado-tools/approval` on Linux and macOS (`sudo mkdir -p /etc/ado-tools && echo off | sudo tee /etc/ado-tools/approval`). The tools read the variable from the machine scope only, so setting it for a process or a user does nothing, and an agent can't turn approval off. It takes effect with the next command. With approval off, every write posts at once, as before; any other value, or removing it, turns approval back on.
-- **Limits.** Approval keeps an agent that uses `ado-write` from posting on its own. The token is stored in your user account's credential vault, so a program that reads the vault and calls the Azure DevOps API directly is not stopped by it.
+- **Result.** A write returns `status: "pendingApproval"` with exit code `0` once its window is open. Its result has `outcome: "pendingApproval"`, `approvalId` and a `message`. It doesn't say whether you posted or cancelled it: check with `ado-read`, for example `ado-read pr show <id>`.
+- **Turning approval off.** Only an administrator can: set the machine-level variable `ADO_WRITE_APPROVAL` to `off` on Windows (`setx /M ADO_WRITE_APPROVAL off` in an elevated prompt), or write `off` to `/etc/ado-tools/approval` on Linux and macOS (`sudo mkdir -p /etc/ado-tools && echo off | sudo tee /etc/ado-tools/approval`). The tools read the variable from the machine scope only, so setting it for a process or a user does nothing. The file counts only while the user running the tool can't write it or its folder. It takes effect with the next command. With approval off, every write posts at once, as before; any other value, or removing it, turns approval back on.
+- **Limits.** Approval stops an agent that uses `ado-write` as intended, or ignores `--dry-run`, from posting on its own. It doesn't stop a program running as you that sets out to get around it: one that runs the window inside a pseudo-terminal it types into, sends keys to the window's console, clicks it through computer use, or reads the token from your credential vault and calls the Azure DevOps API directly.
 
 ## Writing comments
 

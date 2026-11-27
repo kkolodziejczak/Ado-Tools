@@ -5,7 +5,7 @@ Each JSON result has stable `schemaVersion`, `kind`, `status`, `query`, `generat
 | Exit code | Status | Meaning |
 | ---: | --- | --- |
 | `0` | `success` | Complete lookup with one or more results, or a successful config command. |
-| `0` | `pendingApproval` | A write was queued for the [approval window](writing.md#approving-writes) and nothing is posted yet. Its result has `outcome: "pendingApproval"`, `approvalId`, `window` and `message`. |
+| `0` | `pendingApproval` | A write waits in its own [approval window](writing.md#approving-writes) and nothing is posted yet. Its result has `outcome: "pendingApproval"`, `approvalId` and `message`. |
 | `2` | `error` | Invalid command input or configuration. |
 | `3` | `notFound` | Complete work-item, PR, or build lookup found no result, or a write target (pull request, thread, work item, build policy evaluation) does not exist. |
 | `4` | `partial` | One or more PR results were returned with project errors, one or more pipeline runs could not be read completely, requested work-item visual evidence is incomplete, or a build requeue stopped part-way. |

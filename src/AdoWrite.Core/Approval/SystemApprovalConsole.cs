@@ -5,24 +5,16 @@ namespace AdoWrite.Approval;
 /// <summary>The real console. Keys come only from it: with redirected input it is not interactive.</summary>
 public sealed class SystemApprovalConsole : IApprovalConsole
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(50);
-
     public bool IsInteractive => !Console.IsInputRedirected && !Console.IsOutputRedirected;
 
-    public ConsoleKeyInfo? ReadKey(TimeSpan wait)
+    public ConsoleKeyInfo ReadKey() => Console.ReadKey(intercept: true);
+
+    public void DiscardTypedKeys()
     {
-        DateTime deadline = DateTime.UtcNow + wait;
-        while (!Console.KeyAvailable)
+        while (Console.KeyAvailable)
         {
-            if (DateTime.UtcNow >= deadline)
-            {
-                return null;
-            }
-
-            Thread.Sleep(PollInterval);
+            Console.ReadKey(intercept: true);
         }
-
-        return Console.ReadKey(intercept: true);
     }
 
     public void Draw(IReadOnlyList<ScreenLine> lines)
@@ -32,14 +24,17 @@ public sealed class SystemApprovalConsole : IApprovalConsole
         Console.Clear();
         foreach (ScreenLine line in lines)
         {
-            (Console.ForegroundColor, Console.BackgroundColor) = line.Tone switch
+            if (line.Tone != ScreenTone.Normal)
             {
-                ScreenTone.Dim => (ConsoleColor.DarkGray, ConsoleColor.Black),
-                ScreenTone.Current => (ConsoleColor.Black, ConsoleColor.DarkYellow),
-                ScreenTone.Posted => (ConsoleColor.Green, ConsoleColor.Black),
-                ScreenTone.Failed => (ConsoleColor.Red, ConsoleColor.Black),
-                _ => (ConsoleColor.Gray, ConsoleColor.Black)
-            };
+                Console.ForegroundColor = line.Tone switch
+                {
+                    ScreenTone.Dim => ConsoleColor.DarkGray,
+                    ScreenTone.Warning => ConsoleColor.Yellow,
+                    ScreenTone.Posted => ConsoleColor.Green,
+                    _ => ConsoleColor.Red
+                };
+            }
+
             Console.Write(line.Text);
             Console.ResetColor();
             Console.WriteLine();

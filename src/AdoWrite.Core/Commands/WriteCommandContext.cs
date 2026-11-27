@@ -17,7 +17,7 @@ namespace AdoWrite.Commands;
 /// check the organization, read the token, apply the whole-command timeout, open one session,
 /// and map every expected failure onto a single JSON envelope and exit code. Nothing reaches Azure
 /// DevOps until the target, the input and the configuration are valid. Unless <paramref name="approval"/>
-/// is granted, a write that is not a dry run is queued for the approval window instead of posted.
+/// is granted, a write that is not a dry run opens in an approval window of its own instead of posting.
 /// </summary>
 internal sealed class WriteCommandContext(
     CommandServices services,
@@ -75,9 +75,9 @@ internal sealed class WriteCommandContext(
             }
 
             string pat = services.PatProvider.GetRequiredPat(configuration.OrganizationUrl);
-            if (!target.IsPreview && approval.Outbox is { } outbox)
+            if (!target.IsPreview && approval.Pending is { } pending && approval.Window is { } window)
             {
-                return await QueueAsync(kind, parseResult, target, outbox, compact, cancellationToken);
+                return await RequestApprovalAsync(kind, parseResult, target, configuration.OrganizationUrl, pending, window, compact, cancellationToken);
             }
 
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -129,39 +129,62 @@ internal sealed class WriteCommandContext(
         }
     }
 
-    private async Task<int> QueueAsync<TDocument>(
+    private async Task<int> RequestApprovalAsync<TDocument>(
         string kind,
         ParseResult parseResult,
         WriteTarget<TDocument> target,
-        ApprovalOutbox outbox,
+        Uri organization,
+        PendingWrites pending,
+        IApprovalWindow window,
         bool compact,
         CancellationToken cancellationToken)
     {
-        ApprovalRequest request = outbox.Enqueue(kind, parseResult, target.Body);
-        ApprovalWindowState window = approval.Window?.EnsureOpen() ?? ApprovalWindowState.NotOpened;
-        string message = "Not posted yet. It waits for the person the token belongs to, who posts or rejects it in the ado-write approval window. "
-            + "Don't assume it was posted: check later with ado-read."
-            + (window == ApprovalWindowState.NotOpened
-                ? $" Ask them to run '{names.Root.Invocation("approval open")}' in a terminal of their own."
-                : string.Empty);
+        ApprovalRequest request;
+        try
+        {
+            request = pending.Save(kind, parseResult, target.Body, organization);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return await WriteErrorAsync(
+                kind,
+                new SearchError("approval", null, "approvalSaveFailed", $"Not posted. The write could not be saved for its approval window: {exception.Message}", false),
+                ExitCodes.Error,
+                compact,
+                cancellationToken);
+        }
+
+        if (!window.Open(request.Id))
+        {
+            return await WriteErrorAsync(
+                kind,
+                new SearchError(
+                    "approval",
+                    null,
+                    "approvalWindowUnavailable",
+                    "Not posted. Every write waits for its approval window, and none could open here, for example over SSH or without a desktop. "
+                        + "Run the write on the person's desktop, or an administrator can turn approval off for this machine.",
+                    false),
+                ExitCodes.Error,
+                compact,
+                cancellationToken);
+        }
+
         var envelope = new SearchEnvelope<PendingWriteDocument>(
             "1.0",
             kind,
             PendingWriteDocument.PendingApproval,
             target.Query,
             services.TimeProvider.GetUtcNow(),
-            [new PendingWriteDocument(PendingWriteDocument.PendingApproval, request.Id, WindowName(window), message)],
+            [new PendingWriteDocument(
+                PendingWriteDocument.PendingApproval,
+                request.Id,
+                "Not posted yet. A window is open where the person the token belongs to reads it and presses Enter to post it, or cancels it. "
+                    + "Don't assume it was posted: check later with ado-read.")],
             []);
         await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
         return ExitCodes.Success;
     }
-
-    private static string WindowName(ApprovalWindowState window) => window switch
-    {
-        ApprovalWindowState.Opened => "opened",
-        ApprovalWindowState.AlreadyOpen => "alreadyOpen",
-        _ => "notOpened"
-    };
 
     /// <summary>A refused token's error names the scopes this command needs and the login that replaces the token.</summary>
     private SearchError WithScopeHint(SearchError error, string kind) =>
@@ -198,7 +221,7 @@ internal sealed class WriteCommandContext(
 /// <summary>
 /// What a write command acts on: the parsed reference, the query echoed in the envelope, and the write
 /// itself. <see cref="IsPreview"/> marks a dry run, which never waits for approval; <see cref="Body"/> is
-/// the text read from <c>--body</c> or <c>--body-file</c>, which a queued write keeps.
+/// the text read from <c>--body</c> or <c>--body-file</c>, which a write waiting for approval keeps.
 /// </summary>
 internal sealed record WriteTarget<TDocument>(
     AdoReference Reference,
@@ -207,8 +230,8 @@ internal sealed record WriteTarget<TDocument>(
     bool IsPreview,
     string? Body = null);
 
-/// <summary>A write queued for approval: nothing was posted yet.</summary>
-internal sealed record PendingWriteDocument(string Outcome, string ApprovalId, string Window, string Message)
+/// <summary>A write waiting in its approval window: nothing was posted yet.</summary>
+internal sealed record PendingWriteDocument(string Outcome, string ApprovalId, string Message)
 {
     public const string PendingApproval = "pendingApproval";
 }

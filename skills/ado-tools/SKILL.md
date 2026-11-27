@@ -45,7 +45,7 @@ Check `status` before you use `results`.
 | `status` | Exit | What to do |
 | --- | --- | --- |
 | `success` | 0 | Use `results`. |
-| `pendingApproval` | 0 | A write waits for the user in their approval window; nothing is posted yet. See rule 5. |
+| `pendingApproval` | 0 | A write waits for the user in its own approval window; nothing is posted yet. See rule 5. |
 | `partial` | 4 | `results` are incomplete. Use them only together with `errors`, and tell the user what is missing. Never report "none" or "all" from a partial result. |
 | `notFound` | 3 | Nothing with that ID was found. Check the ID or URL with the user. |
 | `error` | 2 | Your input or the setup is wrong. Read `errors[].code` and `errors[].message`; an error may carry `next`, the command to run next (see the Wiki recipe for how to run it). |
@@ -66,7 +66,7 @@ Errors you cannot fix yourself: `configurationNotFound` (the user runs `config i
 2. Never ask for, print or pass on a token, an authorization header, a cookie, or an attachment or image URL. `auth login` is typed by the user in their own terminal.
 3. `ado-write` posts as the user. Post only what the user asked you to post. "Review this pull request" is not a request to comment: give your findings in the chat and offer to post them. A standing instruction ("post each refinement round") counts as asking. `--dry-run` returns the exact `text`, if you want to check it first.
 4. Add `--agent "<your name and model>"` to everything you post, so readers see that an agent wrote it.
-5. Every write waits for the user's approval. It returns `status: "pendingApproval"` and `results[0].approvalId`: the user posts or rejects it in their approval window, which the command opens for them. Don't say it was posted. Tell the user it waits for them, and carry on. Before you rely on it, check with `ado-read` (`pr show`, `work-item show`) whether it was posted. Never run `approval open` yourself: it needs the user's keyboard. With approval turned off, `status` is `success` and the write is posted.
+5. Every write waits for the user's approval. It returns `status: "pendingApproval"` and `results[0].approvalId`: the user reads it in the approval window the command opened for that write, and posts or cancels it. Where no window can open, the write fails with `approvalWindowUnavailable`; tell the user. Don't say it was posted. Tell the user it waits for them, and carry on. Before you rely on it, check with `ado-read` (`pr show`, `work-item show`) whether it was posted. Never run `approval open` yourself: it needs the user's keyboard. With approval turned off, `status` is `success` and the write is posted.
 6. After a write that was posted, read `results[0].outcome` and give the user the `url`. If a comment, reply, resolve or unresolve ends with `timeout`, `networkError` or `serviceUnavailable`, run the identical command again: it finds the earlier post instead of posting twice. `pr requeue --evaluation <id>` is different: run again after its build finished, it queues another build, so check with `--dry-run` first.
 
 ## 5. Workflows
@@ -116,7 +116,7 @@ Errors you cannot fix yourself: `configurationNotFound` (the user runs `config i
 
 1. Pull request: `ado-write pr comment <id-or-url> --body <text> --agent "<you>"`. Work item: `ado-write work-item comment <id-or-url> --body <text> --agent "<you>"`. Use `--body-file <file>` for more than a line.
 2. Not sure about the wording or the target? Run it with `--dry-run` first and show the user `results[0].text`.
-3. `status` is `pendingApproval`: tell the user the comment waits in their approval window. Once they posted it, `ado-read` shows it. With approval off, `outcome` is `created`, or `duplicate` when the same comment was already there; give the user the `url`.
+3. `status` is `pendingApproval`: tell the user the comment waits in its approval window. Once they posted it, `ado-read` shows it. With approval off, `outcome` is `created`, or `duplicate` when the same comment was already there; give the user the `url`.
 
 ### Find pull requests
 

@@ -536,9 +536,11 @@ internal sealed class FixedConfigurationStore : IConfigurationStore
 {
     public string DefaultPath => "memory://config";
 
+    public Uri Organization { get; set; } = Fabricated.Organization;
+
     public Task<AdoReadConfiguration> LoadAsync(string? overridePath, CancellationToken cancellationToken) =>
         Task.FromResult(AdoReadConfiguration.Create(
-            Fabricated.Organization,
+            Organization,
             AdoReadConfiguration.DefaultRequestTimeoutSeconds,
             AdoReadConfiguration.DefaultMaxParallelProjects));
 

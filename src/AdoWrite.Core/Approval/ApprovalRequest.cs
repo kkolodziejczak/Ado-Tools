@@ -5,10 +5,11 @@ using AdoWrite.Reviews;
 namespace AdoWrite.Approval;
 
 /// <summary>
-/// A queued write: its kind and the arguments of the write command, with every file input already
-/// copied in (<c>--body=</c> text, <c>--attach=</c> copies in the outbox), so it runs as it was queued.
+/// A write waiting for approval: its kind, the arguments of the write command with every file input
+/// already copied in (<c>--body=</c> text, <c>--attach=</c> copies), and the organization it was
+/// checked against, so it runs as the agent asked and nowhere else.
 /// </summary>
-public sealed record ApprovalRequest(string Id, string Kind, IReadOnlyList<string> Arguments, DateTimeOffset QueuedAtUtc)
+public sealed record ApprovalRequest(string Id, string Kind, IReadOnlyList<string> Arguments, Uri Organization, DateTimeOffset RequestedAtUtc)
 {
     /// <summary>The command each kind runs. Only these run: a request of any other kind is never shown or posted.</summary>
     private static readonly Dictionary<string, string[]> Commands = new(StringComparer.Ordinal)
