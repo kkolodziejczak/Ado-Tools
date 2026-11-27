@@ -237,6 +237,31 @@ public sealed class PendingWriteTests : IDisposable
         Assert.Single(Directory.GetDirectories(_pending.Directory));
     }
 
+    [Fact]
+    public async Task Window_KeepsTheWriteWithAWindowThatClaimedItAlthoughItsLauncherFailed()
+    {
+        _window.ClaimsOnOpen = false;
+        await Run("pr", "comment", "42", "--body", "x");
+        string id = _window.Opened.Single();
+
+        // Like an osascript that timed out after Terminal had started the window.
+        bool opened = new ConsoleApprovalWindow(_pending, TimeSpan.FromSeconds(5), _ => _pending.Claim(id) is null).Open(id);
+
+        Assert.True(opened);
+        Assert.Single(Directory.GetDirectories(_pending.Directory));
+    }
+
+    [Fact]
+    public void Claim_DeletesAWriteItTookButCannotRead()
+    {
+        const string id = "20260101-000000-0123abcd";
+        Directory.CreateDirectory(Path.Combine(_pending.Directory, id));
+        File.WriteAllText(Path.Combine(_pending.Directory, id, "request.json"), "{ not json");
+
+        Assert.Null(_pending.Claim(id));
+        Assert.Empty(Directory.GetDirectories(_pending.Directory));
+    }
+
     [Theory]
     [InlineData("off", true)]
     [InlineData(" OFF ", true)]

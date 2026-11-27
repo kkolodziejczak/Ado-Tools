@@ -47,8 +47,9 @@ public static class ApprovalPreview
             AddComment(lines, comment);
             if (String(result, "description") is { } description)
             {
+                // A description is posted as it stands, so every line of it is shown.
                 lines.Add(string.Empty);
-                lines.AddRange(TextLines(description));
+                lines.AddRange(description.ReplaceLineEndings("\n").Split('\n'));
             }
         }
 
@@ -65,7 +66,8 @@ public static class ApprovalPreview
     /// <summary>Whether two dry runs describe the same write, so the post sends what the person read.</summary>
     public static bool SameWrite(JsonElement read, JsonElement now) =>
         Error(read) is null && Error(now) is null
-        && read.GetProperty("results").GetRawText() == now.GetProperty("results").GetRawText();
+        && read.TryGetProperty("results", out JsonElement before) && now.TryGetProperty("results", out JsonElement after)
+        && before.GetRawText() == after.GetRawText();
 
     /// <summary>The URL of what a real run posted, or its outcome when it has none.</summary>
     public static string? PostedUrl(JsonElement envelope) =>
@@ -106,11 +108,15 @@ public static class ApprovalPreview
         if (String(comment, "text") is { } text)
         {
             lines.Add(string.Empty);
-            lines.AddRange(TextLines(text));
+            lines.AddRange(CommentLines(text));
         }
     }
 
-    private static IEnumerable<string> TextLines(string text) =>
+    /// <summary>
+    /// The comment's lines without its hidden duplicate marker, which ado-write adds itself: a body that
+    /// contains a marker is refused before it is saved, so no other line is left out.
+    /// </summary>
+    private static IEnumerable<string> CommentLines(string text) =>
         text.ReplaceLineEndings("\n").Split('\n').Where(line => !line.StartsWith("<!-- ado-write:", StringComparison.Ordinal));
 
     private static void AddList(List<string> lines, string label, JsonElement element, string name, Func<JsonElement, string?> item)

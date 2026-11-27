@@ -66,9 +66,25 @@ public sealed partial class PendingWrites(string directory, TimeProvider timePro
         }
     }
 
-    /// <summary>The window takes the write. Null when the command already withdrew it, another window took it, or it is gone.</summary>
-    public ApprovalRequest? Claim(string id) =>
-        IsValidId(id) && TryCreateClaim(id, ClaimedByWindow) ? Read(id) : null;
+    /// <summary>
+    /// The window takes the write. Null when the command already withdrew it, another window took it, or
+    /// it is gone; a write taken but unreadable is deleted, since nothing could ever show it.
+    /// </summary>
+    public ApprovalRequest? Claim(string id)
+    {
+        if (!IsValidId(id) || !TryCreateClaim(id, ClaimedByWindow))
+        {
+            return null;
+        }
+
+        ApprovalRequest? request = Read(id);
+        if (request is null)
+        {
+            Delete(id);
+        }
+
+        return request;
+    }
 
     /// <summary>Whether a window has taken the write.</summary>
     public bool IsClaimed(string id) => File.Exists(Path.Combine(Folder(id), ClaimFile));
@@ -84,7 +100,15 @@ public sealed partial class PendingWrites(string directory, TimeProvider timePro
             return false;
         }
 
-        Delete(id);
+        try
+        {
+            Delete(id);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The claim already says withdrawn, so no window can take what is left.
+        }
+
         return true;
     }
 

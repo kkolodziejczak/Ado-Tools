@@ -81,12 +81,20 @@ public static class ApprovalScreen
             _ => []
         });
         lines.Add(new(string.Empty));
+
+        // Repeated next to the keys, so a text longer than the window can't scroll it out of sight.
+        lines.Add(new($"{Describe(request)} · {request.Organization}", ScreenTone.Dim));
         lines.AddRange(stage switch
         {
             PromptStage.Ready or PromptStage.Changed => [new ScreenLine(ReadyKeys)],
             PromptStage.Posting => [new ScreenLine("Checking it is unchanged, then posting…", ScreenTone.Dim)],
             PromptStage.Posted => [new ScreenLine($"Posted: {note}", ScreenTone.Posted), new ScreenLine(CloseKey)],
-            PromptStage.NotPosted => [new ScreenLine($"Not posted, or only partly: {note}", ScreenTone.Failed), new ScreenLine(CloseKey)],
+            PromptStage.NotPosted =>
+            [
+                new ScreenLine($"Not posted, or only partly: {note}", ScreenTone.Failed),
+                new ScreenLine("Part of it may have reached Azure DevOps. Check there before you ask for it again.", ScreenTone.Failed),
+                new ScreenLine(CloseKey)
+            ],
             PromptStage.PreviewFailed => [new ScreenLine(CloseKey)],
             _ => []
         });
@@ -118,8 +126,9 @@ public static class ApprovalScreen
     }
 
     /// <summary>
-    /// The text with every control and format character shown as its code, such as <c>^[</c> for escape
-    /// and <c>&lt;U+202E&gt;</c> for a direction override, so the terminal draws exactly these characters.
+    /// The text with every control, format and line-separator character shown as its code, such as
+    /// <c>^[</c> for escape and <c>&lt;U+202E&gt;</c> for a direction override, so the terminal draws
+    /// exactly these characters.
     /// </summary>
     public static string Printable(string text)
     {
@@ -131,7 +140,7 @@ public static class ApprovalScreen
                 case UnicodeCategory.Control when character < ' ':
                     printable.Append('^').Append((char)(character + '@'));
                     break;
-                case UnicodeCategory.Control or UnicodeCategory.Format:
+                case UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator:
                     printable.Append(CultureInfo.InvariantCulture, $"<U+{(int)character:X4}>");
                     break;
                 default:

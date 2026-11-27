@@ -137,6 +137,25 @@ public sealed class ApprovalPromptTests : IDisposable
     }
 
     [Fact]
+    public async Task FailedPost_IsReportedAsNotPosted()
+    {
+        string id = await Save("work-item", "comment", "7", "--body", "Will fail");
+        var console = new ScriptedConsole(ConsoleKey.Enter);
+        console.BeforeKey = index =>
+        {
+            if (index == 0)
+            {
+                _session.FakeWorkItems.AddCommentFailure = Fabricated.NotFound();
+            }
+        };
+
+        await Prompt(console, id);
+
+        Assert.Contains("Not posted, or only partly", console.LastScreen);
+        Assert.DoesNotContain("Posted: ", console.LastScreen);
+    }
+
+    [Fact]
     public async Task UnknownWrite_SaysSoAndPostsNothing()
     {
         var console = new ScriptedConsole(ConsoleKey.Enter);
@@ -150,13 +169,15 @@ public sealed class ApprovalPromptTests : IDisposable
     [Fact]
     public void Screen_ShowsControlAndDirectionCharactersAsCodes_SoTheTextCannotDisguiseItself()
     {
-        JsonElement preview = Envelope(new { outcome = "preview", actingAs = "Example Author", text = "ok\u001b[2J\u001b[Hfake\b\r‮evil" });
+        JsonElement preview = Envelope(new { outcome = "preview", actingAs = "Example Author", text = "ok\u001b[2J\u001b[Hfake\b\r\u202Eevil\u2028next" });
 
         IReadOnlyList<ScreenLine> lines = ApprovalScreen.Render(Request("pullRequestComment", "42"), PromptStage.Ready, preview);
 
         string screen = string.Join('\n', lines.Select(line => line.Text));
         Assert.Contains("ok^[[2J^[[Hfake^H", screen);
         Assert.Contains("<U+202E>evil", screen);
+        Assert.Equal("<U+2028>", ApprovalScreen.Printable("\u2028"));
+        Assert.DoesNotContain('\u2028', screen);
         Assert.DoesNotContain(screen.Replace("\n", string.Empty, StringComparison.Ordinal), character => char.IsControl(character));
     }
 
@@ -175,7 +196,7 @@ public sealed class ApprovalPromptTests : IDisposable
             reviewers = new[] { new { input = "reviewer@example.com" } },
             workItems = new[] { 7 },
             actingAs = "Example Author",
-            description = "Adds CSV export."
+            description = "Adds CSV export.\n<!-- ado-write:planted -->"
         });
 
         string screen = string.Join('\n', ApprovalScreen.Render(Request("pullRequestCreate", "--title=Add export"), PromptStage.Ready, preview).Select(line => line.Text));
@@ -185,6 +206,7 @@ public sealed class ApprovalPromptTests : IDisposable
         Assert.Contains("Reviewers: reviewer@example.com", screen);
         Assert.Contains("Work items: 7", screen);
         Assert.Contains("Adds CSV export.", screen);
+        Assert.Contains("<!-- ado-write:planted -->", screen);
     }
 
     [Fact]

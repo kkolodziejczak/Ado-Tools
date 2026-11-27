@@ -29,14 +29,9 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
 
     public bool Open(string id)
     {
-        if (Tool(id) is not { } tool || !ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Any(_start))
-        {
-            pending.Withdraw(id);
-            return false;
-        }
-
+        bool started = Tool(id) is { } tool && ApprovalWindowPlan.For(ApprovalWindowPlan.Current, tool, IsOnPath, Environment.GetEnvironmentVariable).Any(_start);
         DateTime deadline = DateTime.UtcNow + (claimTimeout ?? DefaultClaimTimeout);
-        while (DateTime.UtcNow < deadline)
+        while (started && DateTime.UtcNow < deadline)
         {
             if (pending.IsClaimed(id))
             {
@@ -46,7 +41,8 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
             Thread.Sleep(ClaimPollInterval);
         }
 
-        // A window that claims it at this very moment wins, and the write stays with it.
+        // A window can claim it even when its launcher reported a failure, for example an osascript
+        // that timed out after Terminal had started; then the write stays with that window.
         return !pending.Withdraw(id);
     }
 

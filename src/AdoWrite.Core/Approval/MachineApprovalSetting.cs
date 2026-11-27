@@ -40,8 +40,18 @@ public static partial class MachineApprovalSetting
 
     private const int WriteAccess = 2;
 
-    /// <summary>access(2) with W_OK: whether this process may write the file or folder.</summary>
-    private static bool UserCanWrite(string path) => Access(path, WriteAccess) == 0;
+    /// <summary>access(2) with W_OK: whether this process may write the file or folder. When it can't be asked, assume it may.</summary>
+    private static bool UserCanWrite(string path)
+    {
+        try
+        {
+            return Access(path, WriteAccess) == 0;
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return true;
+        }
+    }
 
     [DllImport("libc", EntryPoint = "access")]
     private static extern int Access([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int mode);
