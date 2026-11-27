@@ -34,7 +34,21 @@ ado-write-work-item comment 12345 --body "Which markets does the new limit apply
 ado-write-work-item comment 12345 --body-file question.md --agent "Claude Opus 5.5" --dry-run --compact
 ```
 
-A comment waits in the approval window until you post it with `y` or reject it with `n`. On Windows the first comment opens the window; elsewhere run `ado-write-work-item approval review`. An administrator can turn approval off for the machine with `ADO_WRITE_APPROVAL=off` ([details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)).
+## Approving writes
+
+Every write waits in the approval window until you press `y` to post it or `n` to reject it. `↑`/`↓` pick a write and `a` posts all that remain. On Windows the first write opens the window; elsewhere run `ado-write-work-item approval review` in a terminal. `--dry-run` never waits. The agent can't approve: the window refuses input that isn't typed at its console.
+
+To turn approval off for everyone on the machine, an administrator sets `ADO_WRITE_APPROVAL` to `off` at machine level:
+
+```powershell
+setx /M ADO_WRITE_APPROVAL off     # Windows, in an elevated prompt
+```
+
+```sh
+sudo mkdir -p /etc/ado-tools && echo off | sudo tee /etc/ado-tools/approval     # Linux and macOS
+```
+
+Only the machine-level value counts. Setting the variable for one shell or one user does nothing, so an agent can't turn approval off. Any value other than `off` (or removing it) turns approval back on. [Details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)
 
 ## Give it to your agent
 

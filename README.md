@@ -26,6 +26,7 @@ ado-write pr reply 412 --thread 7 --body "Fixed in the latest push."
 
 - **The same JSON shape every time.** Every command returns one fixed envelope (`status`, `results`, `errors`) and a documented exit code. An agent reads fields; it never parses text or guesses whether the answer is complete.
 - **Nothing to learn.** No MCP server to run and no protocol to configure. Short commands such as `pr show 412` take an ID or the URL from the browser.
+- **You approve every write.** A write tool doesn't post on its own: each comment, vote or new pull request waits in a console window until you press `y`. An administrator can turn this off for the machine with `setx /M ADO_WRITE_APPROVAL off` (Windows) or `off` in `/etc/ado-tools/approval` (Linux, macOS); see [Approving writes](docs/writing.md#approving-writes).
 - **Your token stays in the vault.** It is stored in your operating system's credential vault and never accepted as an argument, read from a file, or written to output.
 - **You control what leaves Azure DevOps.** A privacy level (`minimal`, `standard`, `full`) decides whether text, comments and real names are returned. An agent can only make it stricter.
 

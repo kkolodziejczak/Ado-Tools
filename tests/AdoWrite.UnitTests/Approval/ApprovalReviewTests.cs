@@ -170,7 +170,7 @@ public sealed class ApprovalReviewTests : IDisposable
     public void View_DescribesEachKindFromItsArguments()
     {
         Assert.Equal("PR 42  comment · /src/App.cs:3", ApprovalBoardView.Describe(Request("a", "pullRequestComment", "42", "--file=/src/App.cs", "--line=3")));
-        Assert.Equal("PR 42  vote · approve", ApprovalBoardView.Describe(Request("a", "pullRequestVote", "https://dev.azure.com/o/p/_git/r/pullrequest/42", "--vote=approve")));
+        Assert.Equal("PR 42  vote · approve", ApprovalBoardView.Describe(Request("a", "pullRequestVote", "https://dev.azure.com/fabricated/p/_git/r/pullrequest/42", "--vote=approve")));
         Assert.Equal("New PR  Add export", ApprovalBoardView.Describe(Request("a", "pullRequestCreate", "--title=Add export")));
     }
 
