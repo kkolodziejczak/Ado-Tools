@@ -313,6 +313,38 @@ public sealed class PendingWriteTests : IDisposable
     }
 
     [Fact]
+    public async Task Save_DeletesWritesWhoseWindowClosedWithoutCleaningUpADayAgo()
+    {
+        _window.ClaimsOnOpen = false;
+        await Run("pr", "comment", "42", "--body", "Abandoned");
+        string abandoned = _window.Opened.Single();
+        Assert.NotNull(_pending.Claim(abandoned));
+        File.SetLastWriteTimeUtc(Path.Combine(_pending.Directory, abandoned, "claim"), DateTime.UtcNow.AddDays(-2));
+        await Run("pr", "comment", "42", "--body", "Open now");
+        string open = _window.Opened[1];
+        Assert.NotNull(_pending.Claim(open));
+
+        await Run("pr", "comment", "42", "--body", "Next");
+
+        Assert.False(Directory.Exists(Path.Combine(_pending.Directory, abandoned)));
+        Assert.True(Directory.Exists(Path.Combine(_pending.Directory, open)));
+    }
+
+    [Theory]
+    [InlineData("--dry-run")]
+    [InlineData("--dry-run=true")]
+    public void Claim_RefusesAHandWrittenRequestThatWouldOnlyDryRunInAnyForm(string dryRun)
+    {
+        const string id = "20260101-000000-0123abce";
+        Directory.CreateDirectory(Path.Combine(_pending.Directory, id));
+        File.WriteAllText(
+            Path.Combine(_pending.Directory, id, "request.json"),
+            JsonSerializer.Serialize(new ApprovalRequest(id, "pullRequestComment", ["42", "--body=x", dryRun], Fabricated.Organization, DateTimeOffset.UnixEpoch), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+
+        Assert.Null(_pending.Claim(id));
+    }
+
+    [Fact]
     public void Claim_DeletesAWriteItTookButCannotRead()
     {
         const string id = "20260101-000000-0123abcd";

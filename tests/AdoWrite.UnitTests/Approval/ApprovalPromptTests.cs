@@ -177,6 +177,7 @@ public sealed class ApprovalPromptTests : IDisposable
         Assert.Contains("ok^[[2J^[[Hfake^H", screen);
         Assert.Contains("<U+202E>evil", screen);
         Assert.Equal("<U+2028>", ApprovalScreen.Printable("\u2028"));
+        Assert.Equal("a<U+E0041>b", ApprovalScreen.Printable("a\U000E0041b"));
         Assert.DoesNotContain('\u2028', screen);
         Assert.DoesNotContain(screen.Replace("\n", string.Empty, StringComparison.Ordinal), character => char.IsControl(character));
     }

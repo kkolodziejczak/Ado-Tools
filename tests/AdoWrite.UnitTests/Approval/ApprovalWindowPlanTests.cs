@@ -40,6 +40,12 @@ public sealed class ApprovalWindowPlanTests
         Assert.Equal(["xterm", "-e", .. Tool], launches[1].Arguments);
     }
 
+    [Theory]
+    [InlineData(ApprovalPlatform.Windows, "SSH_CONNECTION")]
+    [InlineData(ApprovalPlatform.MacOS, "SSH_TTY")]
+    public void OverSsh_WindowsAndMacOSOpenNothing_BecauseNobodyWouldSeeTheWindow(ApprovalPlatform platform, string variable) =>
+        Assert.Empty(ApprovalWindowPlan.For(platform, Tool, _ => true, name => name == variable ? "10.0.0.2 50000 10.0.0.1 22" : null));
+
     [Fact]
     public void Linux_WithoutADesktopSessionOpensNothing() =>
         Assert.Empty(ApprovalWindowPlan.For(ApprovalPlatform.Linux, Tool, _ => true, _ => null));

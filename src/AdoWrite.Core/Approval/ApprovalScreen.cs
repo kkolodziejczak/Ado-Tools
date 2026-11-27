@@ -136,18 +136,20 @@ public static class ApprovalScreen
     public static string Printable(string text)
     {
         var printable = new StringBuilder(text.Length);
-        foreach (char character in text)
+
+        // By code point, so a format character outside the first plane, such as a tag character, is caught too.
+        foreach (Rune character in text.EnumerateRunes())
         {
-            switch (CharUnicodeInfo.GetUnicodeCategory(character))
+            switch (Rune.GetUnicodeCategory(character))
             {
-                case UnicodeCategory.Control when character < ' ':
-                    printable.Append('^').Append((char)(character + '@'));
+                case UnicodeCategory.Control when character.Value < ' ':
+                    printable.Append('^').Append((char)(character.Value + '@'));
                     break;
                 case UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator:
-                    printable.Append(CultureInfo.InvariantCulture, $"<U+{(int)character:X4}>");
+                    printable.Append(CultureInfo.InvariantCulture, $"<U+{character.Value:X4}>");
                     break;
                 default:
-                    printable.Append(character);
+                    printable.Append(character.ToString());
                     break;
             }
         }

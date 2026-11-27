@@ -45,6 +45,7 @@ public sealed partial class PendingWrites(string directory, TimeProvider timePro
         string id = now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
         string folder = Folder(id);
         CreatePrivateDirectory(Directory);
+        DeleteAbandoned(now);
         CreatePrivateDirectory(folder);
         try
         {
@@ -131,6 +132,29 @@ public sealed partial class PendingWrites(string directory, TimeProvider timePro
 
     private string Folder(string id) => Path.Combine(Directory, id);
 
+    /// <summary>
+    /// Deletes writes claimed more than a day ago: their window closed without cleaning up, for example
+    /// with its close button or Ctrl+C, and nothing can show them again.
+    /// </summary>
+    private void DeleteAbandoned(DateTimeOffset now)
+    {
+        foreach (string folder in System.IO.Directory.EnumerateDirectories(Directory))
+        {
+            string claim = Path.Combine(folder, ClaimFile);
+            if (IsValidId(Path.GetFileName(folder)) && File.Exists(claim) && now - File.GetLastWriteTimeUtc(claim) > TimeSpan.FromDays(1))
+            {
+                try
+                {
+                    System.IO.Directory.Delete(folder, recursive: true);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // Tried again with the next write.
+                }
+            }
+        }
+    }
+
     private bool TryCreateClaim(string id, string claimant)
     {
         try
@@ -154,7 +178,7 @@ public sealed partial class PendingWrites(string directory, TimeProvider timePro
             { Kind: not null, Arguments: not null, Organization: not null } request
                 && request.Id == id
                 && ApprovalRequest.IsKnownKind(request.Kind)
-                && !request.Arguments.Contains("--dry-run")
+                && !request.Arguments.Any(argument => argument.StartsWith("--dry-run", StringComparison.Ordinal))
                     ? request
                     : null;
         }

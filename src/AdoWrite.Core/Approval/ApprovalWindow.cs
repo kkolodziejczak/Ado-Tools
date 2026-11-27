@@ -55,8 +55,8 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
 
     private bool WaitForClaim(string id, TimeSpan wait)
     {
-        DateTime deadline = DateTime.UtcNow + wait;
-        while (DateTime.UtcNow < deadline)
+        var waited = Stopwatch.StartNew();
+        while (waited.Elapsed < wait)
         {
             if (pending.IsClaimed(id))
             {
@@ -85,7 +85,7 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
 
         // A tool run through the dotnet host (dotnet ado-write.dll) names its assembly first.
         return Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
-            ? [executable, Environment.GetCommandLineArgs()[0], "approval", "open", id]
+            ? [executable, Path.GetFullPath(Environment.GetCommandLineArgs()[0]), "approval", "open", id]
             : [executable, "approval", "open", id];
     }
 
@@ -128,8 +128,9 @@ public sealed class ConsoleApprovalWindow(PendingWrites pending, TimeSpan? claim
             process.Kill(entireProcessTree: true);
             return false;
         }
-        catch (System.ComponentModel.Win32Exception)
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
+            // It could not start, or it ended while being stopped.
             return false;
         }
     }
@@ -177,6 +178,8 @@ public static class ApprovalWindowPlan
         Func<string, bool> isOnPath,
         Func<string, string?> environment) => platform switch
         {
+            // Over SSH a Windows console or a macOS Terminal would open where nobody sees it.
+            ApprovalPlatform.Windows or ApprovalPlatform.MacOS when environment("SSH_CONNECTION") is { Length: > 0 } || environment("SSH_TTY") is { Length: > 0 } => [],
             // Shell execution gives a console program a new console window of its own.
             ApprovalPlatform.Windows => [new WindowLaunch(tool[0], [.. tool.Skip(1)], ShellExecute: true)],
             ApprovalPlatform.MacOS =>
