@@ -25,13 +25,16 @@ Every Ado-Tools read and write tool uses the same token from your operating syst
 
 | Command | Does |
 | --- | --- |
-| `comment <id-or-url> (--body <markdown> \| --body-file <path>) [--agent <name>] [--mention <mail>]... [--attach <path>]... [--key <key>] [--dry-run]` | Posts a comment |
+| `comment <id-or-url> (--body <markdown> \| --body-file <path>) [--agent <name>] [--mention <mail>]... [--attach <path>]... [--key <key>] [--dry-run]` | Posts a comment, once you approve it |
+| `approval review` | Opens the approval window, where you post or reject what agents queued |
 | `config`, `auth` | Settings and the stored token |
 
 ```powershell
 ado-write-work-item comment 12345 --body "Which markets does the new limit apply to?" --agent "Claude Opus 5.5" --mention analyst@example.com --compact
 ado-write-work-item comment 12345 --body-file question.md --agent "Claude Opus 5.5" --dry-run --compact
 ```
+
+A comment waits in the approval window until you post it with `y` or reject it with `n`. On Windows the first comment opens the window; elsewhere run `ado-write-work-item approval review`. An administrator can turn approval off for the machine with `ADO_WRITE_APPROVAL=off` ([details](https://github.com/kkolodziejczak/Ado-Tools/blob/master/docs/writing.md#approving-writes)).
 
 ## Give it to your agent
 

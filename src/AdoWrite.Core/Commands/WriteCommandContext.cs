@@ -5,6 +5,7 @@ using AdoRead.Commands;
 using AdoRead.Commands.Shared;
 using AdoRead.Configuration;
 using AdoRead.Output;
+using AdoWrite.Approval;
 using AdoWrite.AzureDevOps;
 using AdoWrite.Comments;
 using AdoWrite.Reviews;
@@ -15,10 +16,17 @@ namespace AdoWrite.Commands;
 /// Shared plumbing for the write commands: resolve the target and its input, load configuration,
 /// check the organization, read the token, apply the whole-command timeout, open one session,
 /// and map every expected failure onto a single JSON envelope and exit code. Nothing reaches Azure
-/// DevOps until the target, the input and the configuration are valid.
+/// DevOps until the target, the input and the configuration are valid. Unless <paramref name="approval"/>
+/// is granted, a write that is not a dry run is queued for the approval window instead of posted.
 /// </summary>
-internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSessionFactory sessionFactory, string loginCommand)
+internal sealed class WriteCommandContext(
+    CommandServices services,
+    IAdoWriteSessionFactory sessionFactory,
+    WriteApproval approval,
+    ToolCommandNames names)
 {
+    private readonly string _loginCommand = names.Root.Invocation("auth login");
+
     /// <summary>A comment command: the target is resolved first, then the draft is read and checked.</summary>
     public Task<int> RunAsync(
         string kind,
@@ -38,7 +46,9 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
                     target.Reference,
                     target.Query,
                     async (session, organizationUrl, requestToken) =>
-                        new WriteOutcome<PostedCommentDocument>([await target.PostAsync(session, organizationUrl, draft, requestToken)]));
+                        new WriteOutcome<PostedCommentDocument>([await target.PostAsync(session, organizationUrl, draft, requestToken)]),
+                    draft.DryRun,
+                    draft.Body);
             },
             cancellationToken);
 
@@ -65,6 +75,11 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
             }
 
             string pat = services.PatProvider.GetRequiredPat(configuration.OrganizationUrl);
+            if (!target.IsPreview && approval.Outbox is { } outbox)
+            {
+                return await QueueAsync(kind, parseResult, target, outbox, compact, cancellationToken);
+            }
+
             using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             requestTimeout.CancelAfter(configuration.RequestTimeout);
             await using IAdoWriteSession session = sessionFactory.Create(configuration.OrganizationUrl, pat);
@@ -114,9 +129,43 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
         }
     }
 
+    private async Task<int> QueueAsync<TDocument>(
+        string kind,
+        ParseResult parseResult,
+        WriteTarget<TDocument> target,
+        ApprovalOutbox outbox,
+        bool compact,
+        CancellationToken cancellationToken)
+    {
+        ApprovalRequest request = outbox.Enqueue(kind, parseResult, target.Body);
+        ApprovalWindowState window = approval.Window?.EnsureOpen() ?? ApprovalWindowState.NotOpened;
+        string message = "Not posted yet. It waits for the person the token belongs to, who posts or rejects it in the ado-write approval window. "
+            + "Don't assume it was posted: check later with ado-read."
+            + (window == ApprovalWindowState.NotOpened
+                ? $" Ask them to run '{names.Root.Invocation("approval review")}' in a terminal of their own."
+                : string.Empty);
+        var envelope = new SearchEnvelope<PendingWriteDocument>(
+            "1.0",
+            kind,
+            PendingWriteDocument.PendingApproval,
+            target.Query,
+            services.TimeProvider.GetUtcNow(),
+            [new PendingWriteDocument(PendingWriteDocument.PendingApproval, request.Id, WindowName(window), message)],
+            []);
+        await services.JsonOutput.WriteAsync(envelope, compact, cancellationToken);
+        return ExitCodes.Success;
+    }
+
+    private static string WindowName(ApprovalWindowState window) => window switch
+    {
+        ApprovalWindowState.Opened => "opened",
+        ApprovalWindowState.AlreadyOpen => "alreadyOpen",
+        _ => "notOpened"
+    };
+
     /// <summary>A refused token's error names the scopes this command needs and the login that replaces the token.</summary>
     private SearchError WithScopeHint(SearchError error, string kind) =>
-        error with { Message = TokenScopeHint.AppendTo(error.Code, error.Message, ScopesFor(kind), loginCommand) };
+        error with { Message = TokenScopeHint.AppendTo(error.Code, error.Message, ScopesFor(kind), _loginCommand) };
 
     private static string ScopesFor(string kind) => kind switch
     {
@@ -146,11 +195,23 @@ internal sealed class WriteCommandContext(CommandServices services, IAdoWriteSes
     }
 }
 
-/// <summary>What a write command acts on: the parsed reference, the query echoed in the envelope, and the write itself.</summary>
+/// <summary>
+/// What a write command acts on: the parsed reference, the query echoed in the envelope, and the write
+/// itself. <see cref="IsPreview"/> marks a dry run, which never waits for approval; <see cref="Body"/> is
+/// the text read from <c>--body</c> or <c>--body-file</c>, which a queued write keeps.
+/// </summary>
 internal sealed record WriteTarget<TDocument>(
     AdoReference Reference,
     object Query,
-    Func<IAdoWriteSession, Uri, CancellationToken, Task<WriteOutcome<TDocument>>> WriteAsync);
+    Func<IAdoWriteSession, Uri, CancellationToken, Task<WriteOutcome<TDocument>>> WriteAsync,
+    bool IsPreview,
+    string? Body = null);
+
+/// <summary>A write queued for approval: nothing was posted yet.</summary>
+internal sealed record PendingWriteDocument(string Outcome, string ApprovalId, string Window, string Message)
+{
+    public const string PendingApproval = "pendingApproval";
+}
 
 /// <summary>What a write did. With a <see cref="Failure"/> the results are partial: the write stopped part-way.</summary>
 internal sealed record WriteOutcome<TDocument>(IReadOnlyList<TDocument> Results, SearchError? Failure = null);

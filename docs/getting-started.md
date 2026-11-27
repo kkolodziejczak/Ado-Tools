@@ -17,13 +17,13 @@ Every tool's package ID is also its command, so `dotnet tool install --global ad
 | `ado-read-sprint` | `list`, `show`, `config`, `auth`, `privacy`, `project list`, `team list` |
 | `ado-read-pipeline` | `run list --pr <id-or-url>`, `run show <id-or-url>`, `test list --run <id-or-url>`, `config`, `auth`, `privacy`, `project list`, `team list` |
 
-The write tools are separate packages, so installing a read tool never gives an agent the ability to post. They share `config`, `auth` and the token with the read tools; they have no `privacy`, `project list` or `team list` commands because they return no Azure DevOps content.
+The write tools are separate packages, so installing a read tool never gives an agent the ability to post. They share `config`, `auth` and the token with the read tools; they have no `privacy`, `project list` or `team list` commands because they return no Azure DevOps content. Every write waits until you approve it in the approval window (`approval review`); see [Approving writes](writing.md#approving-writes).
 
 | Package ID and command | Commands |
 | --- | --- |
-| `ado-write` | `config`, `auth`, `pr create\|comment\|reply\|resolve\|unresolve\|requeue\|vote`, `work-item comment` |
-| `ado-write-pr` | `create`, `comment <id-or-url>`, `reply <id-or-url>`, `resolve <id-or-url>`, `unresolve <id-or-url>`, `requeue <id-or-url>`, `vote <id-or-url>`, `config`, `auth` |
-| `ado-write-work-item` | `comment <id-or-url>`, `config`, `auth` |
+| `ado-write` | `config`, `auth`, `approval review`, `pr create\|comment\|reply\|resolve\|unresolve\|requeue\|vote`, `work-item comment` |
+| `ado-write-pr` | `create`, `comment <id-or-url>`, `reply <id-or-url>`, `resolve <id-or-url>`, `unresolve <id-or-url>`, `requeue <id-or-url>`, `vote <id-or-url>`, `approval review`, `config`, `auth` |
+| `ado-write-work-item` | `comment <id-or-url>`, `approval review`, `config`, `auth` |
 
 In a slice tool the feature name moves into the executable, so `ado-read-wiki page show <url>`, `ado-read-sprint show` and `ado-read-pipeline run list --pr <url>` are the paths there. Commands of another feature are rejected with `invalidArguments`. All examples below use the umbrella `ado-read` paths.
 

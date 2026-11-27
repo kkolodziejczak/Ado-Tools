@@ -204,7 +204,7 @@ public sealed class PullRequestReviewToolTests
     {
         _session.FakePullRequests.Reviewers.Add(new IdentityRefWithVote { Id = Fabricated.Author.Id.ToString(), Vote = value == 10 ? (short)-10 : (short)10 });
 
-        int exitCode = await Run("pr", "vote", "42", "--vote", name, "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", name);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Equal(value, Assert.Single(_session.FakeReviews.Votes).Vote);
@@ -215,7 +215,7 @@ public sealed class PullRequestReviewToolTests
     {
         _session.FakePullRequests.Reviewers.Add(new IdentityRefWithVote { Id = Fabricated.Reviewer.Id.ToString(), Vote = 10 });
 
-        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve");
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Single(_session.FakeReviews.Votes);
@@ -228,7 +228,7 @@ public sealed class PullRequestReviewToolTests
     {
         _session.FakeReviews.StoredVote = 5;
 
-        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve");
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Equal("approve-with-suggestions", Envelope().GetProperty("results")[0].GetProperty("vote").GetString());
@@ -239,7 +239,7 @@ public sealed class PullRequestReviewToolTests
     {
         _session.FakePullRequests.IsDraft = true;
 
-        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve");
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Empty(_session.FakeReviews.Votes);
@@ -249,7 +249,7 @@ public sealed class PullRequestReviewToolTests
     [Fact]
     public async Task Vote_ApprovesAsTheTokenOwner()
     {
-        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve");
 
         Assert.Equal(ExitCodes.Success, exitCode);
         (PullRequestLocation location, Guid reviewerId, short vote) = Assert.Single(_session.FakeReviews.Votes);
@@ -269,7 +269,7 @@ public sealed class PullRequestReviewToolTests
     {
         _session.FakePullRequests.Reviewers.Add(new IdentityRefWithVote { Id = Fabricated.Author.Id.ToString(), Vote = -5 });
 
-        int exitCode = await Run("pr", "vote", "42", "--vote", "wait-for-author", "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", "wait-for-author");
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Empty(_session.FakeReviews.Votes);
@@ -277,7 +277,7 @@ public sealed class PullRequestReviewToolTests
     }
 
     [Fact]
-    public async Task Vote_DryRun_NeedsNoConfirmationAndSendsNothing()
+    public async Task Vote_DryRun_SendsNothing()
     {
         int exitCode = await Run("pr", "vote", "42", "--vote", "reject", "--dry-run");
 
@@ -292,7 +292,7 @@ public sealed class PullRequestReviewToolTests
     {
         _session.FakePullRequests.Status = PullRequestStatus.Completed;
 
-        int exitCode = await Run("pr", "vote", "42", "--vote", "approve", "--confirm");
+        int exitCode = await Run("pr", "vote", "42", "--vote", "approve");
 
         Assert.Equal(ExitCodes.InvalidInputOrConfiguration, exitCode);
         Assert.Empty(_session.FakeReviews.Votes);
@@ -300,10 +300,9 @@ public sealed class PullRequestReviewToolTests
     }
 
     [Theory]
-    [InlineData("confirmationRequired", "pr", "vote", "42", "--vote", "approve")]
-    [InlineData("invalidVote", "pr", "vote", "42", "--confirm")]
-    [InlineData("invalidVote", "pr", "vote", "42", "--vote", "maybe", "--confirm")]
-    [InlineData("invalidPullRequestId", "pr", "vote", "0", "--vote", "approve", "--confirm")]
+    [InlineData("invalidVote", "pr", "vote", "42")]
+    [InlineData("invalidVote", "pr", "vote", "42", "--vote", "maybe")]
+    [InlineData("invalidPullRequestId", "pr", "vote", "0", "--vote", "approve")]
     [InlineData("invalidPullRequestId", "pr", "requeue", "nope")]
     [InlineData("invalidEvaluationId", "pr", "requeue", "42", "--evaluation", "not-a-guid")]
     [InlineData("organizationMismatch", "pr", "requeue", "https://dev.azure.com/second/App/_git/Repo/pullrequest/42")]
@@ -323,7 +322,7 @@ public sealed class PullRequestReviewToolTests
                 TimeProvider.System,
                 credentialVault: _vault,
                 toolKind: ToolKind.Write)
-            .CreateUmbrella("ado-write", [PullRequestWriteModule.Create(_factory), WorkItemCommentModule.Create(_factory)])
+            .CreateUmbrella("ado-write", [PullRequestWriteModule.Create(_factory, WriteApproval.Granted), WorkItemCommentModule.Create(_factory, WriteApproval.Granted)])
             .InvokeAsync([.. args, "--compact"], CancellationToken.None);
 
     private JsonElement Envelope() => JsonDocument.Parse(_output.ToString()).RootElement;

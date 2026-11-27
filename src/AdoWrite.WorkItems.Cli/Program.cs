@@ -11,6 +11,7 @@ var application = new ToolComposition(
     TimeProvider.System,
     toolKind: ToolKind.Write).CreateSlice(
     "ado-write-work-item",
-    WorkItemCommentModule.Definition);
+    WorkItemCommentModule.Definition,
+    [ApprovalModule.Definition]);
 
 return await application.InvokeAsync(args, CancellationToken.None);

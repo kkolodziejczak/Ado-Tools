@@ -255,7 +255,7 @@ public sealed class PullRequestCreateToolTests
                 TimeProvider.System,
                 credentialVault: _vault,
                 toolKind: ToolKind.Write)
-            .CreateUmbrella("ado-write", [PullRequestWriteModule.Create(_factory), WorkItemCommentModule.Create(_factory)])
+            .CreateUmbrella("ado-write", [PullRequestWriteModule.Create(_factory, WriteApproval.Granted), WorkItemCommentModule.Create(_factory, WriteApproval.Granted)])
             .InvokeAsync([.. args, "--compact"], CancellationToken.None);
 
     private JsonElement Envelope() => JsonDocument.Parse(_output.ToString()).RootElement;

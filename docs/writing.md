@@ -1,5 +1,33 @@
 # Write tools
 
+## Approving writes
+
+Every write waits for your approval. An agent's `ado-write` command doesn't post: it saves the write to an outbox and returns at once. The approval window posts it after you press `y`; the agent can't approve it itself.
+
+```mermaid
+flowchart TD
+    A["Agent: ado-write pr reply ..."] --> B["Saved to the outbox<br/>outcome: pendingApproval"]
+    B --> C["Agent carries on"]
+    A --> D{"Approval window open?"}
+    D -->|"no"| E["The command opens it"]
+    D -->|"yes"| F["The write joins it"]
+    E --> G["You: y post, n reject"]
+    F --> G
+    G --> H["The window posts it with your token"]
+```
+
+```text
+ado-write approval review [--compact]
+```
+
+- **The window.** It lists every queued write and shows the selected one as it will be posted, from a dry run: the comment text with its footer, the vote, the thread status or the builds. `↑`/`↓` pick a write, `y` posts it, `n` rejects it, `a` posts all that remain and `q` closes the window. Writes queued while it is open appear in it. Posted and rejected writes leave the outbox; a write that failed stays, with the reason, so you can post it again or reject it. On Windows the first queued write opens the window in a console of its own. Elsewhere, run `ado-write approval review` (or `ado-write-pr approval review`, `ado-write-work-item approval review`) in a terminal.
+- **Only you approve.** The window reads keys only from a console a person types into: when its input or output is redirected, as it is for an agent, it refuses with `consoleRequired`. A second window refuses with `approvalWindowOpen`.
+- **What is posted is what was queued.** The outbox (`~/.ado-read/outbox`) keeps the command's arguments with the text of `--body` or `--body-file` and copies of the `--attach` files, so changing those files after the command doesn't change the post.
+- **Dry runs** never wait: `--dry-run` still returns the preview at once.
+- **Result.** A queued write returns `status: "pendingApproval"` with exit code `0`. Its result has `outcome: "pendingApproval"`, `approvalId`, `window` (`opened`, `alreadyOpen` or `notOpened`) and a `message`. It doesn't say whether you posted or rejected it: check with `ado-read`, for example `ado-read pr show <id>`.
+- **Turning approval off.** Only an administrator can: set the machine-level variable `ADO_WRITE_APPROVAL` to `off` on Windows (`setx /M ADO_WRITE_APPROVAL off` in an elevated prompt), or write `off` to `/etc/ado-tools/approval` on Linux and macOS. The tools read the variable from the machine scope only, so setting it for a process or a user does nothing. With approval off, every write posts at once, as before.
+- **Limits.** Approval keeps an agent that uses `ado-write` from posting on its own. The token is stored in your user account's credential vault, so a program that reads the vault and calls the Azure DevOps API directly is not stopped by it.
+
 ## Writing comments
 
 ```text
@@ -86,15 +114,15 @@ The kinds are `pullRequestResolve` and `pullRequestUnresolve` (schema `1.0`). A 
 
 ```text
 ado-write pr requeue <id-or-url> [--evaluation <id>]... [--dry-run] [--config <path>] [--compact]
-ado-write pr vote <id-or-url> --vote approve|approve-with-suggestions|none|wait-for-author|reject (--confirm | --dry-run) [--config <path>] [--compact]
+ado-write pr vote <id-or-url> --vote approve|approve-with-suggestions|none|wait-for-author|reject [--dry-run] [--config <path>] [--compact]
 ```
 
 ```powershell
 ado-write pr requeue 412 --compact
 ado-write pr requeue 412 --evaluation 5f0c2c55-0000-0000-0000-000000000000 --compact
-ado-write pr vote 412 --vote approve --confirm --compact
+ado-write pr vote 412 --vote approve --compact
 ```
 
 - **Requeue.** Requeues build policies of an active pull request the way its "Re-queue" button does: Azure DevOps queues a new build for the policy. Without `--evaluation` it requeues every expired build; with it, exactly the named evaluations, for example a failed build. A build that is running, or queued and not expired, is never requeued, because Azure DevOps would cancel it; each evaluation is read again right before its requeue, so a build started since the list is left alone. Without `--evaluation`, running the command again after a timeout or a crash is safe. A named evaluation is requeued again once its build has finished, so check it with `--dry-run` before naming it again. A named evaluation that is not a build policy of the pull request fails with `evaluationNotFound` and requeues nothing; a pull request that is not active fails with `pullRequestNotActive`.
 - **Requeue result.** `results` lists every build policy of the pull request, with `evaluationId`, `name`, `status` (after the command), `isExpired`, `isBlocking`, `buildId` and `outcome`: `requeued`, `preview` (dry run), `inProgress`, `notExpired` or `notSelected`. When a requeue fails, the command stops: the envelope's `status` is `partial` (exit code `4`), its error says why, that build is `failed` (Azure DevOps refused it) or `uncertain` (it timed out and may have been requeued), and builds it would still have requeued are `notAttempted`. Take evaluation IDs from a `--dry-run`. `isExpired` and `buildId` come from the evaluation's context, which Microsoft does not document; when Azure DevOps leaves them out, they are `false` and `null`, and only builds that are not queued or running can be requeued, by name.
-- **Vote.** Sets the vote of the person the token belongs to. Every vote needs `--confirm`, which an agent passes only after that person agreed to the vote; `--dry-run` needs none. The pull request must be active (`pullRequestNotActive` otherwise) and not a draft (`pullRequestIsDraft`). Like the portal, a vote adds that person as a reviewer when they are not one yet. A vote equal to the current one sends nothing and returns `outcome: "unchanged"`; otherwise `voted` or, for a dry run, `preview`. The result has `pullRequestId`, `vote` (as Azure DevOps stored it), `previousVote`, the browser `url` and `actingAs`, the display name of the token owner who voted; both votes are read from the pull request at the start of the command. Branch policies still decide whether a vote counts, for example whether authors may approve their own changes.
+- **Vote.** Sets the vote of the person the token belongs to, once they approve it in the [approval window](#approving-writes). The pull request must be active (`pullRequestNotActive` otherwise) and not a draft (`pullRequestIsDraft`). Like the portal, a vote adds that person as a reviewer when they are not one yet. A vote equal to the current one sends nothing and returns `outcome: "unchanged"`; otherwise `voted` or, for a dry run, `preview`. The result has `pullRequestId`, `vote` (as Azure DevOps stored it), `previousVote`, the browser `url` and `actingAs`, the display name of the token owner who voted; both votes are read from the pull request at the start of the command. Branch policies still decide whether a vote counts, for example whether authors may approve their own changes.

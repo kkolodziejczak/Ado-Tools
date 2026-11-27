@@ -11,6 +11,6 @@ var application = new ToolComposition(
     TimeProvider.System,
     toolKind: ToolKind.Write).CreateUmbrella(
     "ado-write",
-    [PullRequestWriteModule.Definition, WorkItemCommentModule.Definition]);
+    [PullRequestWriteModule.Definition, WorkItemCommentModule.Definition, ApprovalModule.Definition]);
 
 return await application.InvokeAsync(args, CancellationToken.None);
